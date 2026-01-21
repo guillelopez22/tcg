@@ -1,0 +1,305 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER & AUTH ====================
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String    @unique
+  passwordHash  String
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  shop          Shop?
+  collections   Collection[]
+  decks         Deck[]
+  listings      Listing[]
+  orders        Order[]   @relation("UserOrders")
+  sales         Order[]   @relation("UserSales")
+  tradesInitiated TradeOffer[] @relation("TradeInitiator")
+  tradesReceived  TradeOffer[] @relation("TradeReceiver")
+}
+
+// ==================== CARDS ====================
+model Card {
+  id              String   @id @default(uuid())
+  riotCardId      String   @unique
+
+  name            String
+  cardType        String   // LEGEND, CHAMPION, UNIT, SPELL, etc.
+  isToken         Boolean  @default(false)
+
+  // Costs
+  energyCost      Int?
+  powerCost       Json?    // Array of {domain, count}
+
+  // Stats
+  might           Int?
+
+  // Classification
+  domains         String[] // Array of Domain enums
+  region          String?
+  rarity          String
+
+  // Text
+  abilityText     String?  @db.Text
+  flavorText      String?  @db.Text
+  keywords        String[]
+
+  // Set info
+  setCode         String
+  setName         String
+  collectorNumber String
+
+  // Media
+  imageUrl        String
+
+  // Market data
+  marketPrice     Float?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  collectionItems CollectionItem[]
+  deckCards       DeckCard[]
+  listingItems    ListingItem[]
+
+  @@index([name])
+  @@index([setCode, collectorNumber])
+}
+
+// ==================== COLLECTIONS ====================
+model Collection {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  name        String
+  description String?
+
+  items       CollectionItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CollectionItem {
+  id           String     @id @default(uuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  cardId       String
+  card         Card       @relation(fields: [cardId], references: [id])
+
+  quantity     Int        @default(1)
+  condition    String     @default("NEAR_MINT") // MINT, NEAR_MINT, EXCELLENT, GOOD, PLAYED, POOR
+
+  acquiredAt   DateTime   @default(now())
+
+  @@unique([collectionId, cardId, condition])
+}
+
+// ==================== DECKS ====================
+model Deck {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  name        String
+  description String?
+  legendId    String   // The card ID of the legend
+
+  isPublic    Boolean  @default(false)
+
+  cards       DeckCard[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DeckCard {
+  id       String @id @default(uuid())
+  deckId   String
+  deck     Deck   @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  cardId   String
+  card     Card   @relation(fields: [cardId], references: [id])
+
+  quantity Int    @default(1)
+  zone     String // MAIN, RUNE, BATTLEFIELD
+
+  @@unique([deckId, cardId, zone])
+}
+
+// ==================== MARKETPLACE ====================
+model Shop {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+
+  name          String
+  slug          String   @unique
+  description   String?  @db.Text
+  bannerUrl     String?
+  logoUrl       String?
+
+  isVerified    Boolean  @default(false)
+  rating        Float    @default(0)
+  totalSales    Int      @default(0)
+
+  listings      Listing[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Listing {
+  id            String   @id @default(uuid())
+  sellerId      String
+  seller        User     @relation(fields: [sellerId], references: [id])
+  shopId        String?
+  shop          Shop?    @relation(fields: [shopId], references: [id])
+
+  title         String
+  description   String?  @db.Text
+  type          String   // FIXED_PRICE, AUCTION, TRADE_ONLY
+  status        String   // ACTIVE, SOLD, EXPIRED, CANCELLED
+
+  // Pricing
+  price         Float?
+  startingBid   Float?
+  currentBid    Float?
+  buyNowPrice   Float?
+
+  // Auction
+  endsAt        DateTime?
+
+  items         ListingItem[]
+  bids          Bid[]
+  wantedCards   WantedCard[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, type])
+}
+
+model ListingItem {
+  id        String  @id @default(uuid())
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  cardId    String
+  card      Card    @relation(fields: [cardId], references: [id])
+
+  quantity  Int     @default(1)
+  condition String  @default("NEAR_MINT")
+}
+
+model Bid {
+  id        String   @id @default(uuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  bidderId  String
+
+  amount    Float
+
+  createdAt DateTime @default(now())
+
+  @@index([listingId, createdAt])
+}
+
+model WantedCard {
+  id        String  @id @default(uuid())
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  cardId    String
+
+  quantity  Int     @default(1)
+}
+
+// ==================== ORDERS & PAYMENTS ====================
+model Order {
+  id              String   @id @default(uuid())
+  buyerId         String
+  buyer           User     @relation("UserOrders", fields: [buyerId], references: [id])
+  sellerId        String
+  seller          User     @relation("UserSales", fields: [sellerId], references: [id])
+  listingId       String
+
+  subtotal        Float
+  shippingCost    Float
+  platformFee     Float
+  total           Float
+
+  status          String   // PENDING_PAYMENT, PAYMENT_HELD, SHIPPED, DELIVERED, COMPLETED, CANCELLED
+
+  stripePaymentId String?
+  escrowHeldAt    DateTime?
+  escrowReleasedAt DateTime?
+
+  shippingAddress Json
+  trackingNumber  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+}
+
+// ==================== TRADING ====================
+model TradeOffer {
+  id              String   @id @default(uuid())
+  initiatorId     String
+  initiator       User     @relation("TradeInitiator", fields: [initiatorId], references: [id])
+  receiverId      String
+  receiver        User     @relation("TradeReceiver", fields: [receiverId], references: [id])
+
+  status          String   // PENDING, ACCEPTED, REJECTED, COUNTERED, COMPLETED, CANCELLED
+
+  offeredItems    TradeItem[] @relation("OfferedItems")
+  requestedItems  TradeItem[] @relation("RequestedItems")
+  messages        TradeMessage[]
+
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([initiatorId, status])
+  @@index([receiverId, status])
+}
+
+model TradeItem {
+  id                    String     @id @default(uuid())
+  offeredTradeId        String?
+  requestedTradeId      String?
+  cardName              String
+  quantity              Int        @default(1)
+  condition             String
+
+  offeredTrade    TradeOffer? @relation("OfferedItems", fields: [offeredTradeId], references: [id], onDelete: Cascade)
+  requestedTrade  TradeOffer? @relation("RequestedItems", fields: [requestedTradeId], references: [id], onDelete: Cascade)
+}
+
+model TradeMessage {
+  id           String     @id @default(uuid())
+  tradeOfferId String
+  tradeOffer   TradeOffer @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+  senderId     String
+
+  message      String     @db.Text
+
+  createdAt    DateTime   @default(now())
+
+  @@index([tradeOfferId, createdAt])
+}

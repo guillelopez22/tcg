@@ -1,0 +1,63 @@
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-dark via-primary to-primary-light p-4">
+  <mat-card class="w-full max-w-md">
+    <mat-card-header class="flex flex-col items-center mb-6">
+      <h1 class="text-4xl font-heading text-primary mb-2">La Grieta</h1>
+      <p class="text-gray-600 text-center">Donde los campeones comercian</p>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" type="email" placeholder="player@example.com">
+          @if (loginForm.get('email')?.hasError('required') && loginForm.get('email')?.touched) {
+            <mat-error>Email is required</mat-error>
+          }
+          @if (loginForm.get('email')?.hasError('email') && loginForm.get('email')?.touched) {
+            <mat-error>Please enter a valid email</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Password</mat-label>
+          <input matInput formControlName="password" type="password" placeholder="Enter password">
+          @if (loginForm.get('password')?.hasError('required') && loginForm.get('password')?.touched) {
+            <mat-error>Password is required</mat-error>
+          }
+          @if (loginForm.get('password')?.hasError('minlength') && loginForm.get('password')?.touched) {
+            <mat-error>Password must be at least 6 characters</mat-error>
+          }
+        </mat-form-field>
+
+        @if (errorMessage()) {
+          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {{ errorMessage() }}
+          </div>
+        }
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="submit"
+          class="w-full"
+          [disabled]="loginForm.invalid || loading()">
+          @if (loading()) {
+            <mat-spinner diameter="20" class="inline-block mr-2"></mat-spinner>
+            Logging in...
+          } @else {
+            Login
+          }
+        </button>
+      </form>
+
+      <div class="mt-6 text-center">
+        <p class="text-gray-600">
+          Don't have an account?
+          <a routerLink="/register" class="text-primary font-semibold hover:text-primary-light ml-1">
+            Register
+          </a>
+        </p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

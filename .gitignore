@@ -50,7 +50,26 @@ prisma/*.db-journal
 .temp/
 .tmp/
 
+# Planning & Coordination Documents (keep local only)
+AGENT_ENGAGEMENT_GUIDE.md
+COORDINATION_WORKFLOW.md
+DOCKER_INFRASTRUCTURE_TECH_REVIEW.md
+DOCKER_SETUP_SUMMARY.md
+DOCKER_TECH_LEAD_REVIEW.md
+FRONTEND_IMPLEMENTATION_COMPLETE.md
+PHASE_ROADMAP.md
+PHASE*.md
+QUICKSTART_FRONTEND.md
+RIOT_API_APPLICATION.md
+RIOT_API_ENDPOINTS.md
+TECH_LEAD_*.md
+*.plan.md
+.claude/
+.cursor/
+nul
+
 # Nx
 .nx/cache
 .nx/workspace-data
+
 

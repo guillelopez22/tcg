@@ -1,0 +1,62 @@
+<mat-card class="card-container" (click)="onClick()">
+  <div class="relative">
+    <img
+      [src]="card.imageUrl"
+      [alt]="card.name"
+      class="w-full h-64 object-cover rounded-t"
+      loading="lazy"
+      onerror="this.src='https://via.placeholder.com/300x400?text=Card+Image'">
+
+    @if (card.marketPrice) {
+      <div class="absolute top-2 right-2 bg-accent text-white px-2 py-1 rounded font-bold text-sm">
+        ${{ card.marketPrice.toFixed(2) }}
+      </div>
+    }
+  </div>
+
+  <mat-card-content class="p-4">
+    <h3 class="text-lg font-card font-bold mb-2 truncate" [title]="card.name">
+      {{ card.name }}
+    </h3>
+
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-sm text-gray-600">{{ card.cardType }}</span>
+      <span class="text-sm font-semibold" [ngClass]="getRarityColor(card.rarity)">
+        {{ card.rarity }}
+      </span>
+    </div>
+
+    <div class="flex flex-wrap gap-1 mb-2">
+      @for (domain of card.domains; track domain) {
+        <span class="text-xs px-2 py-1 rounded" [ngClass]="getDomainColor(domain)">
+          {{ domain }}
+        </span>
+      }
+    </div>
+
+    @if (card.energyCost !== undefined || card.might !== undefined) {
+      <div class="flex gap-4 text-sm">
+        @if (card.energyCost !== undefined) {
+          <span class="text-gray-700">
+            <strong>Energy:</strong> {{ card.energyCost }}
+          </span>
+        }
+        @if (card.might !== undefined) {
+          <span class="text-gray-700">
+            <strong>Might:</strong> {{ card.might }}
+          </span>
+        }
+      </div>
+    }
+
+    @if (card.keywords && card.keywords.length > 0) {
+      <div class="mt-2">
+        <mat-chip-set>
+          @for (keyword of card.keywords; track keyword) {
+            <mat-chip class="text-xs">{{ keyword }}</mat-chip>
+          }
+        </mat-chip-set>
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

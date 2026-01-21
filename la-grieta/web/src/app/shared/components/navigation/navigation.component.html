@@ -1,0 +1,59 @@
+<mat-toolbar color="primary" class="shadow-lg">
+  <div class="container mx-auto flex items-center justify-between px-4">
+    <div class="flex items-center gap-4">
+      <h1 class="text-2xl font-heading font-bold">
+        <a routerLink="/cards" class="text-white hover:text-accent-light transition-colors">
+          La Grieta
+        </a>
+      </h1>
+
+      @if (authService.isAuthenticated()) {
+        <nav class="hidden md:flex gap-2">
+          <a mat-button routerLink="/cards" routerLinkActive="active">
+            Cards
+          </a>
+          <a mat-button routerLink="/collections" routerLinkActive="active">
+            Collections
+          </a>
+          <a mat-button routerLink="/decks" routerLinkActive="active">
+            Decks
+          </a>
+          <a mat-button routerLink="/scanner" routerLinkActive="active">
+            <mat-icon class="mr-1">document_scanner</mat-icon>
+            Scan
+          </a>
+        </nav>
+      }
+    </div>
+
+    <div class="flex items-center gap-2">
+      @if (authService.isAuthenticated()) {
+        <span class="hidden sm:inline text-white mr-2">
+          {{ authService.currentUser()?.username }}
+        </span>
+
+        <button mat-icon-button [matMenuTriggerFor]="userMenu">
+          <mat-icon>account_circle</mat-icon>
+        </button>
+
+        <mat-menu #userMenu="matMenu">
+          <div class="px-4 py-2 border-b">
+            <p class="font-semibold">{{ authService.currentUser()?.username }}</p>
+            <p class="text-sm text-gray-600">{{ authService.currentUser()?.email }}</p>
+          </div>
+          <a mat-menu-item routerLink="/scanner" class="md:hidden">
+            <mat-icon>document_scanner</mat-icon>
+            <span>Scan Cards</span>
+          </a>
+          <button mat-menu-item (click)="onLogout()">
+            <mat-icon>logout</mat-icon>
+            <span>Logout</span>
+          </button>
+        </mat-menu>
+      } @else {
+        <a mat-button routerLink="/login">Login</a>
+        <a mat-raised-button color="accent" routerLink="/register">Register</a>
+      }
+    </div>
+  </div>
+</mat-toolbar>

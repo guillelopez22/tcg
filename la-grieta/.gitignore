@@ -1,0 +1,76 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment variables - NEVER commit these files
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+!.env.docker.example
+.env.docker
+
+# SSL Certificates - NEVER commit private keys
+certs/*.key
+certs/*.crt
+certs/*.pem
+certs/openssl.cnf
+!certs/generate-cert.sh
+!certs/generate-cert.bat
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.nx/cache
+.nx/workspace-data
+
+.angular
+
+__screenshots__/
+
+# Planning & Coordination Documents (keep local only)
+BACKEND_IMPLEMENTATION_REPORT.md
+COLLECTIONS_*.md
+DOCKER_*.md
+HTTPS_SETUP.md
+PHASE*.md
+POSTGRESQL_SETUP_GUIDE.md
+QUICKSTART.md
+RAILWAY_*.md
+SECURITY_FIXES_REPORT.md
+SETUP_COMPLETE.md
+# Keep README.md - it's the project readme

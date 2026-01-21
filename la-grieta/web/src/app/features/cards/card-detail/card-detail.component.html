@@ -1,0 +1,176 @@
+<div class="container mx-auto px-4 py-6">
+  <button mat-button (click)="goBack()" class="mb-4">
+    <mat-icon>arrow_back</mat-icon>
+    Back to Cards
+  </button>
+
+  @if (loading()) {
+    <lg-loading-spinner message="Loading card details..."></lg-loading-spinner>
+  }
+
+  @if (error()) {
+    <div class="text-center py-12">
+      <mat-icon class="text-6xl text-red-400 mb-4">error_outline</mat-icon>
+      <h3 class="text-xl font-semibold text-gray-700 mb-2">{{ error() }}</h3>
+      <button mat-raised-button color="primary" (click)="goBack()">
+        Return to Cards
+      </button>
+    </div>
+  }
+
+  @if (card() && !loading()) {
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Card Image -->
+      <div class="flex justify-center">
+        <mat-card class="max-w-md w-full">
+          <img
+            [src]="card()!.imageUrl"
+            [alt]="card()!.name"
+            class="w-full h-auto rounded"
+            onerror="this.src='https://via.placeholder.com/400x600?text=Card+Image'">
+
+          @if (card()!.marketPrice) {
+            <mat-card-content class="text-center py-4">
+              <p class="text-2xl font-bold text-accent">
+                ${{ card()!.marketPrice!.toFixed(2) }}
+              </p>
+              <p class="text-sm text-gray-600">Market Price</p>
+            </mat-card-content>
+          }
+        </mat-card>
+      </div>
+
+      <!-- Card Details -->
+      <div>
+        <mat-card>
+          <mat-card-header class="mb-4">
+            <mat-card-title class="text-3xl font-heading">
+              {{ card()!.name }}
+            </mat-card-title>
+          </mat-card-header>
+
+          <mat-card-content>
+            <!-- Type and Rarity -->
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <span class="text-gray-600">Type:</span>
+                <span class="ml-2 font-semibold">{{ card()!.cardType }}</span>
+              </div>
+              <div>
+                <span class="text-gray-600">Rarity:</span>
+                <span class="ml-2 font-semibold" [ngClass]="getRarityColor(card()!.rarity)">
+                  {{ card()!.rarity }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Domains -->
+            <div class="mb-4">
+              <p class="text-gray-600 mb-2">Domains:</p>
+              <div class="flex flex-wrap gap-2">
+                @for (domain of card()!.domains; track domain) {
+                  <span class="px-3 py-1 rounded-full text-sm font-semibold" [ngClass]="getDomainColor(domain)">
+                    {{ domain }}
+                  </span>
+                }
+              </div>
+            </div>
+
+            <!-- Stats -->
+            @if (card()!.energyCost !== undefined || card()!.might !== undefined) {
+              <div class="grid grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded">
+                @if (card()!.energyCost !== undefined) {
+                  <div>
+                    <p class="text-sm text-gray-600">Energy Cost</p>
+                    <p class="text-2xl font-bold text-primary">{{ card()!.energyCost }}</p>
+                  </div>
+                }
+                @if (card()!.might !== undefined) {
+                  <div>
+                    <p class="text-sm text-gray-600">Might</p>
+                    <p class="text-2xl font-bold text-primary">{{ card()!.might }}</p>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Power Cost -->
+            @if (card(); as currentCard) {
+              @if (currentCard.powerCost && currentCard.powerCost.length > 0) {
+                <div class="mb-4">
+                  <p class="text-gray-600 mb-2">Power Cost:</p>
+                  <div class="flex flex-wrap gap-2">
+                    @for (cost of currentCard.powerCost; track cost.domain) {
+                      <span class="px-3 py-1 rounded-full text-sm" [ngClass]="getDomainColor(cost.domain)">
+                        {{ cost.domain }}: {{ cost.count }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            }
+
+            <!-- Keywords -->
+            @if (card()!.keywords && card()!.keywords.length > 0) {
+              <div class="mb-4">
+                <p class="text-gray-600 mb-2">Keywords:</p>
+                <mat-chip-set>
+                  @for (keyword of card()!.keywords; track keyword) {
+                    <mat-chip>{{ keyword }}</mat-chip>
+                  }
+                </mat-chip-set>
+              </div>
+            }
+
+            <!-- Ability Text -->
+            @if (card()!.abilityText) {
+              <div class="mb-4">
+                <p class="text-gray-600 mb-2">Ability:</p>
+                <p class="p-4 bg-gray-50 rounded text-sm italic">
+                  {{ card()!.abilityText }}
+                </p>
+              </div>
+            }
+
+            <!-- Flavor Text -->
+            @if (card()!.flavorText) {
+              <div class="mb-4">
+                <p class="text-gray-600 mb-2">Flavor Text:</p>
+                <p class="p-4 bg-primary-light bg-opacity-10 rounded text-sm italic text-gray-700">
+                  "{{ card()!.flavorText }}"
+                </p>
+              </div>
+            }
+
+            <!-- Set Information -->
+            <div class="mt-6 pt-6 border-t">
+              <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p class="text-gray-600">Set:</p>
+                  <p class="font-semibold">{{ card()!.setName }} ({{ card()!.setCode }})</p>
+                </div>
+                <div>
+                  <p class="text-gray-600">Collector Number:</p>
+                  <p class="font-semibold">{{ card()!.collectorNumber }}</p>
+                </div>
+                @if (card()!.region) {
+                  <div>
+                    <p class="text-gray-600">Region:</p>
+                    <p class="font-semibold">{{ card()!.region }}</p>
+                  </div>
+                }
+                @if (card()!.isToken) {
+                  <div class="col-span-2">
+                    <span class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm font-semibold">
+                      Token Card
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </div>
+  }
+</div>

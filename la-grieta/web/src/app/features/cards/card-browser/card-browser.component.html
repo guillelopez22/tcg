@@ -1,0 +1,98 @@
+<div class="container mx-auto px-4 py-6">
+  <div class="mb-6">
+    <h1 class="text-3xl font-heading font-bold text-primary mb-2">Card Browser</h1>
+    <p class="text-gray-600">Explore the Riftbound card collection</p>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Search -->
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Search cards</mat-label>
+        <input matInput [formControl]="searchControl" placeholder="Card name...">
+        <mat-icon matPrefix>search</mat-icon>
+      </mat-form-field>
+
+      <!-- Card Type -->
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Card Type</mat-label>
+        <mat-select [formControl]="typeControl" (selectionChange)="onFilterChange()">
+          <mat-option value="">All Types</mat-option>
+          @for (type of cardTypes; track type) {
+            <mat-option [value]="type">{{ type }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Rarity -->
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Rarity</mat-label>
+        <mat-select [formControl]="rarityControl" (selectionChange)="onFilterChange()">
+          <mat-option value="">All Rarities</mat-option>
+          @for (rarity of cardRarities; track rarity) {
+            <mat-option [value]="rarity">{{ rarity }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Domains -->
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Domains</mat-label>
+        <mat-select [formControl]="domainControl" multiple (selectionChange)="onFilterChange()">
+          @for (domain of domains; track domain) {
+            <mat-option [value]="domain">{{ domain }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="flex justify-between items-center mt-4">
+      <div class="text-sm text-gray-600">
+        Found {{ totalCards() }} cards
+      </div>
+      <button mat-stroked-button (click)="clearFilters()">
+        <mat-icon>clear</mat-icon>
+        Clear Filters
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <lg-loading-spinner message="Loading cards..."></lg-loading-spinner>
+  }
+
+  <!-- Cards Grid -->
+  @if (!loading() && cards().length > 0) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
+      @for (card of cards(); track card.id) {
+        <lg-card-display [card]="card" (cardClick)="onCardClick($event)"></lg-card-display>
+      }
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex justify-center">
+      <mat-paginator
+        [length]="totalCards()"
+        [pageSize]="pageSize"
+        [pageIndex]="currentPage()"
+        [pageSizeOptions]="[24, 48, 96]"
+        (page)="onPageChange($event)"
+        showFirstLastButtons>
+      </mat-paginator>
+    </div>
+  }
+
+  <!-- Empty State -->
+  @if (!loading() && cards().length === 0) {
+    <div class="text-center py-12">
+      <mat-icon class="text-6xl text-gray-400 mb-4">search_off</mat-icon>
+      <h3 class="text-xl font-semibold text-gray-700 mb-2">No cards found</h3>
+      <p class="text-gray-600 mb-4">Try adjusting your filters or search terms</p>
+      <button mat-raised-button color="primary" (click)="clearFilters()">
+        Clear Filters
+      </button>
+    </div>
+  }
+</div>

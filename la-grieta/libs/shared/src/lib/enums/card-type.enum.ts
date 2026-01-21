@@ -1,0 +1,12 @@
+export enum CardType {
+  LEGEND = 'LEGEND',
+  CHAMPION = 'CHAMPION',
+  UNIT = 'UNIT',
+  SPELL = 'SPELL',
+  GEAR = 'GEAR',
+  RELIC = 'RELIC',
+  TERRAIN = 'TERRAIN',
+  BATTLEFIELD = 'BATTLEFIELD',
+  RUNE = 'RUNE',
+  TOKEN = 'TOKEN',
+}

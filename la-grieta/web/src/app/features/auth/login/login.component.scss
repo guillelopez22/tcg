@@ -1,0 +1,17 @@
+:host {
+  display: block;
+}
+
+mat-card {
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+mat-card-header {
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  margin: 0;
+  text-align: center;
+}

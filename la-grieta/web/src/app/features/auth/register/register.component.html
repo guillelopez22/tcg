@@ -1,0 +1,88 @@
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-dark via-primary to-primary-light p-4">
+  <mat-card class="w-full max-w-md">
+    <mat-card-header class="flex flex-col items-center mb-6">
+      <h1 class="text-4xl font-heading text-primary mb-2">La Grieta</h1>
+      <p class="text-gray-600 text-center">Create your account</p>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-4">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" type="email" placeholder="player@example.com">
+          @if (registerForm.get('email')?.hasError('required') && registerForm.get('email')?.touched) {
+            <mat-error>Email is required</mat-error>
+          }
+          @if (registerForm.get('email')?.hasError('email') && registerForm.get('email')?.touched) {
+            <mat-error>Please enter a valid email</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Username</mat-label>
+          <input matInput formControlName="username" placeholder="player123">
+          @if (registerForm.get('username')?.hasError('required') && registerForm.get('username')?.touched) {
+            <mat-error>Username is required</mat-error>
+          }
+          @if (registerForm.get('username')?.hasError('minlength') && registerForm.get('username')?.touched) {
+            <mat-error>Username must be at least 3 characters</mat-error>
+          }
+          @if (registerForm.get('username')?.hasError('pattern') && registerForm.get('username')?.touched) {
+            <mat-error>Username can only contain letters, numbers, and underscores</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Password</mat-label>
+          <input matInput formControlName="password" type="password">
+          @if (registerForm.get('password')?.hasError('required') && registerForm.get('password')?.touched) {
+            <mat-error>Password is required</mat-error>
+          }
+          @if (registerForm.get('password')?.hasError('minlength') && registerForm.get('password')?.touched) {
+            <mat-error>Password must be at least 8 characters</mat-error>
+          }
+          @if (registerForm.get('password')?.hasError('pattern') && registerForm.get('password')?.touched) {
+            <mat-error>Password must contain uppercase, lowercase, and number</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Confirm Password</mat-label>
+          <input matInput formControlName="confirmPassword" type="password">
+          @if (registerForm.get('confirmPassword')?.touched && !passwordsMatch()) {
+            <mat-error>Passwords do not match</mat-error>
+          }
+        </mat-form-field>
+
+        @if (errorMessage()) {
+          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {{ errorMessage() }}
+          </div>
+        }
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="submit"
+          class="w-full"
+          [disabled]="registerForm.invalid || !passwordsMatch() || loading()">
+          @if (loading()) {
+            <mat-spinner diameter="20" class="inline-block mr-2"></mat-spinner>
+            Creating account...
+          } @else {
+            Create Account
+          }
+        </button>
+      </form>
+
+      <div class="mt-6 text-center">
+        <p class="text-gray-600">
+          Already have an account?
+          <a routerLink="/login" class="text-primary font-semibold hover:text-primary-light ml-1">
+            Login
+          </a>
+        </p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
