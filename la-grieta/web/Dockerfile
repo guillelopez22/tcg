@@ -89,9 +89,9 @@ USER nginx-app
 # Expose port (Railway only uses one port)
 EXPOSE 80
 
-# Health check - use HTTP endpoint
+# Health check - use HTTP endpoint with dynamic port
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://127.0.0.1/health || exit 1
+    CMD sh -c 'curl -f http://127.0.0.1:${PORT:-80}/health || exit 1'
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

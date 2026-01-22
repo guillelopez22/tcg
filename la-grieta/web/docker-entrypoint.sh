@@ -15,6 +15,12 @@ else
     sed -i "s|API_URL_PLACEHOLDER|http://api:3000|g" "$CONFIG_FILE"
 fi
 
+# Substitute PORT for Railway's dynamic port assignment
+# Default to 80 for local Docker development
+PORT=${PORT:-80}
+echo "Configuring nginx to listen on port: $PORT"
+sed -i "s|PORT_PLACEHOLDER|${PORT}|g" "$CONFIG_FILE"
+
 # Validate nginx configuration
 echo "Validating nginx configuration..."
 nginx -t
