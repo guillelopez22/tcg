@@ -6,6 +6,7 @@ import {
   ElementRef,
   Output,
   EventEmitter,
+  Input,
   signal,
   computed,
   HostListener
@@ -20,6 +21,8 @@ export interface CapturedImage {
   width: number;
   height: number;
 }
+
+export type AutoScanState = 'disabled' | 'waiting' | 'detecting' | 'stable' | 'ready' | 'scanning' | 'cooldown';
 
 @Component({
   selector: 'lg-camera',
@@ -40,24 +43,93 @@ export interface CapturedImage {
       <!-- Canvas for capture (hidden) -->
       <canvas #canvasElement class="hidden"></canvas>
 
+      <!-- Canvas for motion detection (hidden) -->
+      <canvas #motionCanvasElement class="hidden"></canvas>
+
       <!-- Card Alignment Guide Overlay -->
       <div class="card-guide absolute inset-0 pointer-events-none flex items-center justify-center">
         <!-- Dimmed background around guide -->
         <div class="absolute inset-0 bg-black/40"></div>
 
         <!-- Card frame cutout - 70% width, 2:3 aspect ratio -->
-        <div class="card-frame relative z-10 w-[70%] max-w-[280px] aspect-[2/3] border-4 border-white rounded-lg shadow-2xl">
-          <!-- Corner brackets -->
-          <div class="corner-tl absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-amber-500"></div>
-          <div class="corner-tr absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-amber-500"></div>
-          <div class="corner-bl absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-amber-500"></div>
-          <div class="corner-br absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-amber-500"></div>
+        <div
+          class="card-frame relative z-10 w-[70%] max-w-[280px] aspect-[2/3] border-4 rounded-lg shadow-2xl transition-all duration-300"
+          [class.border-white]="autoScanState() === 'disabled' || autoScanState() === 'waiting'"
+          [class.border-amber-500]="autoScanState() === 'detecting'"
+          [class.border-yellow-400]="autoScanState() === 'stable'"
+          [class.border-green-500]="autoScanState() === 'ready'"
+          [class.border-green-400]="autoScanState() === 'scanning'"
+          [class.border-gray-400]="autoScanState() === 'cooldown'"
+          [class.animate-pulse-border]="autoScanState() === 'ready'"
+        >
+          <!-- Corner brackets with dynamic colors -->
+          <div
+            class="corner-tl absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 transition-colors duration-300"
+            [class.border-amber-500]="autoScanState() === 'disabled' || autoScanState() === 'waiting' || autoScanState() === 'detecting'"
+            [class.border-yellow-400]="autoScanState() === 'stable'"
+            [class.border-green-500]="autoScanState() === 'ready' || autoScanState() === 'scanning'"
+            [class.border-gray-400]="autoScanState() === 'cooldown'"
+          ></div>
+          <div
+            class="corner-tr absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 transition-colors duration-300"
+            [class.border-amber-500]="autoScanState() === 'disabled' || autoScanState() === 'waiting' || autoScanState() === 'detecting'"
+            [class.border-yellow-400]="autoScanState() === 'stable'"
+            [class.border-green-500]="autoScanState() === 'ready' || autoScanState() === 'scanning'"
+            [class.border-gray-400]="autoScanState() === 'cooldown'"
+          ></div>
+          <div
+            class="corner-bl absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 transition-colors duration-300"
+            [class.border-amber-500]="autoScanState() === 'disabled' || autoScanState() === 'waiting' || autoScanState() === 'detecting'"
+            [class.border-yellow-400]="autoScanState() === 'stable'"
+            [class.border-green-500]="autoScanState() === 'ready' || autoScanState() === 'scanning'"
+            [class.border-gray-400]="autoScanState() === 'cooldown'"
+          ></div>
+          <div
+            class="corner-br absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 transition-colors duration-300"
+            [class.border-amber-500]="autoScanState() === 'disabled' || autoScanState() === 'waiting' || autoScanState() === 'detecting'"
+            [class.border-yellow-400]="autoScanState() === 'stable'"
+            [class.border-green-500]="autoScanState() === 'ready' || autoScanState() === 'scanning'"
+            [class.border-gray-400]="autoScanState() === 'cooldown'"
+          ></div>
+
+          <!-- Auto-scan progress indicator -->
+          @if (autoScanEnabled() && autoScanState() === 'ready') {
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="auto-scan-countdown w-16 h-16 rounded-full border-4 border-green-500 flex items-center justify-center bg-green-500/20 animate-pulse">
+                <mat-icon class="text-green-500 !text-3xl">check</mat-icon>
+              </div>
+            </div>
+          }
 
           <!-- Scanning line animation (when processing) -->
           @if (isProcessing()) {
             <div class="scan-line absolute left-0 right-0 h-1 bg-amber-500 shadow-lg shadow-amber-500/50 animate-scan-down"></div>
           }
         </div>
+
+        <!-- Auto-scan status indicator -->
+        @if (autoScanEnabled() && cameraReady()) {
+          <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <div
+              class="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all duration-300"
+              [class.bg-gray-700]="autoScanState() === 'waiting' || autoScanState() === 'cooldown'"
+              [class.bg-amber-600]="autoScanState() === 'detecting'"
+              [class.bg-yellow-600]="autoScanState() === 'stable'"
+              [class.bg-green-600]="autoScanState() === 'ready' || autoScanState() === 'scanning'"
+              [class.text-white]="true"
+            >
+              <div
+                class="w-2 h-2 rounded-full"
+                [class.bg-gray-400]="autoScanState() === 'waiting' || autoScanState() === 'cooldown'"
+                [class.bg-amber-300]="autoScanState() === 'detecting'"
+                [class.bg-yellow-300]="autoScanState() === 'stable'"
+                [class.bg-green-300]="autoScanState() === 'ready' || autoScanState() === 'scanning'"
+                [class.animate-pulse]="autoScanState() === 'detecting' || autoScanState() === 'stable'"
+              ></div>
+              {{ autoScanStatusText() }}
+            </div>
+          </div>
+        }
       </div>
 
       <!-- Permission Denied State -->
@@ -161,13 +233,30 @@ export interface CapturedImage {
     .animate-flash {
       animation: flash 150ms ease-out forwards;
     }
+
+    @keyframes pulse-border {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+      }
+    }
+
+    .animate-pulse-border {
+      animation: pulse-border 1s ease-in-out infinite;
+    }
   `]
 })
 export class CameraComponent implements OnInit, OnDestroy {
   @ViewChild('videoElement') videoElement!: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasElement') canvasElement!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('motionCanvasElement') motionCanvasElement!: ElementRef<HTMLCanvasElement>;
+
+  @Input() autoScanEnabled = signal(true);
 
   @Output() imageCaptured = new EventEmitter<CapturedImage>();
+  @Output() autoScanTriggered = new EventEmitter<CapturedImage>();
   @Output() cameraError = new EventEmitter<string>();
   @Output() permissionChange = new EventEmitter<boolean>();
 
@@ -182,6 +271,9 @@ export class CameraComponent implements OnInit, OnDestroy {
   private hasMultipleCamerasSignal = signal(false);
   private facingModeSignal = signal<'user' | 'environment'>('environment');
 
+  // Auto-scan state signals
+  private autoScanStateSignal = signal<AutoScanState>('disabled');
+
   // Public readonly signals
   readonly cameraReady = this.cameraReadySignal.asReadonly();
   readonly permissionDenied = this.permissionDeniedSignal.asReadonly();
@@ -191,6 +283,20 @@ export class CameraComponent implements OnInit, OnDestroy {
   readonly isProcessing = this.isProcessingSignal.asReadonly();
   readonly announcement = this.announcementSignal.asReadonly();
   readonly hasMultipleCameras = this.hasMultipleCamerasSignal.asReadonly();
+  readonly autoScanState = this.autoScanStateSignal.asReadonly();
+
+  // Computed auto-scan status text
+  readonly autoScanStatusText = computed(() => {
+    switch (this.autoScanStateSignal()) {
+      case 'waiting': return 'Position card in frame';
+      case 'detecting': return 'Card detected...';
+      case 'stable': return 'Hold steady...';
+      case 'ready': return 'Scanning...';
+      case 'scanning': return 'Processing...';
+      case 'cooldown': return 'Wait...';
+      default: return '';
+    }
+  });
 
   private mediaStream: MediaStream | null = null;
 
@@ -198,12 +304,233 @@ export class CameraComponent implements OnInit, OnDestroy {
   private readonly MAX_IMAGE_WIDTH = 1920;
   private readonly JPEG_QUALITY = 0.8;
 
+  // Auto-scan detection settings
+  private readonly MOTION_THRESHOLD = 15; // Pixel difference threshold (0-255)
+  private readonly MOTION_STABLE_PERCENT = 0.98; // 98% of pixels must be stable
+  private readonly STABLE_DURATION_MS = 800; // Hold steady for 800ms before scan
+  private readonly COOLDOWN_DURATION_MS = 2000; // Wait 2s after scan before detecting again
+  private readonly DETECTION_INTERVAL_MS = 100; // Check every 100ms
+
+  // Auto-scan detection state
+  private previousFrameData: ImageData | null = null;
+  private stableStartTime: number | null = null;
+  private detectionIntervalId: number | null = null;
+  private cooldownTimeoutId: number | null = null;
+  private isAutoScanning = false;
+
   ngOnInit(): void {
     this.checkCameraAvailability();
   }
 
   ngOnDestroy(): void {
+    this.stopAutoScanDetection();
     this.releaseCamera();
+  }
+
+  /**
+   * Start auto-scan detection loop
+   */
+  startAutoScanDetection(): void {
+    if (!this.autoScanEnabled() || this.detectionIntervalId !== null) {
+      return;
+    }
+
+    this.autoScanStateSignal.set('waiting');
+    this.previousFrameData = null;
+    this.stableStartTime = null;
+    this.isAutoScanning = true;
+
+    this.detectionIntervalId = window.setInterval(() => {
+      this.runAutoScanDetection();
+    }, this.DETECTION_INTERVAL_MS);
+  }
+
+  /**
+   * Stop auto-scan detection loop
+   */
+  stopAutoScanDetection(): void {
+    if (this.detectionIntervalId !== null) {
+      window.clearInterval(this.detectionIntervalId);
+      this.detectionIntervalId = null;
+    }
+    if (this.cooldownTimeoutId !== null) {
+      window.clearTimeout(this.cooldownTimeoutId);
+      this.cooldownTimeoutId = null;
+    }
+    this.previousFrameData = null;
+    this.stableStartTime = null;
+    this.isAutoScanning = false;
+    this.autoScanStateSignal.set('disabled');
+  }
+
+  /**
+   * Run one iteration of auto-scan detection
+   */
+  private runAutoScanDetection(): void {
+    if (!this.cameraReady() || !this.videoElement?.nativeElement || this.isProcessing()) {
+      return;
+    }
+
+    const state = this.autoScanStateSignal();
+    if (state === 'scanning' || state === 'cooldown' || state === 'disabled') {
+      return;
+    }
+
+    const motionScore = this.calculateMotionScore();
+
+    // Check if frame is stable (low motion)
+    const isStable = motionScore >= this.MOTION_STABLE_PERCENT;
+
+    if (isStable) {
+      if (this.stableStartTime === null) {
+        // Just became stable
+        this.stableStartTime = Date.now();
+        this.autoScanStateSignal.set('detecting');
+      } else {
+        const stableDuration = Date.now() - this.stableStartTime;
+
+        if (stableDuration >= this.STABLE_DURATION_MS * 0.5 && stableDuration < this.STABLE_DURATION_MS) {
+          // Halfway stable
+          this.autoScanStateSignal.set('stable');
+        } else if (stableDuration >= this.STABLE_DURATION_MS) {
+          // Ready to scan
+          this.autoScanStateSignal.set('ready');
+          this.triggerAutoScan();
+        }
+      }
+    } else {
+      // Motion detected, reset stable timer
+      this.stableStartTime = null;
+      if (state !== 'waiting') {
+        this.autoScanStateSignal.set('waiting');
+      }
+    }
+  }
+
+  /**
+   * Calculate motion score by comparing current frame to previous frame
+   * Returns a value between 0 (all motion) and 1 (no motion)
+   */
+  private calculateMotionScore(): number {
+    const video = this.videoElement?.nativeElement;
+    const canvas = this.motionCanvasElement?.nativeElement;
+
+    if (!video || !canvas) {
+      return 0;
+    }
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) {
+      return 0;
+    }
+
+    // Use a small resolution for motion detection (performance)
+    const width = 160;
+    const height = 120;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Draw current frame
+    ctx.drawImage(video, 0, 0, width, height);
+    const currentFrameData = ctx.getImageData(0, 0, width, height);
+
+    if (!this.previousFrameData) {
+      this.previousFrameData = currentFrameData;
+      return 0; // First frame, assume motion
+    }
+
+    // Compare pixels
+    let stablePixels = 0;
+    const totalPixels = width * height;
+    const currentData = currentFrameData.data;
+    const previousData = this.previousFrameData.data;
+
+    for (let i = 0; i < currentData.length; i += 4) {
+      // Calculate grayscale difference for each pixel
+      const currentGray = (currentData[i] + currentData[i + 1] + currentData[i + 2]) / 3;
+      const previousGray = (previousData[i] + previousData[i + 1] + previousData[i + 2]) / 3;
+      const diff = Math.abs(currentGray - previousGray);
+
+      if (diff < this.MOTION_THRESHOLD) {
+        stablePixels++;
+      }
+    }
+
+    // Store current frame for next comparison
+    this.previousFrameData = currentFrameData;
+
+    return stablePixels / totalPixels;
+  }
+
+  /**
+   * Trigger auto-scan capture
+   */
+  private async triggerAutoScan(): Promise<void> {
+    if (!this.isAutoScanning || this.isProcessing()) {
+      return;
+    }
+
+    this.autoScanStateSignal.set('scanning');
+    this.announce('Auto-scanning card...');
+
+    const image = await this.captureImage();
+    if (image) {
+      this.autoScanTriggered.emit(image);
+    }
+
+    // Enter cooldown state
+    this.enterCooldown();
+  }
+
+  /**
+   * Enter cooldown state after scan
+   */
+  private enterCooldown(): void {
+    this.autoScanStateSignal.set('cooldown');
+    this.stableStartTime = null;
+    this.previousFrameData = null;
+
+    this.cooldownTimeoutId = window.setTimeout(() => {
+      if (this.isAutoScanning && !this.isProcessing()) {
+        this.autoScanStateSignal.set('waiting');
+      }
+      this.cooldownTimeoutId = null;
+    }, this.COOLDOWN_DURATION_MS);
+  }
+
+  /**
+   * Reset auto-scan state after result is handled
+   */
+  resetAutoScan(): void {
+    if (this.cooldownTimeoutId !== null) {
+      window.clearTimeout(this.cooldownTimeoutId);
+      this.cooldownTimeoutId = null;
+    }
+    this.stableStartTime = null;
+    this.previousFrameData = null;
+    if (this.isAutoScanning) {
+      this.autoScanStateSignal.set('waiting');
+    }
+  }
+
+  /**
+   * Pause auto-scan detection (e.g., when showing results)
+   */
+  pauseAutoScan(): void {
+    if (this.detectionIntervalId !== null) {
+      window.clearInterval(this.detectionIntervalId);
+      this.detectionIntervalId = null;
+    }
+    this.autoScanStateSignal.set('disabled');
+  }
+
+  /**
+   * Resume auto-scan detection
+   */
+  resumeAutoScan(): void {
+    if (this.autoScanEnabled() && this.cameraReady()) {
+      this.startAutoScanDetection();
+    }
   }
 
   /**
@@ -262,7 +589,14 @@ export class CameraComponent implements OnInit, OnDestroy {
         await this.videoElement.nativeElement.play();
         this.cameraReadySignal.set(true);
         this.permissionChange.emit(true);
-        this.announce('Camera ready, center card and press capture button');
+
+        // Start auto-scan detection if enabled
+        if (this.autoScanEnabled()) {
+          this.startAutoScanDetection();
+          this.announce('Camera ready with auto-scan, center card in frame');
+        } else {
+          this.announce('Camera ready, center card and press capture button');
+        }
       }
     } catch (err: unknown) {
       this.handleCameraError(err);
@@ -428,6 +762,8 @@ export class CameraComponent implements OnInit, OnDestroy {
    * Release camera resources
    */
   releaseCamera(): void {
+    this.stopAutoScanDetection();
+
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;

@@ -50,6 +50,22 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
 
         <!-- Right Controls -->
         <div class="flex gap-1">
+          <!-- Auto-Scan Toggle -->
+          @if (cameraComponent?.cameraReady()) {
+            <button
+              mat-icon-button
+              class="text-white"
+              [class.text-green-400]="autoScanEnabled()"
+              (click)="toggleAutoScan()"
+              aria-label="Toggle auto-scan"
+              [attr.aria-pressed]="autoScanEnabled()"
+            >
+              <mat-icon class="!text-2xl">
+                {{ autoScanEnabled() ? 'motion_photos_auto' : 'motion_photos_off' }}
+              </mat-icon>
+            </button>
+          }
+
           <!-- Flash Toggle -->
           @if (cameraComponent?.cameraReady()) {
             <button
@@ -91,7 +107,9 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
       <div class="flex-1 relative mt-16 mb-24">
         <lg-camera
           #cameraComponent
+          [autoScanEnabled]="autoScanEnabled"
           (imageCaptured)="onImageCaptured($event)"
+          (autoScanTriggered)="onAutoScanTriggered($event)"
           (cameraError)="onCameraError($event)"
           (permissionChange)="onPermissionChange($event)"
         ></lg-camera>
@@ -231,6 +249,13 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
             </div>
             <div class="space-y-4">
               <div class="flex items-start gap-3">
+                <mat-icon class="text-green-500">motion_photos_auto</mat-icon>
+                <div>
+                  <h4 class="font-semibold">Auto-Scan</h4>
+                  <p class="text-sm text-gray-600">Hold your card steady and it will scan automatically. The frame turns green when ready.</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3">
                 <mat-icon class="text-amber-500">wb_sunny</mat-icon>
                 <div>
                   <h4 class="font-semibold">Good Lighting</h4>
@@ -320,6 +345,7 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
   showBulkPrompt = signal(false);
   showHelpModal = signal(false);
   flashEnabled = signal(false);
+  autoScanEnabled = signal(true); // Auto-scan enabled by default
   announcement = signal('');
   private bulkPromptDismissed = signal(false);
   private successCount = signal(0);
@@ -353,7 +379,7 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Computed guidance text based on scan state
+   * Computed guidance text based on scan state and auto-scan state
    */
   guidanceText = () => {
     const state = this.scannerService.scanState();
@@ -371,6 +397,22 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
       case 'error':
         return 'Scan failed';
       default:
+        // Show auto-scan aware guidance when idle
+        if (this.autoScanEnabled() && this.cameraComponent?.cameraReady()) {
+          const autoState = this.cameraComponent?.autoScanState();
+          switch (autoState) {
+            case 'detecting':
+              return 'Card detected, hold steady...';
+            case 'stable':
+              return 'Almost ready...';
+            case 'ready':
+              return 'Scanning automatically...';
+            case 'cooldown':
+              return 'Preparing for next scan...';
+            default:
+              return 'Position card in frame (auto-scan on)';
+          }
+        }
         return 'Center card within frame';
     }
   };
@@ -386,10 +428,13 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
   };
 
   /**
-   * Capture image from camera
+   * Capture image from camera (manual button)
    */
   async captureImage(): Promise<void> {
     if (!this.canCapture()) return;
+
+    // Pause auto-scan during manual capture
+    this.cameraComponent?.pauseAutoScan();
 
     this.scannerService.setCapturing();
     this.cameraComponent.setProcessing(true);
@@ -400,6 +445,10 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
     } else {
       this.scannerService.resetScanState();
       this.cameraComponent.setProcessing(false);
+      // Resume auto-scan if capture failed
+      if (this.autoScanEnabled()) {
+        this.cameraComponent?.resumeAutoScan();
+      }
     }
   }
 
@@ -430,6 +479,9 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
    * Handle scan result
    */
   private handleScanResult(response: ScanResponse): void {
+    // Pause auto-scan while showing results
+    this.cameraComponent?.pauseAutoScan();
+
     if (response.success && response.match) {
       this.showResult.set(true);
       this.successCount.set(this.successCount() + 1);
@@ -568,6 +620,11 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
     this.showResult.set(false);
     this.scannerService.resetScanState();
     this.scanResultComponent?.resetState();
+
+    // Resume auto-scan if enabled
+    if (this.autoScanEnabled()) {
+      this.cameraComponent?.resumeAutoScan();
+    }
   }
 
   /**
@@ -577,6 +634,11 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
     this.showResult.set(false);
     this.scannerService.resetScanState();
     this.scanResultComponent?.resetState();
+
+    // Resume auto-scan if enabled
+    if (this.autoScanEnabled()) {
+      this.cameraComponent?.resumeAutoScan();
+    }
   }
 
   /**
@@ -626,6 +688,34 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
   dismissBulkPrompt(): void {
     this.showBulkPrompt.set(false);
     this.bulkPromptDismissed.set(true);
+  }
+
+  /**
+   * Toggle auto-scan
+   */
+  toggleAutoScan(): void {
+    const newValue = !this.autoScanEnabled();
+    this.autoScanEnabled.set(newValue);
+
+    if (newValue) {
+      this.cameraComponent?.startAutoScanDetection();
+      this.snackBar.open('Auto-scan enabled', 'Close', { duration: 2000 });
+    } else {
+      this.cameraComponent?.stopAutoScanDetection();
+      this.snackBar.open('Auto-scan disabled', 'Close', { duration: 2000 });
+    }
+  }
+
+  /**
+   * Handle auto-scan triggered capture
+   */
+  onAutoScanTriggered(image: CapturedImage): void {
+    // Pause auto-scan while processing
+    this.cameraComponent?.pauseAutoScan();
+
+    this.scannerService.setCapturing();
+    this.cameraComponent.setProcessing(true);
+    this.scanCard(image);
   }
 
   /**
