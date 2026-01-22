@@ -9,11 +9,13 @@ import {
 } from '@la-grieta/shared';
 
 export interface PaginatedListings {
-  data: Listing[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  listings: Listing[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 @Injectable({
@@ -56,12 +58,12 @@ export class MarketplaceService {
     return this.api.get<PaginatedListings>('marketplace/listings', filters).pipe(
       tap({
         next: (response) => {
-          this.listingsSignal.set(response.data);
+          this.listingsSignal.set(response.listings);
           this.paginationSignal.set({
-            total: response.total,
-            page: response.page,
-            limit: response.limit,
-            totalPages: response.totalPages
+            total: response.pagination.total,
+            page: response.pagination.page,
+            limit: response.pagination.limit,
+            totalPages: response.pagination.totalPages
           });
           this.loadingSignal.set(false);
         },

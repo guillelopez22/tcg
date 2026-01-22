@@ -36,14 +36,14 @@ export class ShopsService {
    * Get All Shops
    * GET /api/marketplace/shops
    */
-  getShops(): Observable<Shop[]> {
+  getShops(): Observable<{ shops: Shop[]; pagination: any }> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
 
-    return this.api.get<Shop[]>('marketplace/shops').pipe(
+    return this.api.get<{ shops: Shop[]; pagination: any }>('marketplace/shops').pipe(
       tap({
-        next: (shops) => {
-          this.shopsSignal.set(shops);
+        next: (response) => {
+          this.shopsSignal.set(response.shops);
           this.loadingSignal.set(false);
         },
         error: (err) => {

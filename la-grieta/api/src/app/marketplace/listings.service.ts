@@ -219,7 +219,6 @@ export class ListingsService {
           select: {
             id: true,
             username: true,
-            email: true,
           },
         },
         shop: true,

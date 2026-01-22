@@ -9,11 +9,13 @@ import {
 } from '@la-grieta/shared';
 
 export interface PaginatedOrders {
-  data: OrderWithDetails[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  orders: OrderWithDetails[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 @Injectable({
@@ -53,7 +55,7 @@ export class OrdersService {
     return this.api.get<PaginatedOrders>('marketplace/orders', filters).pipe(
       tap({
         next: (response) => {
-          this.ordersSignal.set(response.data);
+          this.ordersSignal.set(response.orders);
           this.loadingSignal.set(false);
         },
         error: (err) => {
@@ -75,7 +77,7 @@ export class OrdersService {
     return this.api.get<PaginatedOrders>('marketplace/orders/sales', filters).pipe(
       tap({
         next: (response) => {
-          this.salesSignal.set(response.data);
+          this.salesSignal.set(response.orders);
           this.loadingSignal.set(false);
         },
         error: (err) => {
@@ -110,13 +112,13 @@ export class OrdersService {
 
   /**
    * Update Order Status (Seller only)
-   * PUT /api/marketplace/orders/:id
+   * PUT /api/marketplace/orders/:id/status
    */
   updateOrderStatus(id: string, dto: UpdateOrderStatusDto): Observable<OrderWithDetails> {
     this.loadingSignal.set(true);
     this.errorSignal.set(null);
 
-    return this.api.put<OrderWithDetails>(`marketplace/orders/${id}`, dto).pipe(
+    return this.api.put<OrderWithDetails>(`marketplace/orders/${id}/status`, dto).pipe(
       tap({
         next: (order) => {
           this.loadingSignal.set(false);
@@ -134,6 +136,68 @@ export class OrdersService {
         error: (err) => {
           this.loadingSignal.set(false);
           this.errorSignal.set(err.error?.message || 'Failed to update order');
+        }
+      })
+    );
+  }
+
+  /**
+   * Confirm Receipt (Buyer)
+   * POST /api/marketplace/orders/:id/confirm
+   */
+  confirmReceipt(orderId: string): Observable<OrderWithDetails> {
+    this.loadingSignal.set(true);
+    this.errorSignal.set(null);
+
+    return this.api.post<OrderWithDetails>(`marketplace/orders/${orderId}/confirm`, {}).pipe(
+      tap({
+        next: (order) => {
+          this.loadingSignal.set(false);
+          if (this.currentOrderSignal()?.id === orderId) {
+            this.currentOrderSignal.set(order);
+          }
+          // Update in orders array if exists
+          const orderIndex = this.ordersSignal().findIndex(o => o.id === orderId);
+          if (orderIndex !== -1) {
+            const updatedOrders = [...this.ordersSignal()];
+            updatedOrders[orderIndex] = order;
+            this.ordersSignal.set(updatedOrders);
+          }
+        },
+        error: (err) => {
+          this.loadingSignal.set(false);
+          this.errorSignal.set(err.error?.message || 'Failed to confirm receipt');
+        }
+      })
+    );
+  }
+
+  /**
+   * Cancel Order (Buyer)
+   * POST /api/marketplace/orders/:id/cancel
+   */
+  cancelOrder(orderId: string): Observable<OrderWithDetails> {
+    this.loadingSignal.set(true);
+    this.errorSignal.set(null);
+
+    return this.api.post<OrderWithDetails>(`marketplace/orders/${orderId}/cancel`, {}).pipe(
+      tap({
+        next: (order) => {
+          this.loadingSignal.set(false);
+          if (this.currentOrderSignal()?.id === orderId) {
+            this.currentOrderSignal.set(order);
+          }
+          // Update in orders array if exists
+          const orderIndex = this.ordersSignal().findIndex(o => o.id === orderId);
+          if (orderIndex !== -1) {
+            const updatedOrders = [...this.ordersSignal()];
+            updatedOrders[orderIndex] = order;
+            this.ordersSignal.set(updatedOrders);
+          }
+        },
+        error: (err) => {
+          this.loadingSignal.set(false);
+          this.errorSignal.set(err.error?.message || 'Failed to cancel order');
         }
       })
     );
