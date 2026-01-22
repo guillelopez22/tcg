@@ -33,8 +33,8 @@ RUN npx nx build web --configuration=production
 FROM nginx:1.25-alpine AS runner
 
 # Build argument to select nginx config
-# Options: "local" (default with SSL) or "railway" (HTTP only)
-ARG NGINX_CONFIG=local
+# Options: "local" (with SSL) or "railway" (HTTP only, default for cloud deployment)
+ARG NGINX_CONFIG=railway
 
 # Install dumb-init for proper signal handling and openssl for certificate generation
 RUN apk add --no-cache dumb-init openssl curl
