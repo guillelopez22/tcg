@@ -9,6 +9,13 @@ import { CollectionDetailComponent } from './features/collections/pages/collecti
 import { DecksListComponent } from './features/decks/pages/decks-list/decks-list.component';
 import { DeckBuilderComponent } from './features/decks/pages/deck-builder/deck-builder.component';
 import { ScannerPageComponent } from './features/scanner/pages/scanner-page/scanner-page.component';
+import { MarketplaceBrowseComponent } from './features/marketplace/pages/marketplace-browse/marketplace-browse.component';
+import { ListingDetailComponent } from './features/marketplace/pages/listing-detail/listing-detail.component';
+import { CreateListingComponent } from './features/marketplace/pages/create-listing/create-listing.component';
+import { ShopProfileComponent } from './features/marketplace/pages/shop-profile/shop-profile.component';
+import { MyShopComponent } from './features/marketplace/pages/my-shop/my-shop.component';
+import { OrderHistoryComponent } from './features/marketplace/pages/order-history/order-history.component';
+import { SalesDashboardComponent } from './features/marketplace/pages/sales-dashboard/sales-dashboard.component';
 
 export const appRoutes: Route[] = [
   {
@@ -57,6 +64,41 @@ export const appRoutes: Route[] = [
   {
     path: 'scanner',
     component: ScannerPageComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace',
+    component: MarketplaceBrowseComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/listings/create',
+    component: CreateListingComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/listings/:id',
+    component: ListingDetailComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/shops/my',
+    component: MyShopComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/shops/:id',
+    component: ShopProfileComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/orders',
+    component: OrderHistoryComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/sales',
+    component: SalesDashboardComponent,
     canActivate: [authGuard]
   },
   {

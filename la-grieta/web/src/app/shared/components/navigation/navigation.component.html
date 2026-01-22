@@ -18,6 +18,10 @@
           <a mat-button routerLink="/decks" routerLinkActive="active">
             Decks
           </a>
+          <a mat-button routerLink="/marketplace" routerLinkActive="active">
+            <mat-icon class="mr-1">storefront</mat-icon>
+            Marketplace
+          </a>
           <a mat-button routerLink="/scanner" routerLinkActive="active">
             <mat-icon class="mr-1">document_scanner</mat-icon>
             Scan
@@ -41,6 +45,22 @@
             <p class="font-semibold">{{ authService.currentUser()?.username }}</p>
             <p class="text-sm text-gray-600">{{ authService.currentUser()?.email }}</p>
           </div>
+          <a mat-menu-item routerLink="/marketplace" class="md:hidden">
+            <mat-icon>storefront</mat-icon>
+            <span>Marketplace</span>
+          </a>
+          <a mat-menu-item routerLink="/marketplace/shops/my">
+            <mat-icon>store</mat-icon>
+            <span>My Shop</span>
+          </a>
+          <a mat-menu-item routerLink="/marketplace/orders">
+            <mat-icon>receipt_long</mat-icon>
+            <span>My Orders</span>
+          </a>
+          <a mat-menu-item routerLink="/marketplace/sales">
+            <mat-icon>trending_up</mat-icon>
+            <span>My Sales</span>
+          </a>
           <a mat-menu-item routerLink="/scanner" class="md:hidden">
             <mat-icon>document_scanner</mat-icon>
             <span>Scan Cards</span>

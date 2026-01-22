@@ -161,6 +161,9 @@ model Shop {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([slug])
+  @@index([rating])
 }
 
 model Listing {
@@ -192,6 +195,9 @@ model Listing {
   updatedAt     DateTime @updatedAt
 
   @@index([status, type])
+  @@index([sellerId])
+  @@index([shopId])
+  @@index([price])
 }
 
 model ListingItem {
@@ -203,6 +209,9 @@ model ListingItem {
 
   quantity  Int     @default(1)
   condition String  @default("NEAR_MINT")
+
+  @@index([cardId])
+  @@index([listingId])
 }
 
 model Bid {

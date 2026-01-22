@@ -11,11 +11,14 @@ export * from './lib/interfaces/user.interface';
 export * from './lib/interfaces/deck.interface';
 export * from './lib/interfaces/listing.interface';
 export * from './lib/interfaces/collection.interface';
+export * from './lib/interfaces/shop.interface';
+export * from './lib/interfaces/order.interface';
 
 // DTOs
 export * from './lib/dto/auth.dto';
 export * from './lib/dto/collection.dto';
 export * from './lib/dto/deck.dto';
+export * from './lib/dto/marketplace.dto';
 
 // Constants
 export * from './lib/constants/riftbound-rules';
