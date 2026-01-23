@@ -18,9 +18,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
         if (attempt === maxRetries) {
           this.logger.error('Max retries reached. Database connection failed.');
-          // Don't throw - allow app to start in degraded mode
-          this.logger.warn('Application starting in DEGRADED MODE - database unavailable');
-          return;
+          throw new Error('Failed to connect to database after maximum retries');
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
