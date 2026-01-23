@@ -19,7 +19,7 @@ import {
   ScannerStatusDto,
 } from './dto/scan-response.dto';
 
-@Controller('api/scanner')
+@Controller('scanner')
 @UseGuards(JwtAuthGuard)
 export class ScannerController {
   private readonly logger = new Logger(ScannerController.name);
