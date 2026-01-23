@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {  Component, OnInit, signal , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,7 +18,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { ListingStatus, ListingType } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-marketplace-browse',
+  selector: 'app-marketplace-browse',
   standalone: true,
   imports: [
     CommonModule,
@@ -99,7 +99,7 @@ import { ListingStatus, ListingType } from '@la-grieta/shared';
           </div>
 
           <!-- Price Filter -->
-          <lg-price-filter (filterChange)="onPriceFilterChange($event)" />
+          <app-price-filter (filterChange)="onPriceFilterChange($event)" />
 
           <!-- Apply Filters Button -->
           <button
@@ -168,7 +168,7 @@ import { ListingStatus, ListingType } from '@la-grieta/shared';
           <!-- Loading State -->
           @if (marketplaceService.loading() && !marketplaceService.hasListings()) {
             <div class="flex justify-center py-16">
-              <lg-loading-spinner />
+              <app-loading-spinner />
             </div>
           }
 
@@ -193,7 +193,7 @@ import { ListingStatus, ListingType } from '@la-grieta/shared';
           @if (marketplaceService.hasListings()) {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
               @for (listing of marketplaceService.listings(); track listing.id) {
-                <lg-listing-card [listing]="listing" />
+                <app-listing-card [listing]="listing" />
               }
             </div>
 
@@ -214,7 +214,7 @@ import { ListingStatus, ListingType } from '@la-grieta/shared';
 
           <!-- Empty State -->
           @if (!marketplaceService.loading() && !marketplaceService.hasListings()) {
-            <lg-empty-state
+            <app-empty-state
               icon="storefront"
               heading="No Listings Found"
               [description]="getEmptyStateMessage()"
@@ -227,16 +227,15 @@ import { ListingStatus, ListingType } from '@la-grieta/shared';
   styles: []
 })
 export class MarketplaceBrowseComponent implements OnInit {
+  public marketplaceService = inject(MarketplaceService);
+  public cartService = inject(CartService);
   searchQuery = '';
   selectedType?: ListingType;
   priceRange: PriceRange = {};
   currentPage = 1;
   pageSize = 20;
 
-  constructor(
-    public marketplaceService: MarketplaceService,
-    public cartService: CartService
-  ) {}
+  
 
   ngOnInit(): void {
     this.loadListings();

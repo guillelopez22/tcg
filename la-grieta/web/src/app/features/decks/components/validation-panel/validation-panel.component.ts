@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { DeckValidationResult } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-validation-panel',
+  selector: 'app-validation-panel',
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `

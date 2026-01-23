@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,7 +12,7 @@ import { EmptyStateComponent } from '../../../collections/components/empty-state
 import { LoadingSpinnerComponent } from '../../../../shared/components/loading-spinner/loading-spinner.component';
 
 @Component({
-  selector: 'lg-shop-profile',
+  selector: 'app-shop-profile',
   standalone: true,
   imports: [
     CommonModule,
@@ -31,7 +31,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
       <!-- Loading State -->
       @if (shopsService.loading() && !shopsService.currentShop()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -131,11 +131,11 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
           @if (shop.listings && shop.listings.length > 0) {
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               @for (listing of shop.listings; track listing.id) {
-                <lg-listing-card [listing]="listing" />
+                <app-listing-card [listing]="listing" />
               }
             </div>
           } @else {
-            <lg-empty-state
+            <app-empty-state
               icon="inventory_2"
               heading="No Active Listings"
               description="This shop doesn't have any active listings at the moment."
@@ -148,11 +148,10 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
   styles: []
 })
 export class ShopProfileComponent implements OnInit {
-  constructor(
-    private route: ActivatedRoute,
-    public shopsService: ShopsService,
-    private snackBar: MatSnackBar
-  ) {}
+  private route = inject(ActivatedRoute);
+  public shopsService = inject(ShopsService);
+  private snackBar = inject(MatSnackBar);
+  
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');

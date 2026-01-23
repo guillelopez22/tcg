@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
@@ -22,6 +22,8 @@ export interface PaginatedListings {
   providedIn: 'root'
 })
 export class MarketplaceService {
+  private api = inject(ApiService);
+
   // Angular Signals for state management
   private listingsSignal = signal<Listing[]>([]);
   private currentListingSignal = signal<Listing | null>(null);
@@ -44,8 +46,6 @@ export class MarketplaceService {
   // Computed values
   readonly hasListings = computed(() => this.listingsSignal().length > 0);
   readonly listingsCount = computed(() => this.listingsSignal().length);
-
-  constructor(private api: ApiService) {}
 
   /**
    * Browse Listings with Filters

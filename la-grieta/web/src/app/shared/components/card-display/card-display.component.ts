@@ -5,7 +5,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { Card, Domain } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-card-display',
+  selector: 'app-card-display',
   standalone: true,
   imports: [CommonModule, MatCardModule, MatChipsModule],
   templateUrl: './card-display.component.html',

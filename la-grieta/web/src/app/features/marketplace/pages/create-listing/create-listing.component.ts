@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {  Component, OnInit, signal , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -21,7 +21,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { ListingType, CARD_CONDITIONS, CreateListingDto } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-create-listing',
+  selector: 'app-create-listing',
   standalone: true,
   imports: [
     CommonModule,
@@ -160,13 +160,13 @@ import { ListingType, CARD_CONDITIONS, CreateListingDto } from '@la-grieta/share
               </mat-form-field>
 
               <!-- Listing Type -->
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Listing Type</label>
+              <fieldset>
+                <legend class="block text-sm font-medium text-gray-700 mb-2">Listing Type</legend>
                 <mat-radio-group formControlName="type" class="flex flex-col gap-2">
                   <mat-radio-button value="FIXED_PRICE">Fixed Price</mat-radio-button>
                   <mat-radio-button value="AUCTION">Auction</mat-radio-button>
                 </mat-radio-group>
-              </div>
+              </fieldset>
 
               <!-- Shop Selection (Optional) -->
               @if (shopsService.hasMyShop()) {
@@ -289,20 +289,19 @@ import { ListingType, CARD_CONDITIONS, CreateListingDto } from '@la-grieta/share
   styles: []
 })
 export class CreateListingComponent implements OnInit {
+  private fb = inject(FormBuilder);
+  private router = inject(Router);
+  public collectionsService = inject(CollectionsService);
+  public marketplaceService = inject(MarketplaceService);
+  public shopsService = inject(ShopsService);
+  private snackBar = inject(MatSnackBar);
   itemsForm: FormGroup;
   detailsForm: FormGroup;
   pricingForm: FormGroup;
   minDate = new Date();
   conditions = CARD_CONDITIONS;
 
-  constructor(
-    private fb: FormBuilder,
-    private router: Router,
-    public collectionsService: CollectionsService,
-    public marketplaceService: MarketplaceService,
-    public shopsService: ShopsService,
-    private snackBar: MatSnackBar
-  ) {
+  constructor() {
     this.itemsForm = this.fb.group({
       items: this.fb.array([], Validators.required)
     });

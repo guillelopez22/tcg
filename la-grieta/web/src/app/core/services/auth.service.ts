@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap, catchError, of } from 'rxjs';
 import { Router } from '@angular/router';
 import { ApiService } from './api.service';
@@ -9,6 +9,8 @@ import { User } from '@la-grieta/shared';
   providedIn: 'root'
 })
 export class AuthService {
+  private api = inject(ApiService);
+  private router = inject(Router);
   private readonly tokenKey = 'la_grieta_token';
 
   // Use Angular Signals for reactive state management
@@ -20,10 +22,7 @@ export class AuthService {
   readonly loading = this.loadingSignal.asReadonly();
   readonly isAuthenticated = computed(() => this.currentUserSignal() !== null);
 
-  constructor(
-    private api: ApiService,
-    private router: Router
-  ) {
+  constructor() {
     this.loadCurrentUser();
   }
 

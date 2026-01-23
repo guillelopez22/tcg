@@ -25,7 +25,7 @@ export interface CapturedImage {
 export type AutoScanState = 'disabled' | 'waiting' | 'detecting' | 'stable' | 'ready' | 'scanning' | 'cooldown';
 
 @Component({
-  selector: 'lg-camera',
+  selector: 'app-camera',
   standalone: true,
   imports: [CommonModule, MatIconModule, MatButtonModule],
   template: `

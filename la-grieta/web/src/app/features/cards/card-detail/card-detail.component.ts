@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -10,7 +10,7 @@ import { CardsService } from '../../../core/services/cards.service';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 
 @Component({
-  selector: 'lg-card-detail',
+  selector: 'app-card-detail',
   standalone: true,
   imports: [
     CommonModule,
@@ -24,15 +24,13 @@ import { LoadingSpinnerComponent } from '../../../shared/components/loading-spin
   styleUrl: './card-detail.component.scss'
 })
 export class CardDetailComponent implements OnInit {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private cardsService = inject(CardsService);
+
   card = signal<Card | null>(null);
   loading = signal(false);
   error = signal<string | null>(null);
-
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private cardsService: CardsService
-  ) {}
 
   ngOnInit(): void {
     const cardId = this.route.snapshot.paramMap.get('id');

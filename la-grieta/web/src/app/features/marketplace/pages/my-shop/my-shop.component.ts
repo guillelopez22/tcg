@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {  Component, OnInit, signal , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -11,12 +11,13 @@ import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dial
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ShopsService } from '../../services/shops.service';
 import { MarketplaceService } from '../../services/marketplace.service';
+import { StripeService } from '../../services/stripe.service';
 import { EmptyStateComponent } from '../../../collections/components/empty-state/empty-state.component';
 import { LoadingSpinnerComponent } from '../../../../shared/components/loading-spinner/loading-spinner.component';
 import { CreateShopDto, UpdateShopDto, ListingStatus } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-create-shop-modal',
+  selector: 'app-create-shop-modal',
   standalone: true,
   imports: [
     CommonModule,
@@ -68,17 +69,16 @@ import { CreateShopDto, UpdateShopDto, ListingStatus } from '@la-grieta/shared';
   `
 })
 export class CreateShopModalComponent {
+  private fb = inject(FormBuilder);
+  private shopsService = inject(ShopsService);
+  private snackBar = inject(MatSnackBar);
+  private dialogRef = inject(MatDialogRef<CreateShopModalComponent>);
   shopForm: FormGroup;
 
-  constructor(
-    private fb: FormBuilder,
-    private shopsService: ShopsService,
-    private snackBar: MatSnackBar,
-    private dialogRef: MatDialogRef<CreateShopModalComponent>
-  ) {
+  constructor() {
     this.shopForm = this.fb.group({
-      name: ['', Validators.required],
-      slug: ['', [Validators.required, Validators.pattern(/^[a-z0-9-]+$/)]],
+      name: ['', [Validators.required, Validators.minLength(3)]],
+      slug: ['', [Validators.required, Validators.minLength(3)]],
       description: ['']
     });
   }
@@ -100,7 +100,7 @@ export class CreateShopModalComponent {
 }
 
 @Component({
-  selector: 'lg-my-shop',
+  selector: 'app-my-shop',
   standalone: true,
   imports: [
     CommonModule,
@@ -115,87 +115,61 @@ export class CreateShopModalComponent {
   template: `
     <div class="container mx-auto px-4 py-6 md:px-6 md:py-8">
       <!-- Header -->
-      <div class="flex items-start justify-between mb-6">
-        <div>
-          <h1 class="text-3xl font-heading font-bold text-gray-900 mb-2">
-            My Shop
-          </h1>
-          <p class="text-base text-gray-600">
-            Manage your seller profile and listings
-          </p>
-        </div>
+      <div class="mb-6">
+        <h1 class="text-3xl font-heading font-bold text-gray-900 mb-2">
+          My Shop
+        </h1>
+        <p class="text-base text-gray-600">
+          Manage your shop and listings
+        </p>
       </div>
 
       <!-- Loading State -->
       @if (shopsService.loading() && !shopsService.myShop()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
-      <!-- No Shop - Create One -->
+      <!-- No Shop State -->
       @if (!shopsService.loading() && !shopsService.myShop()) {
-        <lg-empty-state
+        <app-empty-state
           icon="storefront"
-          heading="Create Your Shop"
-          description="Start selling cards by setting up your shop. You'll be able to list items and manage orders from here."
+          heading="No Shop Yet"
+          description="Create your shop to start selling cards on the marketplace!"
           [primaryAction]="{
             label: 'Create Shop',
-            icon: 'add_business',
+            icon: 'add',
             primary: true
           }"
           (primaryActionClick)="openCreateShopModal()"
         />
       }
 
-      <!-- Shop Dashboard -->
-      @if (shopsService.myShop(); as shop) {
+      <!-- Shop View -->
+      @if (shopsService.myShop()) {
         <div class="space-y-6">
           <!-- Shop Info Card -->
           <mat-card>
             <mat-card-content class="!p-6">
               <div class="flex items-start justify-between mb-4">
                 <div>
-                  <h2 class="text-2xl font-bold text-gray-900 mb-2">{{ shop.name }}</h2>
-                  @if (shop.description) {
-                    <p class="text-gray-600">{{ shop.description }}</p>
-                  }
-                  <p class="text-sm text-gray-500 mt-2">
-                    Shop URL: /marketplace/shops/{{ shop.slug }}
+                  <h2 class="text-2xl font-heading font-bold text-gray-900 mb-1">
+                    {{ shopsService.myShop()?.name }}
+                  </h2>
+                  <p class="text-sm text-gray-600">
+                    /marketplace/shops/{{ shopsService.myShop()?.slug }}
                   </p>
                 </div>
-                <button
-                  mat-stroked-button
-                  [routerLink]="['/marketplace/shops', shop.id]"
-                >
-                  <mat-icon>visibility</mat-icon>
-                  View Public Profile
-                </button>
               </div>
-
-              <!-- Shop Stats -->
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
-                <div class="text-center">
-                  <p class="text-3xl font-mono font-bold text-primary">{{ shop.totalSales }}</p>
-                  <p class="text-sm text-gray-600">Total Sales</p>
-                </div>
-                <div class="text-center">
-                  <p class="text-3xl font-mono font-bold text-yellow-600">{{ shop.rating.toFixed(1) }}</p>
-                  <p class="text-sm text-gray-600">Rating</p>
-                </div>
-                <div class="text-center">
-                  <p class="text-3xl font-mono font-bold text-green-600">{{ activeListingsCount() }}</p>
-                  <p class="text-sm text-gray-600">Active Listings</p>
-                </div>
-                <div class="text-center">
-                  @if (shop.isVerified) {
-                    <mat-icon class="!text-4xl text-blue-600">verified</mat-icon>
-                    <p class="text-sm text-gray-600">Verified</p>
-                  } @else {
-                    <mat-icon class="!text-4xl text-gray-400">pending</mat-icon>
-                    <p class="text-sm text-gray-600">Not Verified</p>
-                  }
-                </div>
+              @if (shopsService.myShop()?.description) {
+                <p class="text-gray-700 mb-4">
+                  {{ shopsService.myShop()?.description }}
+                </p>
+              }
+              <div class="flex items-center gap-2 text-sm text-gray-600">
+                <mat-icon class="!text-base">inventory_2</mat-icon>
+                <span>{{ activeListingsCount() }} active listings</span>
               </div>
             </mat-card-content>
           </mat-card>
@@ -209,7 +183,7 @@ export class CreateShopModalComponent {
               routerLink="/marketplace/listings/create"
             >
               <mat-icon>add</mat-icon>
-              Create New Listing
+              Create Listing
             </button>
             <button
               mat-raised-button
@@ -247,7 +221,7 @@ export class CreateShopModalComponent {
 
               @if (marketplaceService.loading()) {
                 <div class="flex justify-center py-8">
-                  <lg-loading-spinner />
+                  <app-loading-spinner />
                 </div>
               } @else if (marketplaceService.hasListings()) {
                 <div class="space-y-3">
@@ -300,12 +274,10 @@ export class CreateShopModalComponent {
 export class MyShopComponent implements OnInit {
   activeListingsCount = signal(0);
 
-  constructor(
-    public shopsService: ShopsService,
-    public marketplaceService: MarketplaceService,
-    private dialog: MatDialog,
-    private snackBar: MatSnackBar
-  ) {}
+  shopsService = inject(ShopsService);
+  marketplaceService = inject(MarketplaceService);
+  private dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
 
   ngOnInit(): void {
     this.shopsService.getMyShop().subscribe({
@@ -334,7 +306,7 @@ export class MyShopComponent implements OnInit {
       width: '500px'
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe((result: any) => {
       if (result) {
         this.shopsService.getMyShop().subscribe();
       }

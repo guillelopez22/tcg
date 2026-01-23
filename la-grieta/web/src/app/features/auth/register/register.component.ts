@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -10,7 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
-  selector: 'lg-register',
+  selector: 'app-register',
   standalone: true,
   imports: [
     CommonModule,
@@ -26,6 +26,9 @@ import { AuthService } from '../../../core/services/auth.service';
   styleUrl: './register.component.scss'
 })
 export class RegisterComponent {
+  private authService = inject(AuthService);
+  private router = inject(Router);
+
   loading = signal(false);
   errorMessage = signal<string | null>(null);
 
@@ -44,11 +47,6 @@ export class RegisterComponent {
     ]),
     confirmPassword: new FormControl('', [Validators.required])
   });
-
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) {}
 
   passwordsMatch(): boolean {
     const password = this.registerForm.get('password')?.value;

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @Component({
-  selector: 'lg-loading-spinner',
+  selector: 'app-loading-spinner',
   standalone: true,
   imports: [CommonModule, MatProgressSpinnerModule],
   template: `
@@ -21,7 +21,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
   `]
 })
 export class LoadingSpinnerComponent {
-  @Input() diameter: number = 50;
-  @Input() message: string = '';
-  @Input() padding: string = '2rem';
+  @Input() diameter = 50;
+  @Input() message = '';
+  @Input() padding = '2rem';
 }

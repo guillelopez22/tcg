@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from './api.service';
 import {
@@ -16,6 +16,8 @@ import {
   providedIn: 'root'
 })
 export class CollectionsService {
+  private api = inject(ApiService);
+
   // Angular Signals for state management
   private collectionsSignal = signal<CollectionWithCount[]>([]);
   private currentCollectionSignal = signal<CollectionWithItems | null>(null);
@@ -37,8 +39,6 @@ export class CollectionsService {
     const stats = this.collectionStatsSignal();
     return stats?.totalQuantity || 0;
   });
-
-  constructor(private api: ApiService) {}
 
   /**
    * 1. Create Collection

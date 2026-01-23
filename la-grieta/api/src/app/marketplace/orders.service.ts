@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StripeService } from '../stripe/stripe.service';
 import {
   CreateOrderDto,
   UpdateOrderStatusDto,
@@ -15,7 +16,10 @@ import {
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private stripeService: StripeService,
+  ) {}
 
   private calculatePlatformFee(subtotal: number): number {
     // 5% platform fee
@@ -41,6 +45,8 @@ export class OrdersService {
           select: {
             id: true,
             username: true,
+            stripeAccountId: true,
+            stripeOnboarded: true,
           },
         },
       },
@@ -60,6 +66,11 @@ export class OrdersService {
 
     if (!listing.price) {
       throw new BadRequestException('This listing has no price set');
+    }
+
+    // Validate seller has Stripe account and is onboarded
+    if (!listing.seller.stripeAccountId || !listing.seller.stripeOnboarded) {
+      throw new BadRequestException('Seller has not completed Stripe onboarding');
     }
 
     // Calculate costs
@@ -298,6 +309,16 @@ export class OrdersService {
   async confirmReceipt(userId: string, id: string) {
     const order = await this.prisma.order.findUnique({
       where: { id },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            stripeAccountId: true,
+          },
+        },
+      },
     });
 
     if (!order) {
@@ -311,6 +332,23 @@ export class OrdersService {
 
     if (order.status !== OrderStatus.DELIVERED) {
       throw new BadRequestException('Order must be in DELIVERED status to confirm receipt');
+    }
+
+    // Transfer funds to seller if payment was held in escrow
+    if (order.seller.stripeAccountId && order.stripePaymentId && !order.stripeTransferId) {
+      // Calculate amount to transfer (subtotal + shipping - platform keeps the fee)
+      const transferAmount = order.subtotal + order.shippingCost;
+
+      try {
+        await this.stripeService.transferToSeller(
+          order.id,
+          transferAmount,
+          order.seller.stripeAccountId,
+        );
+      } catch (error) {
+        // Log error but don't fail the order completion
+        console.error('Failed to transfer funds to seller:', error);
+      }
     }
 
     const updated = await this.prisma.order.update({

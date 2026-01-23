@@ -7,7 +7,7 @@ import { ScannedCard } from '../../../../core/services/scanner.service';
 import { CardCondition } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-bulk-queue',
+  selector: 'app-bulk-queue',
   standalone: true,
   imports: [
     CommonModule,
@@ -21,8 +21,11 @@ import { CardCondition } from '@la-grieta/shared';
       <div
         class="queue-indicator fixed top-20 right-4 z-40 bg-white rounded-full shadow-lg px-4 py-2 flex items-center gap-2 cursor-pointer hover:shadow-xl transition-shadow"
         (click)="expanded.set(true)"
+        (keydown.enter)="expanded.set(true)"
+        (keydown.space)="expanded.set(true)"
         role="button"
         aria-label="Open scan queue"
+        tabindex="0"
       >
         <mat-icon class="text-purple-600 !text-base">inventory_2</mat-icon>
         <span class="font-mono font-bold text-purple-600">{{ queue.length }}</span>
@@ -33,7 +36,7 @@ import { CardCondition } from '@la-grieta/shared';
 
     <!-- Expanded Queue Sheet -->
     @if (expanded()) {
-      <div class="queue-overlay fixed inset-0 bg-black/50 z-50" (click)="expanded.set(false)"></div>
+      <div class="queue-overlay fixed inset-0 bg-black/50 z-50" (click)="expanded.set(false)" (keydown.enter)="expanded.set(false)" (keydown.space)="expanded.set(false)" tabindex="0" role="button" aria-label="Close queue overlay"></div>
 
       <div class="queue-sheet fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl max-h-[60vh] overflow-hidden flex flex-col animate-slide-up">
         <!-- Header -->
@@ -107,7 +110,7 @@ import { CardCondition } from '@la-grieta/shared';
                   <div class="flex flex-col gap-1">
                     <button
                       mat-icon-button
-                      (click)="onEditItem.emit($index)"
+                      (click)="editItem.emit($index)"
                       aria-label="Edit card details"
                       class="!w-8 !h-8"
                     >
@@ -115,7 +118,7 @@ import { CardCondition } from '@la-grieta/shared';
                     </button>
                     <button
                       mat-icon-button
-                      (click)="onRemoveItem.emit($index)"
+                      (click)="removeItem.emit($index)"
                       aria-label="Remove from queue"
                       class="!w-8 !h-8"
                     >
@@ -133,7 +136,7 @@ import { CardCondition } from '@la-grieta/shared';
           <button
             mat-stroked-button
             class="flex-1"
-            (click)="onContinueScan.emit()"
+            (click)="continueScan.emit()"
           >
             <mat-icon>document_scanner</mat-icon>
             Scan More
@@ -143,7 +146,7 @@ import { CardCondition } from '@la-grieta/shared';
             color="primary"
             class="flex-1"
             [disabled]="queue.length === 0 || adding()"
-            (click)="onAddAll.emit(queue)"
+            (click)="addAll.emit(queue)"
           >
             @if (adding()) {
               <mat-spinner diameter="20" class="mr-2"></mat-spinner>
@@ -181,10 +184,10 @@ import { CardCondition } from '@la-grieta/shared';
 export class BulkQueueComponent {
   @Input() queue: ScannedCard[] = [];
 
-  @Output() onEditItem = new EventEmitter<number>();
-  @Output() onRemoveItem = new EventEmitter<number>();
-  @Output() onAddAll = new EventEmitter<ScannedCard[]>();
-  @Output() onContinueScan = new EventEmitter<void>();
+  @Output() editItem = new EventEmitter<number>();
+  @Output() removeItem = new EventEmitter<number>();
+  @Output() addAll = new EventEmitter<ScannedCard[]>();
+  @Output() continueScan = new EventEmitter<void>();
 
   // State
   expanded = signal(false);

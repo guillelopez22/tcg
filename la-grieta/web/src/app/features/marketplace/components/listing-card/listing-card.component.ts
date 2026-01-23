@@ -9,7 +9,7 @@ import { Listing, ListingStatus, ListingType } from '@la-grieta/shared';
 import { ConditionBadgeComponent } from '../../../collections/components/condition-badge/condition-badge.component';
 
 @Component({
-  selector: 'lg-listing-card',
+  selector: 'app-listing-card',
   standalone: true,
   imports: [
     CommonModule,
@@ -59,7 +59,7 @@ import { ConditionBadgeComponent } from '../../../collections/components/conditi
         <!-- Condition & Quantity -->
         @if (listing.items && listing.items.length > 0) {
           <div class="flex items-center gap-2 mb-3">
-            <lg-condition-badge [condition]="listing.items[0].condition" size="sm" />
+            <app-condition-badge [condition]="listing.items[0].condition" size="sm" />
             <span class="text-xs text-gray-600">
               Qty: {{ getTotalQuantity() }}
             </span>

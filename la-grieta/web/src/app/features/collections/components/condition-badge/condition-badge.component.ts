@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { CardCondition } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-condition-badge',
+  selector: 'app-condition-badge',
   standalone: true,
   imports: [CommonModule],
   template: `

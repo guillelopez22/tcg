@@ -10,7 +10,7 @@ export interface EmptyStateAction {
 }
 
 @Component({
-  selector: 'lg-empty-state',
+  selector: 'app-empty-state',
   standalone: true,
   imports: [CommonModule, MatIconModule, MatButtonModule],
   template: `

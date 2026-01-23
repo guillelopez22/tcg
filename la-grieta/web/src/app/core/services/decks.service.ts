@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from './api.service';
 import {
@@ -19,6 +19,8 @@ import {
   providedIn: 'root'
 })
 export class DecksService {
+  private api = inject(ApiService);
+
   // Angular Signals for state management
   private decksSignal = signal<DeckListResponseDto[]>([]);
   private currentDeckSignal = signal<DeckResponseDto | null>(null);
@@ -75,8 +77,6 @@ export class DecksService {
     const result = this.validationResultSignal();
     return result?.isValid ?? false;
   });
-
-  constructor(private api: ApiService) {}
 
   /**
    * 1. List User's Decks

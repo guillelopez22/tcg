@@ -12,7 +12,7 @@ export interface PriceRange {
 }
 
 @Component({
-  selector: 'lg-price-filter',
+  selector: 'app-price-filter',
   standalone: true,
   imports: [
     CommonModule,

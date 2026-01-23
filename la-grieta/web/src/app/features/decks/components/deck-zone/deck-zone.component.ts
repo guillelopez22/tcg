@@ -6,7 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { DeckCard, DeckZone } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-deck-zone',
+  selector: 'app-deck-zone',
   standalone: true,
   imports: [
     CommonModule,
@@ -129,8 +129,8 @@ import { DeckCard, DeckZone } from '@la-grieta/shared';
 export class DeckZoneComponent {
   @Input({ required: true }) zone!: DeckZone | string;
   @Input() cards: DeckCard[] = [];
-  @Input() minCount: number = 0;
-  @Input() maxCount: number = 40;
+  @Input() minCount = 0;
+  @Input() maxCount = 40;
 
   @Output() addCard = new EventEmitter<void>();
   @Output() removeCard = new EventEmitter<DeckCard>();

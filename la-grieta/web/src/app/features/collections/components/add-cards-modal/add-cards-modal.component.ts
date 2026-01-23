@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit, signal } from '@angular/core';
+import {  Component, Inject, OnInit, signal , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
@@ -18,7 +18,7 @@ export interface AddCardsModalData {
 }
 
 @Component({
-  selector: 'lg-add-cards-modal',
+  selector: 'app-add-cards-modal',
   standalone: true,
   imports: [
     CommonModule,
@@ -72,6 +72,11 @@ export interface AddCardsModalData {
                 <div
                   class="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 flex items-center gap-3"
                   (click)="selectCard(card)"
+                  (keydown.enter)="selectCard(card)"
+                  (keydown.space)="selectCard(card)"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="'Select card ' + card.name"
                   [class.bg-blue-50]="selectedCard()?.id === card.id"
                 >
                   @if (card.imageUrl) {
@@ -217,6 +222,11 @@ export interface AddCardsModalData {
   `]
 })
 export class AddCardsModalComponent implements OnInit {
+  private fb = inject(FormBuilder);
+  private cardsService = inject(CardsService);
+  public collectionsService = inject(CollectionsService);
+  private dialogRef = inject(MatDialogRef<AddCardsModalComponent>);
+  public data = inject<AddCardsModalData>(MAT_DIALOG_DATA);
   searchControl!: FormControl<string | null>;
   addForm!: FormGroup;
 
@@ -226,13 +236,7 @@ export class AddCardsModalComponent implements OnInit {
 
   conditions = CARD_CONDITIONS;
 
-  constructor(
-    private fb: FormBuilder,
-    private cardsService: CardsService,
-    public collectionsService: CollectionsService,
-    private dialogRef: MatDialogRef<AddCardsModalComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: AddCardsModalData
-  ) {
+  constructor() {
     this.searchControl = this.fb.control('');
     this.addForm = this.fb.group({
       quantity: [1, [Validators.required, Validators.min(1), Validators.max(999)]],

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,7 +15,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { OrderStatus } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-order-history',
+  selector: 'app-order-history',
   standalone: true,
   imports: [
     CommonModule,
@@ -70,7 +70,7 @@ import { OrderStatus } from '@la-grieta/shared';
       <!-- Loading State -->
       @if (ordersService.loading() && !ordersService.hasOrders()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -97,7 +97,7 @@ import { OrderStatus } from '@la-grieta/shared';
                       <h3 class="text-lg font-semibold text-gray-900">
                         Order #{{ order.id.substring(0, 8) }}
                       </h3>
-                      <lg-order-status-badge [status]="order.status" />
+                      <app-order-status-badge [status]="order.status" />
                     </div>
 
                     <!-- Listing Title -->
@@ -190,7 +190,7 @@ import { OrderStatus } from '@la-grieta/shared';
 
       <!-- Empty State -->
       @if (!ordersService.loading() && !ordersService.hasOrders()) {
-        <lg-empty-state
+        <app-empty-state
           icon="shopping_bag"
           heading="No Orders Yet"
           description="You haven't made any purchases yet. Browse the marketplace to find cards!"
@@ -207,11 +207,10 @@ import { OrderStatus } from '@la-grieta/shared';
   styles: []
 })
 export class OrderHistoryComponent implements OnInit {
+  public ordersService = inject(OrdersService);
   selectedStatus?: OrderStatus;
 
-  constructor(
-    public ordersService: OrdersService
-  ) {}
+  
 
   ngOnInit(): void {
     this.loadOrders();

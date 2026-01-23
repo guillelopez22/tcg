@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, signal, HostListener } from '@angular/core';
+import {  Component, OnInit, OnDestroy, ViewChild, signal, HostListener , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,7 +15,7 @@ import { AddCardsModalComponent, AddCardsModalData } from '../../../collections/
 import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-scanner-page',
+  selector: 'app-scanner-page',
   standalone: true,
   imports: [
     CommonModule,
@@ -105,14 +105,14 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
 
       <!-- Camera Viewfinder -->
       <div class="flex-1 relative mt-16 mb-24">
-        <lg-camera
+        <app-camera
           #cameraComponent
           [autoScanEnabled]="autoScanEnabled"
           (imageCaptured)="onImageCaptured($event)"
           (autoScanTriggered)="onAutoScanTriggered($event)"
           (cameraError)="onCameraError($event)"
           (permissionChange)="onPermissionChange($event)"
-        ></lg-camera>
+        ></app-camera>
 
         <!-- Guidance Text Overlay -->
         <div class="guidance-text absolute bottom-8 left-0 right-0 text-center z-40">
@@ -168,31 +168,31 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
 
       <!-- Bulk Queue Indicator -->
       @if (bulkMode() && scannerService.queueCount() > 0) {
-        <lg-bulk-queue
+        <app-bulk-queue
           #bulkQueueComponent
           [queue]="scannerService.bulkQueue()"
-          (onEditItem)="editQueueItem($event)"
-          (onRemoveItem)="removeFromQueue($event)"
-          (onAddAll)="addAllToCollection($event)"
-          (onContinueScan)="continueBulkScan()"
-        ></lg-bulk-queue>
+          (editItem)="editQueueItem($event)"
+          (removeItem)="removeFromQueue($event)"
+          (addAll)="addAllToCollection($event)"
+          (continueScan)="continueBulkScan()"
+        ></app-bulk-queue>
       }
 
       <!-- Scan Result Modal -->
       @if (showResult()) {
         <div class="result-overlay fixed inset-0 bg-black/90 z-50 flex items-end sm:items-center justify-center">
           <div class="result-card bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md p-6 pb-8 max-h-[90vh] overflow-y-auto">
-            <lg-scan-result
+            <app-scan-result
               #scanResultComponent
               [result]="scannerService.currentResult()"
               [mode]="bulkMode() ? 'bulk' : 'single'"
-              (onAddToCollection)="handleAddToCollection($event)"
-              (onAddToQueue)="handleAddToQueue($event)"
-              (onScanAnother)="scanAnother()"
-              (onManualEntry)="openManualEntry()"
-              (onReportWrong)="reportWrongCard()"
-              (onClose)="closeResult()"
-            ></lg-scan-result>
+              (addToCollection)="handleAddToCollection($event)"
+              (addToQueue)="handleAddToQueue($event)"
+              (scanAnother)="scanAnother()"
+              (manualEntry)="openManualEntry()"
+              (reportWrong)="reportWrongCard()"
+              (dismiss)="closeResult()"
+            ></app-scan-result>
           </div>
         </div>
       }
@@ -239,8 +239,8 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
 
       <!-- Help Modal -->
       @if (showHelpModal()) {
-        <div class="help-overlay fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showHelpModal.set(false)">
-          <div class="bg-white rounded-2xl w-full max-w-md p-6" (click)="$event.stopPropagation()">
+        <div class="help-overlay fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showHelpModal.set(false)" (keydown.enter)="showHelpModal.set(false)" (keydown.escape)="showHelpModal.set(false)" tabindex="0" role="dialog" aria-label="Help modal overlay">
+          <div class="bg-white rounded-2xl w-full max-w-md p-6" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" tabindex="-1" role="document">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-xl font-heading font-bold">Scanning Tips</h3>
               <button mat-icon-button (click)="showHelpModal.set(false)">
@@ -334,6 +334,11 @@ import { Card, AddCardToCollectionDto } from '@la-grieta/shared';
   `]
 })
 export class ScannerPageComponent implements OnInit, OnDestroy {
+  public scannerService = inject(ScannerService);
+  private collectionsService = inject(CollectionsService);
+  private snackBar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
+  private router = inject(Router);
   @ViewChild('cameraComponent') cameraComponent!: CameraComponent;
   @ViewChild('scanResultComponent') scanResultComponent!: ScanResultComponent;
   @ViewChild('bulkQueueComponent') bulkQueueComponent!: BulkQueueComponent;
@@ -351,13 +356,7 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
   private successCount = signal(0);
   private activeCollectionId = signal<string | null>(null);
 
-  constructor(
-    public scannerService: ScannerService,
-    private collectionsService: CollectionsService,
-    private snackBar: MatSnackBar,
-    private dialog: MatDialog,
-    private router: Router
-  ) {}
+  
 
   ngOnInit(): void {
     // Check scanner status

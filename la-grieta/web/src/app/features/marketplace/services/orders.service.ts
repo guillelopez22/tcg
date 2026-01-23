@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
@@ -22,6 +22,8 @@ export interface PaginatedOrders {
   providedIn: 'root'
 })
 export class OrdersService {
+  private api = inject(ApiService);
+
   // Angular Signals for state management
   private ordersSignal = signal<OrderWithDetails[]>([]);
   private salesSignal = signal<OrderWithDetails[]>([]);
@@ -41,8 +43,6 @@ export class OrdersService {
   readonly hasSales = computed(() => this.salesSignal().length > 0);
   readonly ordersCount = computed(() => this.ordersSignal().length);
   readonly salesCount = computed(() => this.salesSignal().length);
-
-  constructor(private api: ApiService) {}
 
   /**
    * Get My Orders (Purchases)

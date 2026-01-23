@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -8,7 +8,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
-  selector: 'lg-navigation',
+  selector: 'app-navigation',
   standalone: true,
   imports: [
     CommonModule,
@@ -23,7 +23,7 @@ import { AuthService } from '../../../core/services/auth.service';
   styleUrl: './navigation.component.scss'
 })
 export class NavigationComponent {
-  constructor(public authService: AuthService) {}
+  authService = inject(AuthService);
 
   onLogout(): void {
     this.authService.logout();

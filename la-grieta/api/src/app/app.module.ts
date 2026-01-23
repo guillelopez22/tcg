@@ -9,6 +9,7 @@ import { CollectionsModule } from './collections/collections.module';
 import { DecksModule } from './decks/decks.module';
 import { ScannerModule } from './scanner/scanner.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { MarketplaceModule } from './marketplace/marketplace.module';
     DecksModule,
     ScannerModule,
     MarketplaceModule,
+    StripeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

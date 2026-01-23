@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +10,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { DeckListResponseDto } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-decks-list',
+  selector: 'app-decks-list',
   standalone: true,
   imports: [
     CommonModule,
@@ -47,7 +47,7 @@ import { DeckListResponseDto } from '@la-grieta/shared';
       <!-- Loading State -->
       @if (decksService.loading() && !decksService.hasDecks()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -65,7 +65,7 @@ import { DeckListResponseDto } from '@la-grieta/shared';
       @if (decksService.hasDecks()) {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           @for (deck of decksService.decks(); track deck.id) {
-            <lg-deck-card
+            <app-deck-card
               [deck]="deck"
               (delete)="confirmDelete($event)"
             />
@@ -132,10 +132,9 @@ import { DeckListResponseDto } from '@la-grieta/shared';
   styles: []
 })
 export class DecksListComponent implements OnInit {
-  constructor(
-    public decksService: DecksService,
-    private snackBar: MatSnackBar
-  ) {}
+  public decksService = inject(DecksService);
+  private snackBar = inject(MatSnackBar);
+  
 
   ngOnInit(): void {
     this.loadDecks();

@@ -16,6 +16,8 @@ import { ShopProfileComponent } from './features/marketplace/pages/shop-profile/
 import { MyShopComponent } from './features/marketplace/pages/my-shop/my-shop.component';
 import { OrderHistoryComponent } from './features/marketplace/pages/order-history/order-history.component';
 import { SalesDashboardComponent } from './features/marketplace/pages/sales-dashboard/sales-dashboard.component';
+import { SellerOnboardingComponent } from './features/marketplace/pages/seller-onboarding/seller-onboarding.component';
+import { CheckoutComponent } from './features/marketplace/pages/checkout/checkout.component';
 
 export const appRoutes: Route[] = [
   {
@@ -99,6 +101,26 @@ export const appRoutes: Route[] = [
   {
     path: 'marketplace/sales',
     component: SalesDashboardComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/seller-onboarding',
+    component: SellerOnboardingComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/checkout',
+    component: CheckoutComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/checkout/success',
+    component: CheckoutComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'marketplace/checkout/cancel',
+    component: CheckoutComponent,
     canActivate: [authGuard]
   },
   {

@@ -8,7 +8,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { CollectionWithCount } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-collection-card',
+  selector: 'app-collection-card',
   standalone: true,
   imports: [
     CommonModule,

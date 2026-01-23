@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
 import { Card, CardType, Domain, CardRarity } from '@la-grieta/shared';
@@ -28,9 +28,9 @@ export interface CardSet {
   providedIn: 'root'
 })
 export class CardsService {
-  constructor(private api: ApiService) {}
+  private api = inject(ApiService);
 
-  getCards(filters?: CardFilters, page: number = 0, limit: number = 24): Observable<CardResponse> {
+  getCards(filters?: CardFilters, page = 0, limit = 24): Observable<CardResponse> {
     const params: any = {
       page,
       limit

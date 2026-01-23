@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
@@ -12,6 +12,8 @@ import {
   providedIn: 'root'
 })
 export class ShopsService {
+  private api = inject(ApiService);
+
   // Angular Signals for state management
   private shopsSignal = signal<Shop[]>([]);
   private currentShopSignal = signal<ShopWithListings | null>(null);
@@ -29,8 +31,6 @@ export class ShopsService {
   // Computed values
   readonly hasShops = computed(() => this.shopsSignal().length > 0);
   readonly hasMyShop = computed(() => this.myShopSignal() !== null);
-
-  constructor(private api: ApiService) {}
 
   /**
    * Get All Shops

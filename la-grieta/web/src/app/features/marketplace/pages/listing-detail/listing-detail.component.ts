@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {  Component, OnInit, signal , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,7 +15,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { ListingType } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-listing-detail',
+  selector: 'app-listing-detail',
   standalone: true,
   imports: [
     CommonModule,
@@ -44,7 +44,7 @@ import { ListingType } from '@la-grieta/shared';
       <!-- Loading State -->
       @if (marketplaceService.loading() && !marketplaceService.currentListing()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -94,7 +94,7 @@ import { ListingType } from '@la-grieta/shared';
                             {{ item.card?.name || 'Card' }}
                           </p>
                           <div class="flex items-center gap-2 mt-1">
-                            <lg-condition-badge [condition]="item.condition" size="sm" />
+                            <app-condition-badge [condition]="item.condition" size="sm" />
                             <span class="text-sm text-gray-600">Qty: {{ item.quantity }}</span>
                           </div>
                         </div>
@@ -250,14 +250,13 @@ import { ListingType } from '@la-grieta/shared';
   styles: []
 })
 export class ListingDetailComponent implements OnInit {
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    public marketplaceService: MarketplaceService,
-    public cartService: CartService,
-    private authService: AuthService,
-    private snackBar: MatSnackBar
-  ) {}
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  public marketplaceService = inject(MarketplaceService);
+  public cartService = inject(CartService);
+  private authService = inject(AuthService);
+  private snackBar = inject(MatSnackBar);
+  
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');

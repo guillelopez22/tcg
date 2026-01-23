@@ -9,7 +9,7 @@ import { CollectionItem } from '@la-grieta/shared';
 import { ConditionBadgeComponent } from '../condition-badge/condition-badge.component';
 
 @Component({
-  selector: 'lg-collection-item-card',
+  selector: 'app-collection-item-card',
   standalone: true,
   imports: [
     CommonModule,
@@ -51,7 +51,7 @@ import { ConditionBadgeComponent } from '../condition-badge/condition-badge.comp
 
         <!-- Condition Badge -->
         <div class="mb-3">
-          <lg-condition-badge [condition]="item.condition" size="sm" />
+          <app-condition-badge [condition]="item.condition" size="sm" />
         </div>
 
         <!-- Card Details -->

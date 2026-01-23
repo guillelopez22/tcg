@@ -10,7 +10,7 @@ import { Card, CardCondition, CARD_CONDITIONS, Domain } from '@la-grieta/shared'
 import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.service';
 
 @Component({
-  selector: 'lg-scan-result',
+  selector: 'app-scan-result',
   standalone: true,
   imports: [
     CommonModule,
@@ -40,7 +40,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
               </p>
             </div>
           </div>
-          <button mat-icon-button (click)="onClose.emit()" aria-label="Close">
+          <button mat-icon-button (click)="dismiss.emit()" aria-label="Close">
             <mat-icon>close</mat-icon>
           </button>
         </div>
@@ -99,10 +99,10 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
 
         <!-- Condition Selector -->
         <div class="mb-6">
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <div class="block text-sm font-semibold text-gray-700 mb-2">
             Card Condition
-          </label>
-          <div class="flex gap-2 overflow-x-auto pb-2">
+          </div>
+          <div class="flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Card condition options">
             @for (cond of conditions; track cond) {
               <button
                 mat-stroked-button
@@ -119,10 +119,10 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
 
         <!-- Quantity Selector -->
         <div class="mb-6">
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
+          <div class="block text-sm font-semibold text-gray-700 mb-2">
             Quantity
-          </label>
-          <div class="flex items-center gap-4">
+          </div>
+          <div class="flex items-center gap-4" role="group" aria-label="Quantity selection">
             <button
               mat-mini-fab
               color="primary"
@@ -160,7 +160,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
             color="primary"
             class="flex-1"
             [disabled]="adding()"
-            (click)="addToCollection()"
+            (click)="handleAddToCollection()"
           >
             @if (adding()) {
               <mat-spinner diameter="20" class="mr-2"></mat-spinner>
@@ -172,7 +172,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
           <button
             mat-stroked-button
             [disabled]="adding()"
-            (click)="onScanAnother.emit()"
+            (click)="scanAnother.emit()"
           >
             <mat-icon>document_scanner</mat-icon>
             Scan Another
@@ -197,7 +197,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
           <button
             mat-button
             class="text-sm text-gray-600"
-            (click)="onReportWrong.emit()"
+            (click)="reportWrong.emit()"
           >
             Not the right card?
           </button>
@@ -320,7 +320,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
           <button
             mat-stroked-button
             class="w-full"
-            (click)="onScanAnother.emit()"
+            (click)="scanAnother.emit()"
           >
             <mat-icon>document_scanner</mat-icon>
             None of These - Rescan
@@ -364,7 +364,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
             mat-raised-button
             color="primary"
             class="w-full"
-            (click)="onScanAnother.emit()"
+            (click)="scanAnother.emit()"
           >
             <mat-icon>document_scanner</mat-icon>
             Try Scanning Again
@@ -372,7 +372,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
           <button
             mat-stroked-button
             class="w-full"
-            (click)="onManualEntry.emit()"
+            (click)="manualEntry.emit()"
           >
             <mat-icon>edit</mat-icon>
             Add Card Manually
@@ -380,7 +380,7 @@ import { ScanResponse, ScanMatch } from '../../../../core/services/scanner.servi
           <button
             mat-button
             class="w-full text-gray-600"
-            (click)="onClose.emit()"
+            (click)="dismiss.emit()"
           >
             Cancel
           </button>
@@ -424,12 +424,12 @@ export class ScanResultComponent {
   @Input() result: ScanResponse | null = null;
   @Input() mode: 'single' | 'bulk' = 'single';
 
-  @Output() onAddToCollection = new EventEmitter<{ card: Card; quantity: number; condition: string }>();
-  @Output() onAddToQueue = new EventEmitter<{ card: Card; quantity: number; condition: string; confidence: number }>();
-  @Output() onScanAnother = new EventEmitter<void>();
-  @Output() onManualEntry = new EventEmitter<void>();
-  @Output() onReportWrong = new EventEmitter<void>();
-  @Output() onClose = new EventEmitter<void>();
+  @Output() addToCollection = new EventEmitter<{ card: Card; quantity: number; condition: string }>();
+  @Output() addToQueue = new EventEmitter<{ card: Card; quantity: number; condition: string; confidence: number }>();
+  @Output() scanAnother = new EventEmitter<void>();
+  @Output() manualEntry = new EventEmitter<void>();
+  @Output() reportWrong = new EventEmitter<void>();
+  @Output() dismiss = new EventEmitter<void>();
 
   // State
   selectedCondition = signal<CardCondition>(CardCondition.NEAR_MINT);
@@ -488,14 +488,14 @@ export class ScanResultComponent {
     return domainColors[domain] || 'bg-gray-500 text-white';
   }
 
-  addToCollection(): void {
+  handleAddToCollection(): void {
     const match = this.result?.match;
     if (!match) return;
 
     this.adding.set(true);
 
     if (this.mode === 'bulk') {
-      this.onAddToQueue.emit({
+      this.addToQueue.emit({
         card: match.card,
         quantity: this.quantity(),
         condition: this.selectedCondition(),
@@ -503,7 +503,7 @@ export class ScanResultComponent {
       });
       this.adding.set(false);
     } else {
-      this.onAddToCollection.emit({
+      this.addToCollection.emit({
         card: match.card,
         quantity: this.quantity(),
         condition: this.selectedCondition()

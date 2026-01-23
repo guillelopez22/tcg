@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import {  Component, Inject , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
@@ -15,7 +15,7 @@ export interface CollectionFormData {
 }
 
 @Component({
-  selector: 'lg-collection-form-modal',
+  selector: 'app-collection-form-modal',
   standalone: true,
   imports: [
     CommonModule,
@@ -128,24 +128,23 @@ export interface CollectionFormData {
   `]
 })
 export class CollectionFormModalComponent {
+  private fb = inject(FormBuilder);
+  public collectionsService = inject(CollectionsService);
+  private dialogRef = inject(MatDialogRef<CollectionFormModalComponent>);
+  public data = inject<CollectionFormData>(MAT_DIALOG_DATA);
   form: FormGroup;
   isEditMode: boolean;
 
-  constructor(
-    private fb: FormBuilder,
-    public collectionsService: CollectionsService,
-    private dialogRef: MatDialogRef<CollectionFormModalComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: CollectionFormData
-  ) {
-    this.isEditMode = data.mode === 'edit';
+  constructor() {
+    this.isEditMode = this.data.mode === 'edit';
 
     this.form = this.fb.group({
       name: [
-        data.collection?.name || '',
+        this.data.collection?.name || '',
         [Validators.required, Validators.maxLength(100)]
       ],
       description: [
-        data.collection?.description || '',
+        this.data.collection?.description || '',
         [Validators.maxLength(500)]
       ]
     });

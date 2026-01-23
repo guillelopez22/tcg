@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import {  Component, OnInit, OnDestroy, signal , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -18,7 +18,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCardDto } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-deck-builder',
+  selector: 'app-deck-builder',
   standalone: true,
   imports: [
     CommonModule,
@@ -80,7 +80,7 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
       <div class="container mx-auto px-4 py-6">
         @if (decksService.loading()) {
           <div class="flex justify-center py-16">
-            <lg-loading-spinner />
+            <app-loading-spinner />
           </div>
         } @else {
           <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -149,10 +149,10 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
               </div>
 
               <!-- Validation Panel -->
-              <lg-validation-panel [validation]="decksService.validationResult()" />
+              <app-validation-panel [validation]="decksService.validationResult()" />
 
               <!-- Stats Panel -->
-              <lg-stats-panel [stats]="decksService.deckStats()" />
+              <app-stats-panel [stats]="decksService.deckStats()" />
             </div>
 
             <!-- Main Content - Deck Zones -->
@@ -167,7 +167,7 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
               }
 
               <!-- Main Deck Zone -->
-              <lg-deck-zone
+              <app-deck-zone
                 zone="MAIN"
                 [cards]="decksService.mainDeckCards()"
                 [minCount]="30"
@@ -179,7 +179,7 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
               />
 
               <!-- Rune Deck Zone -->
-              <lg-deck-zone
+              <app-deck-zone
                 zone="RUNE"
                 [cards]="decksService.runeDeckCards()"
                 [minCount]="10"
@@ -191,7 +191,7 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
               />
 
               <!-- Battlefield Zone -->
-              <lg-deck-zone
+              <app-deck-zone
                 zone="BATTLEFIELD"
                 [cards]="decksService.battlefieldCards()"
                 [minCount]="1"
@@ -237,6 +237,11 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
                     <div
                       class="cursor-pointer rounded-lg border-2 border-transparent hover:border-primary-500 transition-colors p-2"
                       (click)="addCardToDeck(card)"
+                      (keydown.enter)="addCardToDeck(card)"
+                      (keydown.space)="addCardToDeck(card)"
+                      tabindex="0"
+                      role="button"
+                      [attr.aria-label]="'Add ' + card.name + ' to deck'"
                     >
                       @if (card.imageUrl) {
                         <img [src]="card.imageUrl" [alt]="card.name" class="w-full rounded" />
@@ -265,6 +270,12 @@ import { DeckCard, DeckZone, Card, CreateDeckDto, AddCardToDeckDto, UpdateDeckCa
   styles: []
 })
 export class DeckBuilderComponent implements OnInit, OnDestroy {
+  public decksService = inject(DecksService);
+  private cardsService = inject(CardsService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private fb = inject(FormBuilder);
+  private snackBar = inject(MatSnackBar);
   deckForm!: FormGroup;
   isEditMode = false;
   deckId: string | null = null;
@@ -276,14 +287,7 @@ export class DeckBuilderComponent implements OnInit, OnDestroy {
   filteredCards = signal<Card[]>([]);
   searchControl = new FormControl<string>('', { nonNullable: true });
 
-  constructor(
-    public decksService: DecksService,
-    private cardsService: CardsService,
-    private route: ActivatedRoute,
-    private router: Router,
-    private fb: FormBuilder,
-    private snackBar: MatSnackBar
-  ) {
+  constructor() {
     this.deckForm = this.fb.group({
       name: ['', [Validators.required, Validators.minLength(1)]],
       description: ['']

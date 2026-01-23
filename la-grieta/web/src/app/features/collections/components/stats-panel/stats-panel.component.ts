@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { CollectionStatsResponseDto } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-stats-panel',
+  selector: 'app-stats-panel',
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `

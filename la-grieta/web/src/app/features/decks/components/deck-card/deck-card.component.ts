@@ -8,7 +8,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { DeckListResponseDto } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-deck-card',
+  selector: 'app-deck-card',
   standalone: true,
   imports: [
     CommonModule,

@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Observable, tap, catchError, of } from 'rxjs';
 import { ApiService } from './api.service';
 import { Card } from '@la-grieta/shared';
@@ -51,6 +51,8 @@ export interface ScannedCard {
   providedIn: 'root'
 })
 export class ScannerService {
+  private api = inject(ApiService);
+
   // State signals
   private scanStateSignal = signal<ScanState>('idle');
   private currentResultSignal = signal<ScanResponse | null>(null);
@@ -73,8 +75,6 @@ export class ScannerService {
   readonly totalQueueQuantity = computed(() =>
     this.bulkQueueSignal().reduce((sum, item) => sum + item.quantity, 0)
   );
-
-  constructor(private api: ApiService) {}
 
   /**
    * Scan a single card image

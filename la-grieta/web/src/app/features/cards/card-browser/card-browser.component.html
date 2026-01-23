@@ -60,14 +60,14 @@
 
   <!-- Loading State -->
   @if (loading()) {
-    <lg-loading-spinner message="Loading cards..."></lg-loading-spinner>
+    <app-loading-spinner message="Loading cards..."></app-loading-spinner>
   }
 
   <!-- Cards Grid -->
   @if (!loading() && cards().length > 0) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-6">
       @for (card of cards(); track card.id) {
-        <lg-card-display [card]="card" (cardClick)="onCardClick($event)"></lg-card-display>
+        <app-card-display [card]="card" (cardClick)="onCardClick($event)"></app-card-display>
       }
     </div>
 

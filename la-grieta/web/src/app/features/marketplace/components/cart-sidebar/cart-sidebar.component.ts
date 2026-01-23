@@ -9,7 +9,7 @@ import { CartService } from '../../services/cart.service';
 import { ConditionBadgeComponent } from '../../../collections/components/condition-badge/condition-badge.component';
 
 @Component({
-  selector: 'lg-cart-sidebar',
+  selector: 'app-cart-sidebar',
   standalone: true,
   imports: [
     CommonModule,
@@ -74,7 +74,7 @@ import { ConditionBadgeComponent } from '../../../collections/components/conditi
                           {{ item.listing.title }}
                         </h4>
                         @if (item.listing.items && item.listing.items.length > 0) {
-                          <lg-condition-badge
+                          <app-condition-badge
                             [condition]="item.listing.items[0].condition"
                             size="sm"
                             class="mb-1"

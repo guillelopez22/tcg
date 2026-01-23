@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,7 +12,7 @@ import { CollectionFormModalComponent } from '../../components/collection-form-m
 import { CollectionWithCount } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-collections-list',
+  selector: 'app-collections-list',
   standalone: true,
   imports: [
     CommonModule,
@@ -51,7 +51,7 @@ import { CollectionWithCount } from '@la-grieta/shared';
       <!-- Loading State -->
       @if (collectionsService.loading() && !collectionsService.hasCollections()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -69,7 +69,7 @@ import { CollectionWithCount } from '@la-grieta/shared';
       @if (collectionsService.hasCollections()) {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           @for (collection of collectionsService.collections(); track collection.id) {
-            <lg-collection-card
+            <app-collection-card
               [collection]="collection"
               (edit)="openEditModal($event)"
               (delete)="confirmDelete($event)"
@@ -80,7 +80,7 @@ import { CollectionWithCount } from '@la-grieta/shared';
 
       <!-- Empty State -->
       @if (!collectionsService.loading() && !collectionsService.hasCollections()) {
-        <lg-empty-state
+        <app-empty-state
           icon="collections_bookmark"
           heading="Start Your First Collection"
           description="Collections help you organize your cards by deck, rarity, or any way you choose. Create your first collection to get started!"
@@ -98,11 +98,9 @@ import { CollectionWithCount } from '@la-grieta/shared';
   styles: []
 })
 export class CollectionsListComponent implements OnInit {
-  constructor(
-    public collectionsService: CollectionsService,
-    private dialog: MatDialog,
-    private snackBar: MatSnackBar
-  ) {}
+  collectionsService = inject(CollectionsService);
+  private dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
 
   ngOnInit(): void {
     this.loadCollections();

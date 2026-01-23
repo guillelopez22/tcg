@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { OrderStatus } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-order-status-badge',
+  selector: 'app-order-status-badge',
   standalone: true,
   imports: [CommonModule],
   template: `

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import {  Component, OnInit, OnDestroy , inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,7 +17,7 @@ import { CollectionItem, UpdateCollectionItemDto } from '@la-grieta/shared';
 import { environment } from '../../../../../environments/environment';
 
 @Component({
-  selector: 'lg-collection-detail',
+  selector: 'app-collection-detail',
   standalone: true,
   imports: [
     CommonModule,
@@ -82,7 +82,7 @@ import { environment } from '../../../../../environments/environment';
 
         <!-- Statistics Panel -->
         @if (collectionsService.collectionStats()) {
-          <lg-stats-panel [stats]="collectionsService.collectionStats()" />
+          <app-stats-panel [stats]="collectionsService.collectionStats()" />
         }
 
         <!-- Cards Grid -->
@@ -93,7 +93,7 @@ import { environment } from '../../../../../environments/environment';
             </h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               @for (item of collection.items; track item.id) {
-                <lg-collection-item-card
+                <app-collection-item-card
                   [item]="item"
                   (updateQuantity)="openUpdateQuantityDialog($event)"
                   (remove)="confirmRemoveCard($event)"
@@ -105,7 +105,7 @@ import { environment } from '../../../../../environments/environment';
             </div>
           </div>
         } @else {
-          <lg-empty-state
+          <app-empty-state
             icon="style"
             heading="No Cards in Collection"
             description="Start adding cards to your collection to track their value and condition."
@@ -160,7 +160,7 @@ import { environment } from '../../../../../environments/environment';
       <!-- Loading State -->
       @if (collectionsService.loading() && !collectionsService.currentCollection()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -181,17 +181,16 @@ import { environment } from '../../../../../environments/environment';
   styles: []
 })
 export class CollectionDetailComponent implements OnInit, OnDestroy {
+  public collectionsService = inject(CollectionsService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private location = inject(Location);
+  private dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
   collectionId!: string;
   isProduction = environment.production;
 
-  constructor(
-    public collectionsService: CollectionsService,
-    private route: ActivatedRoute,
-    private router: Router,
-    private location: Location,
-    private dialog: MatDialog,
-    private snackBar: MatSnackBar
-  ) {}
+  
 
   ngOnInit(): void {
     this.collectionId = this.route.snapshot.paramMap.get('id')!;

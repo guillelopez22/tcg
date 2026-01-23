@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -18,7 +18,7 @@ import { LoadingSpinnerComponent } from '../../../../shared/components/loading-s
 import { OrderStatus } from '@la-grieta/shared';
 
 @Component({
-  selector: 'lg-ship-order-modal',
+  selector: 'app-ship-order-modal',
   standalone: true,
   imports: [
     CommonModule,
@@ -53,11 +53,10 @@ import { OrderStatus } from '@la-grieta/shared';
   `
 })
 export class ShipOrderModalComponent {
+  private dialogRef = inject(MatDialogRef<ShipOrderModalComponent>);
   trackingNumber = '';
 
-  constructor(
-    private dialogRef: MatDialogRef<ShipOrderModalComponent>
-  ) {}
+  
 
   onSubmit(): void {
     this.dialogRef.close(this.trackingNumber);
@@ -65,7 +64,7 @@ export class ShipOrderModalComponent {
 }
 
 @Component({
-  selector: 'lg-sales-dashboard',
+  selector: 'app-sales-dashboard',
   standalone: true,
   imports: [
     CommonModule,
@@ -149,7 +148,7 @@ export class ShipOrderModalComponent {
       <!-- Loading State -->
       @if (ordersService.loading() && !ordersService.hasSales()) {
         <div class="flex justify-center py-16">
-          <lg-loading-spinner />
+          <app-loading-spinner />
         </div>
       }
 
@@ -176,7 +175,7 @@ export class ShipOrderModalComponent {
                       <h3 class="text-lg font-semibold text-gray-900">
                         Sale #{{ sale.id.substring(0, 8) }}
                       </h3>
-                      <lg-order-status-badge [status]="sale.status" />
+                      <app-order-status-badge [status]="sale.status" />
                     </div>
 
                     <!-- Listing Title -->
@@ -293,7 +292,7 @@ export class ShipOrderModalComponent {
 
       <!-- Empty State -->
       @if (!ordersService.loading() && !ordersService.hasSales()) {
-        <lg-empty-state
+        <app-empty-state
           icon="receipt_long"
           heading="No Sales Yet"
           description="You haven't made any sales yet. Create listings to start selling!"
@@ -312,11 +311,9 @@ export class ShipOrderModalComponent {
 export class SalesDashboardComponent implements OnInit {
   selectedStatus?: OrderStatus;
 
-  constructor(
-    public ordersService: OrdersService,
-    private dialog: MatDialog,
-    private snackBar: MatSnackBar
-  ) {}
+  ordersService = inject(OrdersService);
+  private dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
 
   ngOnInit(): void {
     this.loadSales();
@@ -333,17 +330,17 @@ export class SalesDashboardComponent implements OnInit {
   }
 
   getPendingSales(): number {
-    return this.ordersService.sales().filter(s =>
+    return this.ordersService.sales().filter((s: any) =>
       s.status === OrderStatus.PENDING_PAYMENT || s.status === OrderStatus.PAYMENT_HELD
     ).length;
   }
 
   getShippedSales(): number {
-    return this.ordersService.sales().filter(s => s.status === OrderStatus.SHIPPED).length;
+    return this.ordersService.sales().filter((s: any) => s.status === OrderStatus.SHIPPED).length;
   }
 
   getCompletedSales(): number {
-    return this.ordersService.sales().filter(s => s.status === OrderStatus.COMPLETED).length;
+    return this.ordersService.sales().filter((s: any) => s.status === OrderStatus.COMPLETED).length;
   }
 
   formatDate(date: Date): string {
@@ -359,7 +356,7 @@ export class SalesDashboardComponent implements OnInit {
       width: '400px'
     });
 
-    dialogRef.afterClosed().subscribe(trackingNumber => {
+    dialogRef.afterClosed().subscribe((trackingNumber: string) => {
       if (trackingNumber) {
         this.ordersService.updateOrderStatus(saleId, {
           status: OrderStatus.SHIPPED,

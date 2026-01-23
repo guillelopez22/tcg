@@ -10,7 +10,9 @@ import { json, urlencoded } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
 
   // Trust proxy - required for Railway's load balancer
   // This ensures correct client IP detection and protocol forwarding

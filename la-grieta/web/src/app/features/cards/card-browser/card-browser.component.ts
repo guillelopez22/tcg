@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -15,7 +15,7 @@ import { LoadingSpinnerComponent } from '../../../shared/components/loading-spin
 import { Router } from '@angular/router';
 
 @Component({
-  selector: 'lg-card-browser',
+  selector: 'app-card-browser',
   standalone: true,
   imports: [
     CommonModule,
@@ -33,6 +33,9 @@ import { Router } from '@angular/router';
   styleUrl: './card-browser.component.scss'
 })
 export class CardBrowserComponent implements OnInit {
+  private cardsService = inject(CardsService);
+  private router = inject(Router);
+
   cards = signal<Card[]>([]);
   loading = signal(false);
   totalCards = signal(0);
@@ -47,11 +50,6 @@ export class CardBrowserComponent implements OnInit {
   cardTypes = Object.values(CardType);
   cardRarities = Object.values(CardRarity);
   domains = Object.values(Domain);
-
-  constructor(
-    private cardsService: CardsService,
-    private router: Router
-  ) {}
 
   ngOnInit(): void {
     this.loadCards();
