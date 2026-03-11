@@ -106,57 +106,57 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COLL-01 | — | Pending |
-| COLL-02 | — | Pending |
-| COLL-03 | — | Pending |
-| COLL-04 | — | Pending |
-| COLL-05 | — | Pending |
-| COLL-06 | — | Pending |
-| COLL-07 | — | Pending |
-| COLL-08 | — | Pending |
-| COLL-09 | — | Pending |
-| COLL-10 | — | Pending |
-| DECK-01 | — | Pending |
-| DECK-02 | — | Pending |
-| DECK-03 | — | Pending |
-| DECK-04 | — | Pending |
-| DECK-05 | — | Pending |
-| DECK-06 | — | Pending |
-| DECK-07 | — | Pending |
-| DECK-08 | — | Pending |
-| DECK-09 | — | Pending |
-| PTS-01 | — | Pending |
-| PTS-02 | — | Pending |
-| PTS-03 | — | Pending |
-| PTS-04 | — | Pending |
-| PTS-05 | — | Pending |
-| PTS-06 | — | Pending |
-| PTS-07 | — | Pending |
-| PTS-08 | — | Pending |
-| TOUR-01 | — | Pending |
-| TOUR-02 | — | Pending |
-| TOUR-03 | — | Pending |
-| TOUR-04 | — | Pending |
-| TOUR-05 | — | Pending |
-| TOUR-06 | — | Pending |
-| TOUR-07 | — | Pending |
-| TOUR-08 | — | Pending |
-| WHAP-01 | — | Pending |
-| WHAP-02 | — | Pending |
-| WHAP-03 | — | Pending |
-| WHAP-04 | — | Pending |
-| WHAP-05 | — | Pending |
-| WHAP-06 | — | Pending |
-| WHAP-07 | — | Pending |
-| PLAT-01 | — | Pending |
-| PLAT-02 | — | Pending |
-| PLAT-03 | — | Pending |
+| COLL-01 | Phase 1 | Pending |
+| COLL-02 | Phase 1 | Pending |
+| COLL-03 | Phase 1 | Pending |
+| COLL-04 | Phase 1 | Pending |
+| COLL-05 | Phase 1 | Pending |
+| COLL-06 | Phase 1 | Pending |
+| COLL-07 | Phase 1 | Pending |
+| COLL-08 | Phase 1 | Pending |
+| COLL-09 | Phase 1 | Pending |
+| COLL-10 | Phase 1 | Pending |
+| DECK-01 | Phase 2 | Pending |
+| DECK-02 | Phase 2 | Pending |
+| DECK-03 | Phase 2 | Pending |
+| DECK-04 | Phase 2 | Pending |
+| DECK-05 | Phase 2 | Pending |
+| DECK-06 | Phase 2 | Pending |
+| DECK-07 | Phase 2 | Pending |
+| DECK-08 | Phase 2 | Pending |
+| DECK-09 | Phase 2 | Pending |
+| PTS-01 | Phase 3 | Pending |
+| PTS-02 | Phase 3 | Pending |
+| PTS-03 | Phase 3 | Pending |
+| PTS-04 | Phase 3 | Pending |
+| PTS-05 | Phase 3 | Pending |
+| PTS-06 | Phase 3 | Pending |
+| PTS-07 | Phase 3 | Pending |
+| PTS-08 | Phase 3 | Pending |
+| TOUR-01 | Phase 4 | Pending |
+| TOUR-02 | Phase 4 | Pending |
+| TOUR-03 | Phase 4 | Pending |
+| TOUR-04 | Phase 4 | Pending |
+| TOUR-05 | Phase 4 | Pending |
+| TOUR-06 | Phase 4 | Pending |
+| TOUR-07 | Phase 4 | Pending |
+| TOUR-08 | Phase 4 | Pending |
+| WHAP-01 | Phase 5 | Pending |
+| WHAP-02 | Phase 5 | Pending |
+| WHAP-03 | Phase 5 | Pending |
+| WHAP-04 | Phase 5 | Pending |
+| WHAP-05 | Phase 5 | Pending |
+| WHAP-06 | Phase 5 | Pending |
+| WHAP-07 | Phase 5 | Pending |
+| PLAT-01 | Phase 1 | Pending |
+| PLAT-02 | Phase 3 | Pending |
+| PLAT-03 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 42 total
-- Mapped to phases: 0
-- Unmapped: 42
+- Mapped to phases: 42
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after initial definition*
+*Last updated: 2026-03-11 after roadmap creation*
