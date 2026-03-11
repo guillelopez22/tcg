@@ -8,6 +8,18 @@ dist/
 build/
 .nx/
 .angular/
+.next/
+.expo/
+out/
+
+# Turbo
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# pnpm
+.pnpm-store/
 
 # IDE
 .idea/
@@ -50,8 +62,7 @@ prisma/*.db-journal
 .temp/
 .tmp/
 
-# Planning & Coordination Documents (keep local only)
-.planning/
+# AI tool directories (keep local only)
 .claude/
 .cursor/
 nul
