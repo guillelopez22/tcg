@@ -30,7 +30,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can attach a photo to any collection entry and record a purchase price
   4. User can view a wantlist of cards they are hunting and a tradelist of cards they are willing to move, with both lists manageable from the same UI
   5. User can view collection stats showing total cards owned, set completion percentage per set, and value breakdown — and see which of their owned cards can build specific decks
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Schema migration, Zod schemas, i18n plumbing
+- [ ] 01-02-PLAN.md — Collection service rework + wishlist module (API layer)
+- [ ] 01-03-PLAN.md — Collection UI (grid, detail, add modal, wantlist/tradelist tabs)
+- [ ] 01-04-PLAN.md — Scanner enhancements (confirmation, cooldown, session summary)
+- [ ] 01-05-PLAN.md — Stats, deck recommendations, Spanish translations, language toggle
 
 ### Phase 2: Deck Builder Enhancements
 **Goal**: Players can build format-legal decks with a champion-first workflow, analyze energy curves and hand probability, and share or import decks using standard community formats
@@ -87,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Collection Tracker | 0/? | Not started | - |
+| 1. Collection Tracker | 0/5 | Planning complete | - |
 | 2. Deck Builder Enhancements | 0/? | Not started | - |
 | 3. Points Tracker | 0/? | Not started | - |
 | 4. Tournament Manager | 0/? | Not started | - |
