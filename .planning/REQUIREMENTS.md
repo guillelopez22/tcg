@@ -22,10 +22,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Deck Builder
 
-- [ ] **DECK-01**: User can build a deck using champion-first workflow (pick champion, then add cards)
+- [x] **DECK-01**: User can build a deck using champion-first workflow (pick champion, then add cards)
 - [x] **DECK-02**: Deck builder validates format in real time (40 main + 12 runes + 1 champion)
 - [ ] **DECK-03**: User can simulate sample opening hands from their deck
-- [ ] **DECK-04**: User can view deck analytics (energy curve, domain distribution)
+- [x] **DECK-04**: User can view deck analytics (energy curve, domain distribution)
 - [ ] **DECK-05**: User can export deck as a short share code
 - [ ] **DECK-06**: User can import deck from a share code
 - [ ] **DECK-07**: User can import deck from Riftbound.gg and Piltover Archive formats
@@ -116,10 +116,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-08 | Phase 1 | Complete |
 | COLL-09 | Phase 1 | Complete |
 | COLL-10 | Phase 1 | Complete |
-| DECK-01 | Phase 2 | Pending |
+| DECK-01 | Phase 2 | Complete |
 | DECK-02 | Phase 2 | Complete |
 | DECK-03 | Phase 2 | Pending |
-| DECK-04 | Phase 2 | Pending |
+| DECK-04 | Phase 2 | Complete |
 | DECK-05 | Phase 2 | Pending |
 | DECK-06 | Phase 2 | Pending |
 | DECK-07 | Phase 2 | Pending |

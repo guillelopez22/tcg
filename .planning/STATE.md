@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01.2-01-PLAN.md — Phase 01.2 Plan 01 DB migration and type contracts complete
-last_updated: "2026-03-12T19:24:06.450Z"
+stopped_at: Completed 01.2-02-PLAN.md — Phase 01.2 Plan 02 service layer overhaul complete
+last_updated: "2026-03-12T19:44:23.216Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 ---
@@ -89,6 +89,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01.1 P02 | 4 | 2 tasks | 1 files |
 | Phase 01.1 P03 | 7 | 2 tasks | 5 files |
 | Phase 01.2-smart-deck-builder P01 | 4 | 2 tasks | 9 files |
+| Phase 01.2 P02 | 17 | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,9 @@ Recent decisions affecting current work:
 - [Phase 01.2-smart-deck-builder]: Zone as third component of deck_cards unique index: (deck_id, card_id, zone) allows same card in both main and sideboard
 - [Phase 01.2-smart-deck-builder]: validateDeckFormat is pure (no Node/browser APIs) enabling isomorphic use on server and client
 - [Phase 01.2-smart-deck-builder]: MAX_COPIES_PER_CARD=3 imported from @la-grieta/shared in deck.service.ts — single source of truth for Riftbound copy limits
+- [Phase 01.2-smart-deck-builder]: validateCardEntriesBasic (sync, no DB) runs before validateCardIdsExist — BAD_REQUEST thrown without DB query
+- [Phase 01.2-smart-deck-builder]: computeAnalytics lives in packages/shared so Plan 04 UI can import it without server dependencies
+- [Phase 01.2-smart-deck-builder]: Stale compiled .js artifacts in packages/shared shadow new TS exports — all stale files must be updated after adding new exports to .ts source
 
 ### Roadmap Evolution
 
@@ -145,6 +149,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:24:06.447Z
-Stopped at: Completed 01.2-01-PLAN.md — Phase 01.2 Plan 01 DB migration and type contracts complete
+Last session: 2026-03-12T19:44:23.212Z
+Stopped at: Completed 01.2-02-PLAN.md — Phase 01.2 Plan 02 service layer overhaul complete
 Resume file: None

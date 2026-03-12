@@ -46,7 +46,7 @@ Plans:
 **Goal:** Upgrade the existing deck builder into a smart, collection-aware editor with zone-based format validation (40 main + 12 runes + 1 champion + sideboard), real-time analytics (energy curve, domain distribution, card type breakdown, rarity, market value), ownership integration (own badges, buildability %, wantlist integration), and intelligent card suggestions (synergy-based with domain + curve + meta co-occurrence + text keyword analysis)
 **Requirements**: DECK-01, DECK-02, DECK-04
 **Depends on:** Phase 1
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
 - [ ] 01.2-01-PLAN.md — DB migration + zone/status schema + Zod schemas + deck constants
