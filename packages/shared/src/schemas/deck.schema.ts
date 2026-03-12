@@ -1,9 +1,11 @@
 import { z } from 'zod';
-import { DECK_ZONES, MAX_COPIES_PER_CARD } from '../constants/card.constants';
+import { DECK_ZONES, RUNE_DECK_SIZE } from '../constants/card.constants';
 
+// Runes can have up to RUNE_DECK_SIZE (12) copies; regular cards max at 3.
+// Validation uses the higher bound; per-zone limits are enforced server-side.
 export const deckCardEntrySchema = z.object({
   cardId: z.string().uuid(),
-  quantity: z.number().int().min(1).max(MAX_COPIES_PER_CARD),
+  quantity: z.number().int().min(1).max(RUNE_DECK_SIZE),
   zone: z.enum(DECK_ZONES).default('main'),
 });
 
