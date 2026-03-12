@@ -14,6 +14,32 @@ import { HandSimulator } from './hand-simulator';
 
 const FALLBACK_RARITY = { text: 'text-zinc-400', bg: 'bg-zinc-800/50', border: 'border-zinc-700', glow: '' };
 
+function ShareButton({ deckId }: { deckId: string }) {
+  const generateShareCode = trpc.deck.generateShareCode.useMutation({
+    onSuccess(code) {
+      void navigator.clipboard.writeText(code);
+      toast.success(`Share code copied: ${code}`);
+    },
+    onError(err) {
+      toast.error(err.message);
+    },
+  });
+
+  return (
+    <button
+      onClick={() => generateShareCode.mutate({ deckId })}
+      disabled={generateShareCode.isPending}
+      className="lg-btn-secondary disabled:opacity-50 inline-flex items-center gap-1.5"
+      aria-label="Generate and copy share code"
+    >
+      <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M10 2h4v4M14 2l-7 7M6 4H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-3" />
+      </svg>
+      {generateShareCode.isPending ? 'Copying...' : 'Share'}
+    </button>
+  );
+}
+
 type DetailTab = 'cards' | 'analytics';
 
 interface DeckDetailProps {
@@ -171,9 +197,12 @@ export function DeckDetail({ id }: DeckDetailProps) {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="lg-text-muted">{totalCards} {totalCards === 1 ? 'card' : 'cards'} total</p>
           {isOwner && !isEditing && (
-            <button onClick={() => setIsEditing(true)} className="lg-btn-secondary">
-              Edit Cards
-            </button>
+            <div className="flex items-center gap-2">
+              {deck.isPublic && <ShareButton deckId={id} />}
+              <button onClick={() => setIsEditing(true)} className="lg-btn-secondary">
+                Edit Cards
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -187,6 +216,7 @@ export function DeckDetail({ id }: DeckDetailProps) {
           <DeckCardEditor
             deckId={id}
             initialCards={deck.cards}
+            isPublic={deck.isPublic}
             onClose={() => setIsEditing(false)}
             onSaved={() => setIsEditing(false)}
           />

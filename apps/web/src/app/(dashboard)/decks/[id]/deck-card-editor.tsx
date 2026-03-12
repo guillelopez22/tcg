@@ -116,6 +116,7 @@ function useDebounce<T>(value: T, delay: number): T {
 interface DeckCardEditorProps {
   deckId: string;
   initialCards: DeckCard[];
+  isPublic?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -124,7 +125,7 @@ interface DeckCardEditorProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckCardEditorProps) {
+export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSaved }: DeckCardEditorProps) {
   // --------------------------------------------------
   // State
   // --------------------------------------------------
@@ -269,6 +270,16 @@ export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckC
   const wishlistMutation = trpc.wishlist.toggle.useMutation({
     onSuccess: () => { toast.success('Added to wantlist'); },
     onError: () => { toast.error('Failed to add to wantlist'); },
+  });
+
+  const generateShareCode = trpc.deck.generateShareCode.useMutation({
+    onSuccess(code) {
+      void navigator.clipboard.writeText(code);
+      toast.success(`Share code copied: ${code}`);
+    },
+    onError(err) {
+      toast.error(err.message);
+    },
   });
 
   // --------------------------------------------------
@@ -1091,7 +1102,23 @@ export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckC
       )}
 
       {/* Action buttons */}
-      <div className="flex items-center justify-end gap-3 pt-2">
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-2">
+          {isPublic && (
+            <button
+              onClick={() => generateShareCode.mutate({ deckId })}
+              disabled={generateShareCode.isPending}
+              className="lg-btn-secondary disabled:opacity-50 inline-flex items-center gap-1.5"
+              aria-label="Generate and copy share code"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M10 2h4v4M14 2l-7 7M6 4H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-3" />
+              </svg>
+              {generateShareCode.isPending ? 'Copying...' : 'Share'}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
         <button
           onClick={onClose}
           disabled={setCardsMutation.isPending}
@@ -1111,6 +1138,7 @@ export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckC
           )}
           {setCardsMutation.isPending ? 'Saving...' : 'Save Deck'}
         </button>
+        </div>
       </div>
     </div>
   );
