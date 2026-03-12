@@ -1,0 +1,21 @@
+{
+  "name": "@la-grieta/seed",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "seed": "tsx src/run.ts",
+    "sync-decks": "tsx src/sync-riftdecks.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@la-grieta/db": "workspace:*",
+    "cheerio": "^1.0.0"
+  },
+  "devDependencies": {
+    "@la-grieta/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "^2.1.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0"
+  }
+}
