@@ -9,8 +9,13 @@ import { ListSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import { TrendingDecks } from './trending-decks';
 import { DeckWizard } from './deck-wizard';
+import { ImportDeckModal } from './import-deck-modal';
 
 type DeckTab = 'my-decks' | 'trending';
+
+function isNonLatinScript(text: string): boolean {
+  return /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(text);
+}
 
 // Sub-component: renders buildability percentage for a single deck
 function DeckBuildability({ deckId }: { deckId: string }) {
@@ -67,6 +72,7 @@ export function DeckList() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<DeckTab>('my-decks');
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const utils = trpc.useUtils();
@@ -125,7 +131,18 @@ export function DeckList() {
       <div className="flex items-center justify-between">
         <h1 className="lg-page-title">Decks</h1>
         {activeTab === 'my-decks' && (
-          <button onClick={() => setWizardOpen(true)} className="lg-btn-link">+ New Deck</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setImportOpen(true)}
+              className="lg-btn-secondary inline-flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M8 2v9M4 7l4 4 4-4M2 14h12" />
+              </svg>
+              Import
+            </button>
+            <button onClick={() => setWizardOpen(true)} className="lg-btn-link">+ New Deck</button>
+          </div>
         )}
       </div>
 
@@ -190,7 +207,19 @@ export function DeckList() {
                   <div className="flex-1 px-3 py-2 min-w-0">
                     <div className="flex items-start gap-2 justify-between">
                       <Link href={`/decks/${deck.id}`} className="hover:text-rift-400 transition-colors min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{deck.name}</p>
+                        {(() => {
+                          const cleanedName = deck.name.replace(/^\[RD\]\s*/, '');
+                          const coverCard = (deck as { coverCard?: { id: string; name: string | null; cleanName: string | null; imageSmall: string | null } | null }).coverCard;
+                          if (isNonLatinScript(cleanedName) && coverCard?.name) {
+                            return (
+                              <>
+                                <p className="text-sm font-medium text-white truncate">{coverCard.name.split(' - ')[0]}</p>
+                                <p className="text-xs text-zinc-500 truncate">({cleanedName})</p>
+                              </>
+                            );
+                          }
+                          return <p className="text-sm font-medium text-white truncate">{deck.name}</p>;
+                        })()}
                       </Link>
                       <DeckStatusBadge status={deckWithStatus.status} />
                     </div>
@@ -228,6 +257,7 @@ export function DeckList() {
               )}
             </div>
           )}
+
         </>
       )}
 
@@ -235,6 +265,11 @@ export function DeckList() {
         isOpen={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onCreated={() => void utils.deck.list.invalidate()}
+      />
+
+      <ImportDeckModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
       />
     </div>
   );
