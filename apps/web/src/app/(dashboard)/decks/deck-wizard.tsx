@@ -13,10 +13,10 @@ import { trpc } from '@/lib/trpc';
 
 const DOMAIN_COLORS: Record<string, string> = {
   Fury: 'text-red-400 bg-red-400/10 border-red-400/30',
-  Calm: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
-  Mind: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
-  Body: 'text-green-400 bg-green-400/10 border-green-400/30',
-  Chaos: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
+  Calm: 'text-green-400 bg-green-400/10 border-green-400/30',
+  Mind: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
+  Body: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
+  Chaos: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
   Order: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
 };
 
@@ -28,7 +28,8 @@ const TIER_STYLES: Record<string, string> = {
 };
 
 type WizardPath = null | 'suggested' | 'legend' | 'scratch';
-type WizardStep = 'choose-path' | 'pick-suggested' | 'preview-suggested' | 'pick-legend' | 'name-deck' | 'deck-summary';
+type WizardStep = 'choose-path' | 'pick-suggested' | 'preview-suggested' | 'pick-legend' | 'choose-build-mode' | 'name-deck' | 'deck-summary';
+type BuildMode = 'owned_first' | 'best_fit';
 
 interface DeckWizardProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ interface LegendCard {
   id: string;
   name: string;
   cleanName: string;
-  domain: string;
+  domain: string | null;
   imageSmall: string | null;
 }
 
@@ -58,10 +59,10 @@ function isNonLatinScript(text: string): boolean {
   return /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(text);
 }
 
-function getDisplayName(rawName: string, domain?: string | null): { primary: string; subtitle: string | null } {
+function getDisplayName(rawName: string, legendName?: string | null): { primary: string; subtitle: string | null } {
   const cleaned = rawName.replace(/^\[RD\]\s*/, '');
   if (isNonLatinScript(cleaned)) {
-    return { primary: domain ? `${domain} Deck` : 'Imported Deck', subtitle: cleaned };
+    return { primary: legendName ?? 'Imported Deck', subtitle: cleaned };
   }
   return { primary: cleaned, subtitle: null };
 }
@@ -79,6 +80,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
   const [deckName, setDeckName] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [deckSummary, setDeckSummary] = useState<DeckSummary | null>(null);
+  const [buildMode, setBuildMode] = useState<BuildMode>('owned_first');
 
   // Legend search and domain filter state
   const [legendSearch, setLegendSearch] = useState('');
@@ -96,6 +98,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
       setDeckSummary(null);
       setLegendSearch('');
       setLegendDomainFilter(null);
+      setBuildMode('owned_first');
     }
   }, [isOpen]);
 
@@ -123,6 +126,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
   const legendDomains = useMemo(() => {
     const domains = new Set<string>();
     for (const legend of allLegends) {
+      if (!legend.domain) continue;
       for (const d of legend.domain.split(';')) {
         if (d) domains.add(d);
       }
@@ -138,7 +142,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
           legend.name.toLowerCase().includes(legendSearch.toLowerCase())
         : true;
       const domainMatch = legendDomainFilter
-        ? legend.domain.split(';').includes(legendDomainFilter)
+        ? (legend.domain?.split(';').includes(legendDomainFilter) ?? false)
         : true;
       return searchMatch && domainMatch;
     });
@@ -171,6 +175,21 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
 
   const createDeck = trpc.deck.create.useMutation();
   const setCards = trpc.deck.setCards.useMutation();
+
+  // Load user collection for "Build with my cards" mode (ownership-based sorting)
+  const { data: collectionData } = trpc.collection.list.useQuery(
+    { limit: 200 },
+    { enabled: isOpen && path === 'legend', staleTime: 5 * 60 * 1000 },
+  );
+
+  const ownershipSet = useMemo((): Set<string> => {
+    const set = new Set<string>();
+    if (!collectionData?.items) return set;
+    for (const entry of collectionData.items) {
+      set.add(entry.card.id);
+    }
+    return set;
+  }, [collectionData]);
 
   // We still need allCards for buildStarterCardsFromPool. Load them lazily only when legend path is active.
   const { data: allCardsData } = trpc.card.list.useQuery(
@@ -211,8 +230,8 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     return cardArr;
   }, [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6]);
 
-  function buildStarterCardsFromPool(legend: LegendCard): Array<{ cardId: string; quantity: number }> {
-    const domains = legend.domain.split(';');
+  function buildStarterCardsFromPool(legend: LegendCard, mode: BuildMode = 'owned_first'): Array<{ cardId: string; quantity: number }> {
+    const domains = legend.domain?.split(';') ?? [];
     const pool = allCards.filter((c) => {
       if (c.id === legend.id) return false;
       if (c.cardType === 'Legend' || c.cardType === 'Token') return false;
@@ -221,7 +240,19 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     });
 
     const rarityOrder: Record<string, number> = { Legendary: 0, Epic: 1, Rare: 2, Uncommon: 3, Common: 4 };
-    pool.sort((a, b) => (rarityOrder[a.rarity] ?? 5) - (rarityOrder[b.rarity] ?? 5));
+
+    if (mode === 'owned_first') {
+      // Sort: owned cards first, then by rarity
+      pool.sort((a, b) => {
+        const aOwned = ownershipSet.has(a.id) ? 0 : 1;
+        const bOwned = ownershipSet.has(b.id) ? 0 : 1;
+        if (aOwned !== bOwned) return aOwned - bOwned;
+        return (rarityOrder[a.rarity] ?? 5) - (rarityOrder[b.rarity] ?? 5);
+      });
+    } else {
+      // best_fit: pure rarity + synergy order
+      pool.sort((a, b) => (rarityOrder[a.rarity] ?? 5) - (rarityOrder[b.rarity] ?? 5));
+    }
 
     const cards: Array<{ cardId: string; quantity: number }> = [];
     cards.push({ cardId: legend.id, quantity: 1 });
@@ -246,12 +277,12 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     if (!selectedLegend || !deckName.trim()) return;
     setIsBusy(true);
     try {
-      const starterCards = buildStarterCardsFromPool(selectedLegend);
+      const starterCards = buildStarterCardsFromPool(selectedLegend, buildMode);
       const deck = await createDeck.mutateAsync({
         name: deckName.trim(),
+        coverCardId: selectedLegend.id,
         cards: starterCards,
       });
-      await setCards.mutateAsync({ deckId: deck.id, cards: starterCards });
 
       // Compute domain breakdown for summary
       const domainBreakdown: Record<string, number> = {};
@@ -298,7 +329,9 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     try {
       const cards = previewDeck.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity }));
       const rawName = previewDeck.name;
-      const { primary: name } = getDisplayName(rawName, previewDeck.domain?.split(';')[0]);
+      // Find the legend card to use its name for non-Latin deck names
+      const legendCard = previewDeck.cards.find((c) => c.card.cardType === 'Legend');
+      const { primary: name } = getDisplayName(rawName, legendCard?.card.name?.split(' - ')[0]);
       const deck = await createDeck.mutateAsync({ name, cards });
       toast.success('Deck imported! You can customize it.');
       onCreated();
@@ -323,8 +356,11 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
 
   function handleBack() {
     if (step === 'name-deck' && path === 'legend') {
-      setStep('pick-legend');
+      setStep('choose-build-mode');
       setDeckName('');
+    } else if (step === 'choose-build-mode') {
+      setStep('pick-legend');
+      setSelectedLegend(null);
     } else if (step === 'preview-suggested') {
       setSelectedDeckId(null);
       setStep('pick-suggested');
@@ -340,7 +376,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     setSelectedLegend(legend);
     const baseName = legend.name.split(' - ')[0] ?? legend.name;
     setDeckName(`${baseName} Deck`);
-    setStep('name-deck');
+    setStep('choose-build-mode');
   }
 
   function handleSelectTrendingDeck(deckId: string) {
@@ -355,6 +391,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     'pick-suggested': 'Pick a Deck',
     'preview-suggested': 'Preview Deck',
     'pick-legend': 'Choose Your Legend',
+    'choose-build-mode': 'Build Style',
     'name-deck': 'Name Your Deck',
     'deck-summary': 'Deck Created!',
   };
@@ -454,7 +491,9 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
               )}
               {trendingDecks.map((deck) => {
                 const domainPrimary = deck.domain?.split(';')[0] ?? null;
-                const { primary: displayName, subtitle } = getDisplayName(deck.name, domainPrimary);
+                const coverCard = (deck as { coverCard?: { name: string; cleanName: string; imageSmall: string | null } | null }).coverCard;
+                const legendLabel = coverCard?.name?.split(' - ')[0] ?? null;
+                const { primary: displayName, subtitle } = getDisplayName(deck.name, legendLabel);
                 const cls = (domainPrimary && DOMAIN_COLORS[domainPrimary]) ?? 'text-zinc-400 bg-zinc-400/10 border-zinc-400/30';
                 const tierStyle = deck.tier ? (TIER_STYLES[deck.tier] ?? TIER_STYLES['C']) : null;
                 return (
@@ -465,13 +504,19 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                     className="w-full text-left rounded-xl border border-surface-border bg-surface-card p-3 hover:border-rift-600/50 transition-all disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-zinc-600" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="5" y="1" width="10" height="14" rx="1.5" />
-                          <rect x="3" y="3" width="10" height="14" rx="1.5" />
-                          <rect x="7" y="5" width="10" height="14" rx="1.5" />
-                        </svg>
-                      </div>
+                      {coverCard?.imageSmall ? (
+                        <div className="w-10 h-14 rounded-lg overflow-hidden flex-shrink-0 relative bg-surface-elevated">
+                          <Image src={coverCard.imageSmall} alt="" fill sizes="40px" className="object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-zinc-600" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="5" y="1" width="10" height="14" rx="1.5" />
+                            <rect x="3" y="3" width="10" height="14" rx="1.5" />
+                            <rect x="7" y="5" width="10" height="14" rx="1.5" />
+                          </svg>
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-medium text-white truncate">{displayName}</p>
@@ -519,8 +564,8 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                 <>
                   <div>
                     {(() => {
-                      const domainPrimary = previewDeck.domain?.split(';')[0] ?? null;
-                      const { primary: displayName, subtitle } = getDisplayName(previewDeck.name, domainPrimary);
+                      const previewLegend = previewDeck.cards.find((c) => c.card.cardType === 'Legend');
+                      const { primary: displayName, subtitle } = getDisplayName(previewDeck.name, previewLegend?.card.name?.split(' - ')[0]);
                       return (
                         <div className="mb-3">
                           <h3 className="text-base font-semibold text-white">{displayName}</h3>
@@ -611,7 +656,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
               )}
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {legends.map((legend) => {
-                  const domains = legend.domain.split(';');
+                  const domains = legend.domain?.split(';').filter(Boolean) ?? [];
                   return (
                     <button
                       key={legend.id}
@@ -672,7 +717,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                   <div>
                     <p className="text-sm font-medium text-white">{selectedLegend.name}</p>
                     <div className="flex gap-1 mt-0.5">
-                      {selectedLegend.domain.split(';').map((d) => {
+                      {(selectedLegend.domain?.split(';').filter(Boolean) ?? []).map((d) => {
                         const cls = DOMAIN_COLORS[d] ?? 'text-zinc-400 bg-zinc-400/10';
                         return (
                           <span key={d} className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${cls}`}>

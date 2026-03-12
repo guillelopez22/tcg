@@ -14,6 +14,7 @@ export * from './schemas/user.schema';
 export * from './schemas/wishlist.schema';
 
 // Utilities
+export * from './utils/compute-analytics';
 export * from './utils/currency';
 export * from './utils/like';
 export * from './utils/pagination';

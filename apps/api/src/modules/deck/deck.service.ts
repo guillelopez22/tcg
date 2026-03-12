@@ -33,6 +33,7 @@ export type DeckCardWithCard = DeckCard & {
     rarity: string;
     cardType: string | null;
     domain: string | null;
+    energyCost: number | null;
     imageSmall: string | null;
     imageLarge: string | null;
   };
@@ -175,6 +176,7 @@ export class DeckService {
           rarity: cards.rarity,
           cardType: cards.cardType,
           domain: cards.domain,
+          energyCost: cards.energyCost,
           imageSmall: cards.imageSmall,
           imageLarge: cards.imageLarge,
         },

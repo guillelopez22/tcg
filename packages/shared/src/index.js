@@ -28,6 +28,7 @@ __exportStar(require("./schemas/order.schema"), exports);
 __exportStar(require("./schemas/user.schema"), exports);
 __exportStar(require("./schemas/wishlist.schema"), exports);
 // Utilities
+__exportStar(require("./utils/compute-analytics"), exports);
 __exportStar(require("./utils/currency"), exports);
 __exportStar(require("./utils/like"), exports);
 __exportStar(require("./utils/pagination"), exports);
