@@ -12,7 +12,8 @@ La Grieta ships five capabilities in dependency order. Collection Tracker ships 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Collection Tracker** - Players can digitize every card they own with full variant, condition, and photo support plus wantlist and tradelist management (completed 2026-03-12)
+- [x] **Phase 1: Collection Tracker** - Players can digitize every card they own with full variant, condition, and photo support plus wantlist and tradelist management (completed 2026-03-12)
+- [ ] **Phase 1.1: Collection UX Polish** - (INSERTED) Optimistic grid interactions, undo toasts, market price display, deck wizard refinements
 - [ ] **Phase 2: Deck Builder Enhancements** - Competitive players can build, validate, analyze, and share decks with champion-first workflow and format-legal enforcement
 - [ ] **Phase 3: Points Tracker** - Any two players can run a scored match with real-time sync via QR code — no account required for the joining player
 - [ ] **Phase 4: Tournament Manager** - A tournament organizer can run a full Swiss tournament offline from registration through standings, with crash-safe state
@@ -33,11 +34,23 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 5/5 plans complete
 
 Plans:
-- [ ] 01-01-PLAN.md — Schema migration, Zod schemas, i18n plumbing
-- [ ] 01-02-PLAN.md — Collection service rework + wishlist module (API layer)
-- [ ] 01-03-PLAN.md — Collection UI (grid, detail, add modal, wantlist/tradelist tabs)
-- [ ] 01-04-PLAN.md — Scanner enhancements (confirmation, cooldown, session summary)
-- [ ] 01-05-PLAN.md — Stats, deck recommendations, Spanish translations, language toggle
+- [x] 01-01-PLAN.md — Schema migration, Zod schemas, i18n plumbing
+- [x] 01-02-PLAN.md — Collection service rework + wishlist module (API layer)
+- [x] 01-03-PLAN.md — Collection UI (grid, detail, add modal, wantlist/tradelist tabs)
+- [x] 01-04-PLAN.md — Scanner enhancements (confirmation, cooldown, session summary)
+- [x] 01-05-PLAN.md — Stats, deck recommendations, Spanish translations, language toggle
+
+### Phase 01.1: Collection UX Polish (INSERTED)
+
+**Goal:** Polish collection grid interactions (optimistic UI, undo toasts, long-press variant picker, copy removal picker), add market price display to tradelist/wantlist, and refine the deck wizard (tier badges, preview step, legend search, summary step, non-Latin name handling)
+**Requirements**: UXP-01, UXP-02, UXP-03, UXP-04, UXP-05, UXP-06, UXP-07, UXP-08, UXP-09, UXP-10, UXP-11, UXP-12
+**Depends on:** Phase 1
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01.1-01-PLAN.md — Backend: tier column, price joins in wishlist/collection, legends endpoint
+- [ ] 01.1-02-PLAN.md — Collection grid: optimistic UI, undo toasts, long-press, copy picker, total badge
+- [ ] 01.1-03-PLAN.md — Tradelist/wantlist pricing + deck wizard refinements
 
 ### Phase 2: Deck Builder Enhancements
 **Goal**: Players can build format-legal decks with a champion-first workflow, analyze energy curves and hand probability, and share or import decks using standard community formats
@@ -90,11 +103,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Collection Tracker | 5/5 | Complete   | 2026-03-12 |
+| 1.1 Collection UX Polish | 0/3 | Planning | - |
 | 2. Deck Builder Enhancements | 0/? | Not started | - |
 | 3. Points Tracker | 0/? | Not started | - |
 | 4. Tournament Manager | 0/? | Not started | - |
