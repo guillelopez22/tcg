@@ -11,6 +11,7 @@ export const decks = pgTable('decks', {
   isPublic: boolean('is_public').notNull().default(false),
   domain: varchar('domain', { length: 100 }),
   tier: varchar('tier', { length: 2 }),
+  status: varchar('status', { length: 20 }).notNull().default('draft'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 }, (table) => [
@@ -23,10 +24,11 @@ export const deckCards = pgTable('deck_cards', {
   deckId: uuid('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
   cardId: uuid('card_id').notNull().references(() => cards.id),
   quantity: integer('quantity').notNull().default(1),
+  zone: varchar('zone', { length: 20 }).notNull().default('main'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
 }, (table) => [
-  uniqueIndex('idx_deck_cards_deck_card').on(table.deckId, table.cardId),
+  uniqueIndex('idx_deck_cards_deck_card_zone').on(table.deckId, table.cardId, table.zone),
   index('idx_deck_cards_deck_id').on(table.deckId),
 ]);
 
