@@ -226,7 +226,7 @@
   /* — Floating action button — */
 
   .lg-fab {
-    @apply fixed bottom-20 right-4 sm:bottom-6 z-30 w-12 h-12 rounded-full bg-rift-600 text-white flex items-center justify-center shadow-lg shadow-rift-900/50 hover:bg-rift-500 active:scale-95 transition-all;
+    @apply fixed bottom-20 right-4 sm:bottom-6 z-30 w-12 h-12 rounded-full bg-rift-600 text-white flex items-center justify-center shadow-lg shadow-rift-900/50 hover:bg-rift-500 active:scale-95 transition-all sm:hidden;
   }
 
   /* — Modal / bottom sheet — */

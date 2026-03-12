@@ -7,14 +7,14 @@ import { useAuth } from '@/lib/auth-context';
 import { ListSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import { TrendingDecks } from './trending-decks';
+import { DeckWizard } from './deck-wizard';
 
 type DeckTab = 'my-decks' | 'trending';
 
 export function DeckList() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<DeckTab>('my-decks');
-  const [creating, setCreating] = useState(false);
-  const [newDeckName, setNewDeckName] = useState('');
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const utils = trpc.useUtils();
@@ -46,21 +46,11 @@ export function DeckList() {
     return () => { if (el) observer.unobserve(el); };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const create = trpc.deck.create.useMutation({
-    onSuccess() { setCreating(false); setNewDeckName(''); void utils.deck.list.invalidate(); toast.success('Deck created'); },
-  });
-
   const deleteDeck = trpc.deck.delete.useMutation({
     onSuccess() { void utils.deck.list.invalidate(); toast.success('Deck deleted'); },
   });
 
   const decks = data?.pages.flatMap((page) => page.items) ?? [];
-
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newDeckName.trim()) return;
-    create.mutate({ name: newDeckName.trim() });
-  }
 
   function handleDeleteClick(deckId: string) {
     if (deletingId === deckId) {
@@ -83,7 +73,7 @@ export function DeckList() {
       <div className="flex items-center justify-between">
         <h1 className="lg-page-title">Decks</h1>
         {activeTab === 'my-decks' && (
-          <button onClick={() => setCreating(true)} className="lg-btn-link">+ New Deck</button>
+          <button onClick={() => setWizardOpen(true)} className="lg-btn-link">+ New Deck</button>
         )}
       </div>
 
@@ -109,19 +99,6 @@ export function DeckList() {
 
       {activeTab === 'my-decks' && (
         <>
-          {creating && (
-            <form onSubmit={handleCreate} className="flex gap-2">
-              <input type="text" placeholder="Deck name..." value={newDeckName}
-                onChange={(e) => setNewDeckName(e.target.value)} autoFocus maxLength={100} className="lg-input flex-1" />
-              <button type="submit" disabled={create.isPending || !newDeckName.trim()} className="lg-btn-primary">
-                {create.isPending ? 'Creating...' : 'Create'}
-              </button>
-              <button type="button" onClick={() => { setCreating(false); setNewDeckName(''); }} className="lg-btn-secondary">
-                Cancel
-              </button>
-            </form>
-          )}
-
           {isLoading && (
             <div role="status"><span className="sr-only">Loading decks</span><ListSkeleton count={5} /></div>
           )}
@@ -133,10 +110,10 @@ export function DeckList() {
             </div>
           )}
 
-          {!isLoading && decks.length === 0 && !creating && (
+          {!isLoading && decks.length === 0 && (
             <div className="text-center py-12">
               <p className="lg-text-secondary mb-3">No decks yet.</p>
-              <button onClick={() => setCreating(true)} className="lg-btn-link">Create your first deck</button>
+              <button onClick={() => setWizardOpen(true)} className="lg-btn-link">Create your first deck</button>
             </div>
           )}
 
@@ -184,6 +161,12 @@ export function DeckList() {
           )}
         </>
       )}
+
+      <DeckWizard
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onCreated={() => void utils.deck.list.invalidate()}
+      />
     </div>
   );
 }

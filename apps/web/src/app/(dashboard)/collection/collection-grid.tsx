@@ -4,10 +4,11 @@
 // filters (set/rarity/variant/condition/domain), sort controls, and infinite scroll.
 // Floating + button opens the AddCardsModal.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { CARD_RARITIES, CARD_VARIANTS, CARD_CONDITIONS, CARD_DOMAINS } from '@la-grieta/shared';
@@ -45,6 +46,7 @@ export function CollectionGrid() {
   const [sortBy, setSortBy] = useState<SortBy>('date_added');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [busyCardId, setBusyCardId] = useState<string | null>(null);
 
   const { data: setsData } = trpc.card.sets.useQuery(undefined, { staleTime: Infinity });
 
@@ -104,6 +106,36 @@ export function CollectionGrid() {
     if (el) observer.observe(el);
     return () => { if (el) observer.unobserve(el); };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const addMutation = trpc.collection.add.useMutation({
+    onSuccess: () => {
+      toast.success('Copy added');
+      void utils.collection.list.invalidate();
+      void utils.collection.stats.invalidate();
+    },
+    onError: () => toast.error('Failed to add copy'),
+    onSettled: () => setBusyCardId(null),
+  });
+
+  const removeMutation = trpc.collection.remove.useMutation({
+    onSuccess: () => {
+      toast.success('Copy removed');
+      void utils.collection.list.invalidate();
+      void utils.collection.stats.invalidate();
+    },
+    onError: () => toast.error('Failed to remove copy'),
+    onSettled: () => setBusyCardId(null),
+  });
+
+  const handleAdd = useCallback((cardId: string) => {
+    setBusyCardId(cardId);
+    addMutation.mutate({ cardId, variant: 'normal', condition: 'near_mint' });
+  }, [addMutation]);
+
+  const handleRemove = useCallback((copyId: string, cardId: string) => {
+    setBusyCardId(cardId);
+    removeMutation.mutate({ id: copyId });
+  }, [removeMutation]);
 
   const handleModalSuccess = () => {
     void utils.collection.list.invalidate();
@@ -167,7 +199,7 @@ export function CollectionGrid() {
         </select>
       </div>
 
-      {/* Sort bar */}
+      {/* Sort bar + Add Cards button */}
       <div className="flex gap-2 items-center">
         <span className="lg-text-muted flex-shrink-0">{t('sort')}:</span>
         <select
@@ -188,6 +220,15 @@ export function CollectionGrid() {
           title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
         >
           {sortDir === 'asc' ? '↑' : '↓'}
+        </button>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="lg-btn-primary px-4 py-2 flex-shrink-0 flex items-center gap-1.5"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+          </svg>
+          <span>{t('addCards')}</span>
         </button>
       </div>
 
@@ -214,38 +255,77 @@ export function CollectionGrid() {
         <div className="text-center py-16">
           <div className="text-4xl mb-3 opacity-30">🃏</div>
           <p className="lg-text-secondary mb-4">Your collection is empty.</p>
-          <p className="lg-text-muted mb-4">Tap the + button below to add cards.</p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="lg-btn-primary px-6 py-3 inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>{t('addCards')}</span>
+          </button>
         </div>
       )}
 
       {/* Card grid — 2 cols on mobile, 3 on lg */}
       {cardGroups.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {cardGroups.map(({ card, copies }) => (
-            <Link
-              key={card.id}
-              href={`/collection/${card.id}`}
-              className="relative rounded-xl overflow-hidden border border-surface-border bg-surface-card hover:border-rift-600/50 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
-            >
-              <div className="aspect-[2/3] relative bg-surface-elevated">
-                {card.imageSmall ? (
-                  <Image
-                    src={card.imageSmall}
-                    alt={card.name}
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center p-2">
-                    <span className="text-xs text-zinc-600 text-center">{card.name}</span>
+          {cardGroups.map(({ card, copies }) => {
+            const isBusy = busyCardId === card.id;
+            const latestCopy = copies[0];
+
+            return (
+              <div key={card.id} className="relative group rounded-xl overflow-hidden border border-surface-border bg-surface-card hover:border-rift-600/50 transition-all">
+                <Link href={`/collection/${card.id}`}>
+                  <div className="aspect-[2/3] relative bg-surface-elevated">
+                    {card.imageSmall ? (
+                      <Image
+                        src={card.imageSmall}
+                        alt={card.name}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center p-2">
+                        <span className="text-xs text-zinc-600 text-center">{card.name}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {/* Copy count badge */}
-                <span className="lg-badge-count">{copies.length}</span>
+                </Link>
+                {/* +/- stepper overlay */}
+                <div className="absolute bottom-0 inset-x-0 flex items-center justify-between px-1.5 py-1.5 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => latestCopy && handleRemove(latestCopy.id, card.id)}
+                    disabled={isBusy}
+                    className="w-8 h-8 rounded-full bg-red-600/90 text-white flex items-center justify-center hover:bg-red-500 active:scale-90 transition-all disabled:opacity-50"
+                    aria-label={`Remove copy of ${card.name}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                    </svg>
+                  </button>
+                  <span className="text-white font-bold text-sm min-w-[2ch] text-center tabular-nums">
+                    {isBusy ? (
+                      <div className="w-4 h-4 mx-auto border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      copies.length
+                    )}
+                  </span>
+                  <button
+                    onClick={() => handleAdd(card.id)}
+                    disabled={isBusy}
+                    className="w-8 h-8 rounded-full bg-rift-600/90 text-white flex items-center justify-center hover:bg-rift-500 active:scale-90 transition-all disabled:opacity-50"
+                    aria-label={`Add copy of ${card.name}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       )}
 

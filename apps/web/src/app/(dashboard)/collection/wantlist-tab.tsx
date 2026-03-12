@@ -8,6 +8,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { CardGridSkeleton } from '@/components/skeletons';
@@ -21,6 +22,7 @@ export function WantlistTab() {
   // Visibility state — default private. True = public, false = private.
   const [isPublic, setIsPublic] = useState(false);
   const [isTogglingVisibility, setIsTogglingVisibility] = useState(false);
+  const [removingCardId, setRemovingCardId] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch } = trpc.wishlist.list.useQuery(
     { type: 'want', limit: 100 },
@@ -28,6 +30,15 @@ export function WantlistTab() {
   );
 
   const updateMutation = trpc.wishlist.update.useMutation();
+
+  const removeMutation = trpc.wishlist.toggle.useMutation({
+    onSuccess: () => {
+      toast.success('Removed from wantlist');
+      void refetch();
+    },
+    onError: () => toast.error('Failed to remove'),
+    onSettled: () => setRemovingCardId(null),
+  });
 
   const entries = data?.items ?? [];
 
@@ -141,41 +152,65 @@ export function WantlistTab() {
     <>
       {header}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {entries.map((entry) => (
-          <Link
-            key={entry.id}
-            href={`/collection/${entry.card.id}`}
-            className="relative rounded-xl overflow-hidden border border-surface-border bg-surface-card hover:border-rift-600/50 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
-          >
-            <div className="aspect-[2/3] relative bg-surface-elevated">
-              {entry.card.imageSmall ? (
-                <Image
-                  src={entry.card.imageSmall}
-                  alt={entry.card.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center p-2">
-                  <span className="text-xs text-zinc-600 text-center">{entry.card.name}</span>
+        {entries.map((entry) => {
+          const isRemoving = removingCardId === entry.card.id;
+          return (
+            <div
+              key={entry.id}
+              className="relative group rounded-xl overflow-hidden border border-surface-border bg-surface-card hover:border-rift-600/50 transition-all"
+            >
+              <Link href={`/collection/${entry.card.id}`}>
+                <div className="aspect-[2/3] relative bg-surface-elevated">
+                  {entry.card.imageSmall ? (
+                    <Image
+                      src={entry.card.imageSmall}
+                      alt={entry.card.name}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center p-2">
+                      <span className="text-xs text-zinc-600 text-center">{entry.card.name}</span>
+                    </div>
+                  )}
+                  {/* Preferred variant badge */}
+                  {entry.preferredVariant && (
+                    <span className="absolute bottom-8 left-1 lg-badge bg-purple-900/80 text-purple-300 text-[9px]">
+                      {entry.preferredVariant}
+                    </span>
+                  )}
+                  {/* Max price badge */}
+                  {entry.maxPrice && (
+                    <span className="absolute bottom-8 right-1 lg-badge bg-surface-card/80 text-zinc-300 text-[9px]">
+                      ≤${entry.maxPrice}
+                    </span>
+                  )}
                 </div>
-              )}
-              {/* Preferred variant badge */}
-              {entry.preferredVariant && (
-                <span className="absolute bottom-1 left-1 lg-badge bg-purple-900/80 text-purple-300 text-[9px]">
-                  {entry.preferredVariant}
-                </span>
-              )}
-              {/* Max price badge */}
-              {entry.maxPrice && (
-                <span className="absolute bottom-1 right-1 lg-badge bg-surface-card/80 text-zinc-300 text-[9px]">
-                  ≤${entry.maxPrice}
-                </span>
-              )}
+              </Link>
+              {/* Remove overlay */}
+              <div className="absolute bottom-0 inset-x-0 flex items-center justify-center px-1.5 py-1.5 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => {
+                    setRemovingCardId(entry.card.id);
+                    removeMutation.mutate({ cardId: entry.card.id, type: 'want' });
+                  }}
+                  disabled={isRemoving}
+                  className="w-8 h-8 rounded-full bg-red-600/90 text-white flex items-center justify-center hover:bg-red-500 active:scale-90 transition-all disabled:opacity-50"
+                  aria-label={`Remove ${entry.card.name} from wantlist`}
+                >
+                  {isRemoving ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
-          </Link>
-        ))}
+          );
+        })}
       </div>
 
       {/* Floating + button */}
