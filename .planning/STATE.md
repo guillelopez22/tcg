@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01.1-02-PLAN.md
-last_updated: "2026-03-12T17:08:24.867Z"
+stopped_at: Completed 01.1-03-PLAN.md
+last_updated: "2026-03-12T17:12:00.251Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 ---
@@ -72,6 +72,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P05 | 17 | 2 tasks | 17 files |
 | Phase 01.1 P01 | 8 | 2 tasks | 8 files |
 | Phase 01.1 P02 | 4 | 2 tasks | 1 files |
+| Phase 01.1 P03 | 7 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,8 @@ Recent decisions affecting current work:
 - [Phase 01.1]: DeckWithCreator type does not need explicit tier field — Deck already includes it via schema inference
 - [Phase 01.1]: Optimistic delta map (Map<cardId,number>) tracks count changes separately from tRPC cache — avoids setData complexity on infinite queries
 - [Phase 01.1]: Inline absolute popovers for variant/copy pickers — no portal, card tile is positioning context
+- [Phase 01.1]: Hover reveal uses md:opacity-0 md:group-hover:opacity-100 (md breakpoint) — always visible on mobile
+- [Phase 01.1]: undo toast dismisses itself when undo is clicked via toast.dismiss(toastId)
 
 ### Roadmap Evolution
 
@@ -122,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T17:08:24.863Z
-Stopped at: Completed 01.1-02-PLAN.md
+Last session: 2026-03-12T17:12:00.245Z
+Stopped at: Completed 01.1-03-PLAN.md
 Resume file: None
