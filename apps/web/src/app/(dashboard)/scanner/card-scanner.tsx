@@ -1,66 +1,62 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import { trpc } from '@/lib/trpc';
-import { CARD_CONDITIONS } from '@la-grieta/shared';
-import { RARITY_COLORS } from '@/lib/design-tokens';
 import { toast } from 'sonner';
+import { CARD_CONDITIONS, CARD_VARIANTS } from '@la-grieta/shared';
+import { ScanConfirmation } from './scan-confirmation';
+import type { ScanMatch, ConfirmationState } from './scan-confirmation';
+import { type CooldownSeconds, DEFAULT_COOLDOWN, loadCooldown } from './scanner-settings';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type CardCondition = (typeof CARD_CONDITIONS)[number];
-type ScanState = 'loading' | 'scanning' | 'detected' | 'confirming' | 'added';
+type CardVariant = (typeof CARD_VARIANTS)[number];
 
-interface ScannerMatch {
-  cardId: string;
-  name: string;
-  number: string | null;
-  setName: string;
-  imageSmall: string | null;
-  score: number;
+export interface ScannedEntry {
+  card: ScanMatch;
+  variant: CardVariant;
+  condition: CardCondition;
+  quantity: number;
+  addedAt: Date;
 }
 
-const CONDITION_LABELS: Record<CardCondition, string> = {
-  near_mint: 'NM',
-  lightly_played: 'LP',
-  moderately_played: 'MP',
-  heavily_played: 'HP',
-  damaged: 'DMG',
-};
+type ScanState = 'loading' | 'scanning' | 'confirming' | 'cooldown';
 
-const FALLBACK_RARITY = {
-  text: 'text-zinc-400',
-  bg: 'bg-zinc-800/50',
-  border: 'border-zinc-700',
-  glow: '',
-};
-
-// ── Constants ──────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const CONSECUTIVE_HITS_REQUIRED = 3;
-const SCAN_INTERVAL_MS = 1200; // server round-trip needs more time than local
-const FRAME_QUALITY = 0.75; // JPEG quality for captured frames
+const SCAN_INTERVAL_MS = 1200;
+const FRAME_QUALITY = 0.75;
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
-export function CardScanner() {
-  // ── State machine ─────────────────────────────────────────────────────────
+export interface CardScannerProps {
+  session: ScannedEntry[];
+  onSessionUpdate: (entries: ScannedEntry[]) => void;
+  cooldown: CooldownSeconds;
+  onEndSession: () => void;
+}
+
+export function CardScanner({ session, onSessionUpdate, cooldown, onEndSession }: CardScannerProps) {
+  const t = useTranslations('scanner');
+
+  // ── State machine ──────────────────────────────────────────────────────────
   const [scanState, setScanState] = useState<ScanState>('loading');
-  const [statusMessage, setStatusMessage] = useState('Loading...');
-  const [candidates, setCandidates] = useState<ScannerMatch[]>([]);
-  const [selectedMatch, setSelectedMatch] = useState<ScannerMatch | null>(null);
-  const [condition, setCondition] = useState<CardCondition>('near_mint');
-  const [sessionCount, setSessionCount] = useState(0);
+  const [statusMessage, setStatusMessage] = useState(t('scanning'));
 
-  // ── Camera ────────────────────────────────────────────────────────────────
+  // ── Confirmation overlay state ─────────────────────────────────────────────
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+
+  // ── Camera ─────────────────────────────────────────────────────────────────
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const viewfinderRef = useRef<HTMLDivElement>(null);
 
-  // ── Scanner status ────────────────────────────────────────────────────────
+  // ── Scanner service status ─────────────────────────────────────────────────
   const { data: scannerStatus } = trpc.scanner.status.useQuery(undefined, {
     refetchInterval: (query) => (query.state.data?.ready ? false : 2000),
     staleTime: 5000,
@@ -68,27 +64,35 @@ export function CardScanner() {
 
   const identifyMutation = trpc.scanner.identify.useMutation();
 
-  // ── Debug state ──────────────────────────────────────────────────────────
-  const [debugText, setDebugText] = useState('waiting...');
-
-  // ── tRPC utils + add mutation ─────────────────────────────────────────────
+  // ── tRPC utils + bulk add mutation ────────────────────────────────────────
   const utils = trpc.useUtils();
 
-  const addMutation = trpc.collection.add.useMutation({
-    onSuccess(_data, variables) {
+  const addBulkMutation = trpc.collection.addBulk.useMutation({
+    onSuccess(_data, _variables) {
+      if (!confirmation) return;
+      const { match, quantity, variant, condition } = confirmation;
+
       void utils.collection.stats.invalidate();
       void utils.collection.list.invalidate();
-      const addedName = selectedMatch?.name ?? 'card';
-      setSessionCount((c) => c + 1);
-      toast.success(`Added ${addedName} to collection`);
-      setScanState('added');
+
+      const entry: ScannedEntry = {
+        card: match,
+        variant,
+        condition,
+        quantity,
+        addedAt: new Date(),
+      };
+      onSessionUpdate([...session, entry]);
+      toast.success(t('addedWithName', { name: match.name }));
+
+      setConfirmation(null);
+      setScanState('cooldown');
+      setStatusMessage(t('resuming'));
+
       setTimeout(() => {
         setScanState('scanning');
-        setSelectedMatch(null);
-        setCandidates([]);
-        setCondition('near_mint');
-        setStatusMessage('Detecting...');
-      }, 1500);
+        setStatusMessage(t('detectingCard'));
+      }, cooldown * 1000);
     },
     onError(err) {
       toast.error(err.message ?? 'Failed to add card');
@@ -96,7 +100,7 @@ export function CardScanner() {
     },
   });
 
-  // ── Camera controls ───────────────────────────────────────────────────────
+  // ── Camera controls ────────────────────────────────────────────────────────
 
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -128,29 +132,23 @@ export function CardScanner() {
     setCameraActive(false);
   }, []);
 
-  // Start camera on mount, clean up on unmount
   useEffect(() => {
     void startCamera();
     return () => { stopCamera(); };
   }, [startCamera, stopCamera]);
 
-  // ── Transition from loading -> scanning ───────────────────────────────────
+  // ── Loading → scanning transition ──────────────────────────────────────────
   useEffect(() => {
     const cameraReady = cameraActive || cameraError !== null;
     const serverReady = scannerStatus?.ready === true;
-
     if (scanState === 'loading' && cameraReady && serverReady) {
       setScanState('scanning');
-      setStatusMessage('Detecting...');
+      setStatusMessage(t('detectingCard'));
     }
-  }, [scanState, cameraActive, cameraError, scannerStatus?.ready]);
+  }, [scanState, cameraActive, cameraError, scannerStatus?.ready, t]);
 
-  // ── Viewfinder crop ───────────────────────────────────────────────────────
+  // ── Viewfinder crop ────────────────────────────────────────────────────────
 
-  /**
-   * Calculate the crop rectangle in video-pixel space for the viewfinder area.
-   * Correctly handles CSS `object-cover` which crops the video to fill its container.
-   */
   function getViewfinderCrop(): { x: number; y: number; w: number; h: number } | null {
     const video = videoRef.current;
     const vf = viewfinderRef.current;
@@ -166,7 +164,6 @@ export function CardScanner() {
 
     if (cW === 0 || cH === 0 || vW === 0 || vH === 0) return null;
 
-    // object-cover: video is scaled to fill the container, then cropped
     const containerAspect = cW / cH;
     const videoAspect = vW / vH;
 
@@ -200,9 +197,6 @@ export function CardScanner() {
     return { x: cx, y: cy, w: cw, h: ch };
   }
 
-  /**
-   * Capture the viewfinder region as a base64 JPEG string (no data: prefix).
-   */
   function captureFrame(): string | null {
     const video = videoRef.current;
     if (!video) return null;
@@ -217,19 +211,16 @@ export function CardScanner() {
     if (!ctx) return null;
 
     ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
-
-    // Convert to base64 JPEG (strip the data:image/jpeg;base64, prefix)
     const dataUrl = canvas.toDataURL('image/jpeg', FRAME_QUALITY);
     return dataUrl.split(',')[1] ?? null;
   }
 
-  // ── Auto-scan loop ────────────────────────────────────────────────────────
+  // ── Auto-scan loop ─────────────────────────────────────────────────────────
 
   const scanningRef = useRef(false);
   const scanStateRef = useRef<ScanState>(scanState);
   scanStateRef.current = scanState;
 
-  // Temporal consistency: track consecutive wins by the same card
   const consecutiveWinnerRef = useRef<{ id: string; count: number } | null>(null);
 
   const runScan = useCallback(async () => {
@@ -237,27 +228,19 @@ export function CardScanner() {
     if (scanStateRef.current !== 'scanning') return;
 
     const frame = captureFrame();
-    if (!frame) {
-      setDebugText('BLOCKED: could not capture frame');
-      return;
-    }
+    if (!frame) return;
 
     scanningRef.current = true;
 
     try {
       const result = await identifyMutation.mutateAsync({ frame });
 
-      // Re-check state after async call
       if (scanStateRef.current !== 'scanning') {
         scanningRef.current = false;
         return;
       }
 
       const topMatch = result.matches[0];
-      const debugLine = topMatch
-        ? `#1 ${topMatch.name.slice(0, 25)} (${topMatch.score.toFixed(3)}) | ${result.matches.length} matches`
-        : 'No match above threshold';
-      setDebugText(debugLine);
 
       if (result.matches.length > 0 && topMatch) {
         const winnerId = topMatch.cardId;
@@ -272,31 +255,33 @@ export function CardScanner() {
         const hits = consecutiveWinnerRef.current!.count;
 
         if (hits >= CONSECUTIVE_HITS_REQUIRED) {
-          setCandidates(result.matches);
-          setScanState('detected');
-          setStatusMessage(`Match confirmed (${hits} scans)`);
           consecutiveWinnerRef.current = null;
+          setScanState('confirming');
+          setConfirmation({
+            match: topMatch,
+            quantity: 1,
+            variant: 'normal',
+            condition: 'near_mint',
+          });
+          setStatusMessage(`Match confirmed (${hits} scans)`);
         } else {
-          setStatusMessage(
-            `Locking on... ${hits}/${CONSECUTIVE_HITS_REQUIRED} (${topMatch.name.slice(0, 25)})`,
-          );
+          setStatusMessage(`${t('lockingOn')} ${hits}/${CONSECUTIVE_HITS_REQUIRED}`);
         }
       } else {
         consecutiveWinnerRef.current = null;
-        setStatusMessage('Detecting...');
+        setStatusMessage(t('detectingCard'));
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      setDebugText(`Error: ${msg.slice(0, 60)}`);
+    } catch {
+      // Silently ignore scan errors — just continue the loop
     }
 
     scanningRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!cameraActive) return;
-    if (scanState === 'loading' || scanState === 'confirming' || scanState === 'added') return;
+    if (scanState !== 'scanning') return;
 
     const interval = setInterval(() => {
       if (scanStateRef.current === 'scanning' && !scanningRef.current) {
@@ -307,7 +292,7 @@ export function CardScanner() {
     return () => clearInterval(interval);
   }, [cameraActive, scanState, runScan]);
 
-  // ── File upload fallback ──────────────────────────────────────────────────
+  // ── File upload fallback ───────────────────────────────────────────────────
 
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -318,7 +303,6 @@ export function CardScanner() {
       setStatusMessage('Reading card image...');
 
       try {
-        // Convert file to base64
         const buffer = await file.arrayBuffer();
         const base64 = btoa(
           new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''),
@@ -330,12 +314,15 @@ export function CardScanner() {
           setStatusMessage('No matches found. Try a clearer image.');
           setScanState('scanning');
         } else {
-          setCandidates(result.matches);
-          setScanState('detected');
           const top = result.matches[0]!;
-          setStatusMessage(
-            `${result.matches.length} match${result.matches.length > 1 ? 'es' : ''} found — "${top.name}"`,
-          );
+          setScanState('confirming');
+          setConfirmation({
+            match: top,
+            quantity: 1,
+            variant: 'normal',
+            condition: 'near_mint',
+          });
+          setStatusMessage(`Match found: "${top.name}"`);
         }
       } catch {
         setStatusMessage('Failed to process image. Please try again.');
@@ -348,47 +335,32 @@ export function CardScanner() {
     [],
   );
 
-  // ── Candidate selection ───────────────────────────────────────────────────
-
-  function handleSelectCandidate(match: ScannerMatch) {
-    setSelectedMatch(match);
-    setScanState('confirming');
-    setStatusMessage(`Selected: ${match.name}`);
-  }
-
-  function handleClearSelection() {
-    setSelectedMatch(null);
-    if (candidates.length > 0) {
-      setScanState('detected');
-      setStatusMessage('Tap the correct card');
-    } else {
-      setScanState('scanning');
-      setStatusMessage('Detecting...');
-    }
-  }
+  // ── Confirmation handlers ──────────────────────────────────────────────────
 
   function handleAdd() {
-    if (!selectedMatch) return;
-    addMutation.mutate({ cardId: selectedMatch.cardId, condition });
+    if (!confirmation) return;
+    const { match, quantity, variant, condition } = confirmation;
+
+    // Build quantity copies as separate entries for addBulk
+    const entries = Array.from({ length: quantity }, () => ({
+      cardId: match.cardId,
+      variant,
+      condition,
+    }));
+
+    addBulkMutation.mutate({ entries });
   }
 
-  function handleRescan() {
-    setCandidates([]);
-    setSelectedMatch(null);
+  function handleSkip() {
+    setConfirmation(null);
     consecutiveWinnerRef.current = null;
     setScanState('scanning');
-    setStatusMessage('Detecting...');
+    setStatusMessage(t('detectingCard'));
   }
 
-  // ── Derived values ────────────────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────────────────
 
-  const showCandidates = scanState === 'detected' || scanState === 'confirming';
-  const showConfirm = scanState === 'confirming' && selectedMatch !== null;
-  const showAdded = scanState === 'added';
   const isLoading = scanState === 'loading';
-  const selectedRarity = selectedMatch
-    ? (RARITY_COLORS[selectedMatch.setName as keyof typeof RARITY_COLORS] ?? FALLBACK_RARITY)
-    : FALLBACK_RARITY;
 
   function loadingSubtext(): string {
     if (!cameraActive && !cameraError) return 'Starting camera...';
@@ -397,27 +369,17 @@ export function CardScanner() {
       const pct = scannerStatus.total > 0
         ? Math.round((scannerStatus.loaded / scannerStatus.total) * 100)
         : 0;
-      return `Loading card fingerprints... ${scannerStatus.loaded}/${scannerStatus.total} (${pct}%)`;
+      return `Loading fingerprints... ${scannerStatus.loaded}/${scannerStatus.total} (${pct}%)`;
     }
     return 'Almost ready...';
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4 max-w-lg mx-auto">
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <h1 className="lg-page-title">Card Scanner</h1>
-        {sessionCount > 0 && (
-          <span className="lg-badge bg-rift-950/80 text-rift-400 border border-rift-800/50">
-            {sessionCount} added
-          </span>
-        )}
-      </div>
-
-      {/* ── Camera + viewfinder ─────────────────────────────────────────────── */}
+      {/* Camera + viewfinder */}
       <div className="lg-card overflow-hidden">
         {cameraActive ? (
           <div className="relative bg-black" style={{ aspectRatio: '4/3' }}>
@@ -431,40 +393,32 @@ export function CardScanner() {
               aria-label="Camera preview — hold your card up to scan"
             />
 
-            {/* Darkened overlay with card-shaped cutout */}
+            {/* Darkened vignette with card-shaped cutout */}
             <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-              <div className="absolute inset-x-0 top-0 bg-black/55"
-                style={{ bottom: 'calc(50% + 49%)' }} />
-              <div className="absolute inset-x-0 bottom-0 bg-black/55"
-                style={{ top: 'calc(50% + 49%)' }} />
-              <div className="absolute inset-y-0 left-0 bg-black/55"
-                style={{ right: 'calc(50% + 35%)' }} />
-              <div className="absolute inset-y-0 right-0 bg-black/55"
-                style={{ left: 'calc(50% + 35%)' }} />
+              <div className="absolute inset-x-0 top-0 bg-black/55" style={{ bottom: 'calc(50% + 49%)' }} />
+              <div className="absolute inset-x-0 bottom-0 bg-black/55" style={{ top: 'calc(50% + 49%)' }} />
+              <div className="absolute inset-y-0 left-0 bg-black/55" style={{ right: 'calc(50% + 35%)' }} />
+              <div className="absolute inset-y-0 right-0 bg-black/55" style={{ left: 'calc(50% + 35%)' }} />
             </div>
 
-            {/* Viewfinder border — 5:7 card ratio */}
+            {/* Viewfinder frame — 5:7 card ratio */}
             <div
               ref={viewfinderRef}
               className="absolute"
-              style={{
-                left: '15%',
-                width: '70%',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                aspectRatio: '5/7',
-              }}
+              style={{ left: '15%', width: '70%', top: '50%', transform: 'translateY(-50%)', aspectRatio: '5/7' }}
               aria-hidden="true"
             >
               <div
                 className="absolute inset-0 rounded-xl border-2 border-rift-400/80"
                 style={{ animation: 'rift-pulse 2s ease-in-out infinite' }}
               />
+              {/* Corner brackets */}
               <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-rift-300 rounded-tl-xl" />
               <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-rift-300 rounded-tr-xl" />
               <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-rift-300 rounded-bl-xl" />
               <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-rift-300 rounded-br-xl" />
 
+              {/* Scanline animation */}
               {scanState === 'scanning' && (
                 <div
                   className="absolute inset-x-0 h-px bg-rift-400/70"
@@ -473,10 +427,10 @@ export function CardScanner() {
               )}
             </div>
 
-            {/* Hint text */}
+            {/* Status hint */}
             <div className="absolute bottom-3 inset-x-0 flex justify-center pointer-events-none" aria-hidden="true">
               <span className="text-xs text-white/70 bg-black/50 rounded-full px-3 py-1 backdrop-blur-sm">
-                {scanState === 'detected' ? 'Match found' : 'Hold card within frame'}
+                {scanState === 'cooldown' ? t('resuming') : t('holdCard')}
               </span>
             </div>
 
@@ -488,6 +442,15 @@ export function CardScanner() {
             >
               <IconX className="w-4 h-4" />
             </button>
+
+            {/* Session counter badge */}
+            {session.length > 0 && (
+              <div className="absolute top-2 left-2 pointer-events-none">
+                <span className="lg-badge bg-rift-950/90 text-rift-300 border border-rift-800/60 text-xs px-2.5 py-1">
+                  {t('sessionCounter', { count: session.reduce((n, e) => n + e.quantity, 0) })}
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-surface-elevated flex flex-col items-center justify-center py-10 gap-3 px-4">
@@ -514,7 +477,7 @@ export function CardScanner() {
         )}
       </div>
 
-      {/* ── Status bar ─────────────────────────────────────────────────────── */}
+      {/* Status bar */}
       <div
         className="lg-card px-4 py-3 flex items-center gap-3"
         role="status"
@@ -523,10 +486,8 @@ export function CardScanner() {
       >
         {isLoading ? (
           <div className="lg-spinner-sm flex-shrink-0" aria-hidden="true" />
-        ) : showAdded ? (
+        ) : scanState === 'cooldown' ? (
           <IconCheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-        ) : scanState === 'detected' ? (
-          <IconTarget className="w-5 h-5 text-rift-400 flex-shrink-0" />
         ) : (
           <div
             className="w-2 h-2 rounded-full flex-shrink-0"
@@ -546,25 +507,9 @@ export function CardScanner() {
             <p className="lg-text-muted">{scannerStatus.loaded} cards indexed</p>
           )}
         </div>
-        {(scanState === 'detected') && (
-          <button
-            onClick={handleRescan}
-            className="flex-shrink-0 lg-btn-ghost text-xs py-1 px-2"
-            aria-label="Scan again"
-          >
-            Rescan
-          </button>
-        )}
       </div>
 
-      {/* ── Debug panel ──────────────────────────────────────────────────────── */}
-      <div className="lg-card px-3 py-2 bg-zinc-900/80 border border-zinc-800">
-        <p className="text-[10px] font-mono text-zinc-500 break-all leading-relaxed">
-          {debugText}
-        </p>
-      </div>
-
-      {/* ── File upload fallback ─────────────────────────────────────────────── */}
+      {/* File upload fallback (camera error) */}
       {cameraError && (
         <div className="lg-field">
           <label htmlFor="card-image-upload" className="lg-label">
@@ -583,174 +528,18 @@ export function CardScanner() {
               capture="environment"
               onChange={(e) => void handleFileUpload(e)}
               className="sr-only"
-              disabled={scanState === 'loading'}
+              disabled={isLoading}
             />
           </label>
         </div>
       )}
 
-      {/* ── Match candidates ─────────────────────────────────────────────────── */}
-      {showCandidates && candidates.length > 0 && (
-        <section aria-label="Match candidates">
-          <p className="lg-section-title mb-2">
-            {scanState === 'confirming' ? 'Candidates' : 'Select the correct card'}
-          </p>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-            {candidates.map((match) => {
-              const isSelected = selectedMatch?.cardId === match.cardId;
-              const rarity = FALLBACK_RARITY;
-              const matchPct = Math.round(match.score * 100);
-              return (
-                <button
-                  key={match.cardId}
-                  onClick={() => handleSelectCandidate(match)}
-                  className={[
-                    'flex-shrink-0 w-28 flex flex-col rounded-xl border overflow-hidden transition-all text-left',
-                    isSelected
-                      ? 'border-rift-500 shadow-lg shadow-rift-500/20 scale-[1.03]'
-                      : `${rarity.border} hover:border-rift-600/60 hover:-translate-y-0.5`,
-                    'bg-surface-card',
-                  ].join(' ')}
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${match.name} (${matchPct}% match)`}
-                >
-                  {match.imageSmall ? (
-                    <div className="relative w-full aspect-[2/3] bg-surface-elevated">
-                      <Image
-                        src={match.imageSmall}
-                        alt={match.name}
-                        fill
-                        sizes="112px"
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-[2/3] bg-surface-elevated flex items-center justify-center">
-                      <span className="text-xs text-zinc-600 text-center px-1 leading-tight">
-                        {match.name}
-                      </span>
-                    </div>
-                  )}
-                  <div className="p-1.5">
-                    <p className="text-xs font-medium text-white leading-tight line-clamp-2">
-                      {match.name}
-                    </p>
-                    <p className="text-[10px] text-zinc-500 mt-0.5">{match.setName}</p>
-                    <p className="text-[10px] text-zinc-600 mt-0.5">{matchPct}% match</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ── Confirm panel ────────────────────────────────────────────────────── */}
-      {showConfirm && selectedMatch && (
-        <div
-          className={`lg-card border ${selectedRarity.border} overflow-hidden animate-fade-in-up`}
-          role="region"
-          aria-label="Confirm card addition"
-        >
-          <div className="flex gap-4 p-4">
-            <div className="flex-shrink-0">
-              {selectedMatch.imageSmall ? (
-                <div className="relative w-16 h-[88px] rounded-md overflow-hidden border border-surface-border">
-                  <Image
-                    src={selectedMatch.imageSmall}
-                    alt={selectedMatch.name}
-                    fill
-                    sizes="64px"
-                    className="object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-16 h-[88px] rounded-md bg-surface-elevated border border-surface-border flex items-center justify-center">
-                  <span className="text-xs text-zinc-600 text-center px-1">
-                    {selectedMatch.name}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0 space-y-1">
-              <p className="text-sm font-semibold text-white leading-tight">{selectedMatch.name}</p>
-              <p className="text-xs text-zinc-400">{selectedMatch.setName}</p>
-              {selectedMatch.number && (
-                <p className="lg-text-muted">#{selectedMatch.number}</p>
-              )}
-            </div>
-            <button
-              onClick={handleClearSelection}
-              className="flex-shrink-0 self-start w-7 h-7 flex items-center justify-center rounded-full text-zinc-500 hover:text-zinc-300 hover:bg-surface-elevated transition-colors"
-              aria-label="Change selection"
-            >
-              <IconX className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="px-4 pb-3 space-y-2">
-            <p className="lg-section-title">Condition</p>
-            <div className="flex gap-2 flex-wrap" role="group" aria-label="Select condition">
-              {CARD_CONDITIONS.map((cond) => (
-                <button
-                  key={cond}
-                  onClick={() => setCondition(cond)}
-                  className={
-                    condition === cond
-                      ? 'lg-badge border border-rift-600 bg-rift-950/80 text-rift-300 cursor-default px-3 py-1'
-                      : 'lg-badge border border-surface-border bg-surface-elevated text-zinc-400 hover:border-rift-700 hover:text-zinc-200 transition-colors px-3 py-1'
-                  }
-                  aria-pressed={condition === cond}
-                >
-                  {CONDITION_LABELS[cond]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="px-4 pb-4">
-            <button
-              onClick={handleAdd}
-              disabled={addMutation.isPending}
-              className="lg-btn-primary w-full flex items-center justify-center gap-2"
-            >
-              {addMutation.isPending ? (
-                <>
-                  <div className="lg-spinner-sm" role="status">
-                    <span className="sr-only">Adding card...</span>
-                  </div>
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <IconPlus className="w-4 h-4" />
-                  Add to Collection
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Added success state ──────────────────────────────────────────────── */}
-      {showAdded && (
-        <div
-          className="lg-card border border-emerald-800/50 bg-emerald-900/10 px-4 py-4 flex items-center gap-3 animate-fade-in-up"
-          role="status"
-        >
-          <IconCheckCircle className="w-6 h-6 text-emerald-400 flex-shrink-0" />
-          <p className="text-sm text-emerald-300 font-medium">
-            Card added -- resuming scan
-          </p>
-        </div>
-      )}
-
-      {/* ── Scanning idle tip ────────────────────────────────────────────────── */}
-      {scanState === 'scanning' && candidates.length === 0 && (
+      {/* Scanning idle tip */}
+      {scanState === 'scanning' && session.length === 0 && (
         <div className="text-center py-2">
           <p className="lg-text-secondary text-sm">
             {cameraActive
-              ? 'Hold a card steady within the frame'
+              ? t('holdCard')
               : cameraError
               ? 'Enable the camera or upload a photo'
               : 'Starting camera...'}
@@ -758,11 +547,23 @@ export function CardScanner() {
         </div>
       )}
 
+      {/* Confirmation overlay */}
+      {scanState === 'confirming' && confirmation && (
+        <ScanConfirmation
+          state={confirmation}
+          isPending={addBulkMutation.isPending}
+          onQuantityChange={(qty) => setConfirmation((prev) => prev ? { ...prev, quantity: qty } : prev)}
+          onVariantChange={(v) => setConfirmation((prev) => prev ? { ...prev, variant: v } : prev)}
+          onConditionChange={(c) => setConfirmation((prev) => prev ? { ...prev, condition: c } : prev)}
+          onAdd={handleAdd}
+          onSkip={handleSkip}
+        />
+      )}
     </div>
   );
 }
 
-/* ── Scanline keyframe ───────────────────────────────────────────────────── */
+/* ── Scanline / animation keyframes ────────────────────────────────────── */
 const ScanlineStyle = () => (
   <style>{`
     @keyframes scanline {
@@ -775,25 +576,24 @@ const ScanlineStyle = () => (
       from { opacity: 0; transform: translateY(12px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+    @keyframes slide-up {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slide-up {
+      animation: slide-up 0.22s ease-out forwards;
+    }
   `}</style>
 );
 
 export { ScanlineStyle };
 
-/* ── Icons ────────────────────────────────────────────────────────────────── */
+/* ── Icons ──────────────────────────────────────────────────────────────── */
 
 function IconX({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M5 5l10 10M15 5L5 15" />
-    </svg>
-  );
-}
-
-function IconPlus({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <path d="M10 4v12M4 10h12" />
     </svg>
   );
 }
@@ -827,12 +627,5 @@ function IconCheckCircle({ className }: { className?: string }) {
   );
 }
 
-function IconTarget({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  );
-}
+/* re-export the cooldown loader so page.tsx can use it at mount */
+export { loadCooldown };
