@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { TRPCError } from '@trpc/server';
-import { eq, and, gt, ilike, inArray } from 'drizzle-orm';
+import { eq, and, gt, ilike, inArray, sql } from 'drizzle-orm';
+import type Redis from 'ioredis';
 import type { DbClient } from '@la-grieta/db';
-import { decks, deckCards, cards, users } from '@la-grieta/db';
+import { decks, deckCards, cards, users, collections } from '@la-grieta/db';
 import type { Deck, DeckCard } from '@la-grieta/db';
 import type {
   DeckListInput,
@@ -12,8 +13,16 @@ import type {
   DeckDeleteInput,
   DeckSetCardsInput,
   DeckBrowseInput,
+  DeckSuggestInput,
 } from '@la-grieta/shared';
-import { buildPaginatedResult, escapeLike, MAX_COPIES_PER_CARD as SHARED_MAX_COPIES } from '@la-grieta/shared';
+import {
+  buildPaginatedResult,
+  escapeLike,
+  validateDeckFormat,
+  MAX_COPIES_PER_CARD,
+  SIGNATURE_TYPES,
+  getZoneForCardType,
+} from '@la-grieta/shared';
 import type { PaginatedResult } from '@la-grieta/shared';
 
 export type DeckCardWithCard = DeckCard & {
@@ -27,6 +36,7 @@ export type DeckCardWithCard = DeckCard & {
     imageSmall: string | null;
     imageLarge: string | null;
   };
+  zone: string;
 };
 
 export type DeckWithCards = Deck & { cards: DeckCardWithCard[] };
@@ -50,12 +60,38 @@ export type DeckWithCreator = Deck & {
   coverCard: CoverCard | null;
 };
 
-const MAX_DECK_CARDS = 61; // 40 main + 12 runes + 1 champion + 8 sideboard
-const MAX_COPIES_PER_CARD = SHARED_MAX_COPIES; // 3 — Riftbound official limit
+export type SuggestedCard = {
+  cardId: string;
+  card: {
+    id: string;
+    name: string;
+    cleanName: string;
+    rarity: string;
+    cardType: string | null;
+    domain: string | null;
+    energyCost: number | null;
+    imageSmall: string | null;
+    keywords: string[] | null;
+  };
+  score: number;
+  reasonTag: string;
+  reasonDetail: string;
+  owned: boolean;
+};
+
+export type BuildabilityResult = {
+  owned: number;
+  total: number;
+  pct: number;
+  missingCardIds: string[];
+};
 
 @Injectable()
 export class DeckService {
-  constructor(private readonly db: DbClient) {}
+  constructor(
+    private readonly db: DbClient,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  ) {}
 
   async list(userId: string, input: DeckListInput): Promise<PaginatedResult<DeckWithCover>> {
     const conditions = [eq(decks.userId, userId)];
@@ -153,8 +189,21 @@ export class DeckService {
 
   async create(userId: string, input: DeckCreateInput): Promise<DeckWithCards> {
     if (input.cards && input.cards.length > 0) {
-      this.validateCardEntries(input.cards);
+      this.validateCardEntriesBasic(input.cards);
       await this.validateCardIdsExist(input.cards);
+    }
+
+    // Compute status from format validation if cards provided
+    let status: string = 'draft';
+    if (input.cards && input.cards.length > 0) {
+      const cardTypeMap = await this.buildCardTypeMap(input.cards.map((c) => c.cardId));
+      const entries = input.cards.map((c) => ({
+        cardId: c.cardId,
+        quantity: c.quantity,
+        zone: c.zone ?? 'main',
+      }));
+      const errors = validateDeckFormat(entries, cardTypeMap);
+      status = errors.length === 0 ? 'complete' : 'draft';
     }
 
     const [created] = await this.db
@@ -165,6 +214,7 @@ export class DeckService {
         description: input.description ?? null,
         isPublic: input.isPublic ?? false,
         coverCardId: input.coverCardId ?? null,
+        status,
       })
       .returning();
 
@@ -179,6 +229,7 @@ export class DeckService {
             deckId: created.id,
             cardId: c.cardId,
             quantity: c.quantity,
+            zone: c.zone ?? 'main',
           })),
         );
       } catch (err) {
@@ -273,10 +324,23 @@ export class DeckService {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not own this deck' });
     }
 
-    this.validateCardEntries(input.cards);
+    this.validateCardEntriesBasic(input.cards);
 
     if (input.cards.length > 0) {
       await this.validateCardIdsExist(input.cards);
+    }
+
+    // Compute status from validateDeckFormat
+    let status: string = 'draft';
+    if (input.cards.length > 0) {
+      const cardTypeMap = await this.buildCardTypeMap(input.cards.map((c) => c.cardId));
+      const entries = input.cards.map((c) => ({
+        cardId: c.cardId,
+        quantity: c.quantity,
+        zone: c.zone ?? 'main',
+      }));
+      const errors = validateDeckFormat(entries, cardTypeMap);
+      status = errors.length === 0 ? 'complete' : 'draft';
     }
 
     try {
@@ -289,9 +353,12 @@ export class DeckService {
               deckId: input.deckId,
               cardId: c.cardId,
               quantity: c.quantity,
+              zone: c.zone ?? 'main',
             })),
           );
         }
+
+        await tx.update(decks).set({ status }).where(eq(decks.id, input.deckId));
       });
     } catch (err) {
       // Catch FK violation in case a card ID was deleted between validation and insert
@@ -380,6 +447,287 @@ export class DeckService {
     return buildPaginatedResult(rows, input.limit);
   }
 
+  async getBuildability(userId: string, deckId: string): Promise<BuildabilityResult> {
+    // Load deck cards with quantities
+    const deckCardRows = await this.db
+      .select({
+        cardId: deckCards.cardId,
+        quantity: deckCards.quantity,
+      })
+      .from(deckCards)
+      .where(eq(deckCards.deckId, deckId));
+
+    if (deckCardRows.length === 0) {
+      return { owned: 0, total: 0, pct: 100, missingCardIds: [] };
+    }
+
+    // Load user's collection grouped by cardId (count of copies owned)
+    const collectionRows = await this.db
+      .select({
+        cardId: collections.cardId,
+        owned: sql<number>`count(*)::int`,
+      })
+      .from(collections)
+      .where(eq(collections.userId, userId))
+      .groupBy(collections.cardId);
+
+    const ownedMap = new Map<string, number>(
+      collectionRows.map((r) => [r.cardId, r.owned]),
+    );
+
+    const missingCardIds: string[] = [];
+    let owned = 0;
+    const total = deckCardRows.length;
+
+    for (const entry of deckCardRows) {
+      const ownedCount = ownedMap.get(entry.cardId) ?? 0;
+      if (ownedCount >= entry.quantity) {
+        owned++;
+      } else {
+        missingCardIds.push(entry.cardId);
+      }
+    }
+
+    const pct = total > 0 ? Math.round((owned / total) * 100) : 100;
+
+    return { owned, total, pct, missingCardIds };
+  }
+
+  async suggest(userId: string, input: DeckSuggestInput): Promise<SuggestedCard[]> {
+    const cacheKey = `deck:suggest:${input.deckId}:${input.mode}:${input.zone}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached) as SuggestedCard[];
+    }
+
+    // Load current deck cards to understand what's already in the deck
+    const existingDeckCards = await this.db
+      .select({
+        cardId: deckCards.cardId,
+        quantity: deckCards.quantity,
+        zone: deckCards.zone,
+        card_domain: cards.domain,
+        card_energyCost: cards.energyCost,
+        card_keywords: cards.keywords,
+        card_cardType: cards.cardType,
+      })
+      .from(deckCards)
+      .innerJoin(cards, eq(deckCards.cardId, cards.id))
+      .where(eq(deckCards.deckId, input.deckId));
+
+    // Determine dominant domain of current deck
+    const domainCounts = new Map<string, number>();
+    for (const dc of existingDeckCards) {
+      if (dc.card_domain) {
+        domainCounts.set(dc.card_domain, (domainCounts.get(dc.card_domain) ?? 0) + dc.quantity);
+      }
+    }
+    let dominantDomain: string | null = null;
+    let maxCount = 0;
+    for (const [domain, count] of domainCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantDomain = domain;
+      }
+    }
+
+    // Compute energy curve of existing deck (for gap analysis)
+    const energyCurve = new Map<number, number>();
+    for (const dc of existingDeckCards) {
+      if (dc.zone === 'main' || dc.zone === 'sideboard') {
+        const bucket = dc.card_energyCost ?? 0;
+        energyCurve.set(bucket, (energyCurve.get(bucket) ?? 0) + dc.quantity);
+      }
+    }
+
+    // Find the energy cost bucket with fewest cards (gap in curve)
+    const curveBuckets = [0, 1, 2, 3, 4, 5, 6, 7];
+    let minBucket = 0;
+    let minCount = Infinity;
+    for (const bucket of curveBuckets) {
+      const count = energyCurve.get(bucket) ?? 0;
+      if (count < minCount) {
+        minCount = count;
+        minBucket = bucket;
+      }
+    }
+
+    // Gather existing deck keywords for synergy matching
+    const deckKeywords = new Set<string>();
+    for (const dc of existingDeckCards) {
+      for (const kw of dc.card_keywords ?? []) {
+        deckKeywords.add(kw);
+      }
+    }
+
+    // Existing card IDs to exclude (already in deck for this zone)
+    const existingCardIds = new Set(existingDeckCards.map((dc) => dc.cardId));
+
+    // Determine which card types are valid for the requested zone
+    const zoneTypeFilter = this.getCardTypesForZone(input.zone);
+
+    // Load candidate cards from DB (filtered by appropriate card types)
+    const candidateCards = await this.db
+      .select({
+        id: cards.id,
+        name: cards.name,
+        cleanName: cards.cleanName,
+        rarity: cards.rarity,
+        cardType: cards.cardType,
+        domain: cards.domain,
+        energyCost: cards.energyCost,
+        imageSmall: cards.imageSmall,
+        keywords: cards.keywords,
+      })
+      .from(cards)
+      .where(
+        and(
+          inArray(cards.cardType, zoneTypeFilter),
+          eq(cards.isProduct, false),
+        ),
+      );
+
+    // Load user's collection for owned-card boost
+    const userCollection = await this.db
+      .select({ cardId: collections.cardId })
+      .from(collections)
+      .where(eq(collections.userId, userId));
+    const ownedCardIds = new Set(userCollection.map((c) => c.cardId));
+
+    // Load trending decks sharing the same champion for co-occurrence scoring
+    // Champion is the card in the 'champion' zone of the current deck
+    const championEntry = existingDeckCards.find((dc) => dc.zone === 'champion');
+    const coOccurrenceCardIds = new Set<string>();
+    if (championEntry) {
+      const trendingDeckRows = await this.db
+        .select({ cardId: deckCards.cardId })
+        .from(deckCards)
+        .innerJoin(decks, eq(deckCards.deckId, decks.id))
+        .where(
+          and(
+            eq(decks.isPublic, true),
+            // Find decks that also contain this champion
+            sql`${deckCards.deckId} IN (
+              SELECT deck_id FROM deck_cards WHERE card_id = ${championEntry.cardId} AND zone = 'champion'
+            )`,
+          ),
+        );
+      for (const row of trendingDeckRows) {
+        coOccurrenceCardIds.add(row.cardId);
+      }
+    }
+
+    // Score each candidate
+    type ScoredCandidate = SuggestedCard & { _score: number };
+    const scored: ScoredCandidate[] = [];
+
+    for (const card of candidateCards) {
+      // Skip cards already in this deck
+      if (existingCardIds.has(card.id)) continue;
+
+      let score = 0;
+      const signals: Array<{ signal: string; points: number }> = [];
+
+      // Domain match: +3 if card domain matches dominant domain
+      if (dominantDomain && card.domain === dominantDomain) {
+        score += 3;
+        signals.push({ signal: 'Domain match', points: 3 });
+      }
+
+      // Curve balance: +2 if fills a gap in energy curve
+      if (card.energyCost === minBucket) {
+        score += 2;
+        signals.push({ signal: 'Curve filler', points: 2 });
+      }
+
+      // Co-occurrence: +2 if appears in trending decks with same champion
+      if (coOccurrenceCardIds.has(card.id)) {
+        score += 2;
+        signals.push({ signal: 'Meta pick', points: 2 });
+      }
+
+      // Keyword synergy: +1 per matching keyword
+      const cardKeywords = card.keywords ?? [];
+      let keywordScore = 0;
+      let matchedKeyword = '';
+      for (const kw of cardKeywords) {
+        if (deckKeywords.has(kw)) {
+          keywordScore += 1;
+          matchedKeyword = kw;
+        }
+      }
+      if (keywordScore > 0) {
+        score += keywordScore;
+        signals.push({ signal: `Synergy: ${matchedKeyword}`, points: keywordScore });
+      }
+
+      // Owned first boost: +5
+      const isOwned = ownedCardIds.has(card.id);
+      if (input.mode === 'owned_first' && isOwned) {
+        score += 5;
+        signals.push({ signal: 'Owned', points: 5 });
+      }
+
+      // Pick the best reason tag from the highest-scoring signal
+      const bestSignal = signals.sort((a, b) => b.points - a.points)[0];
+      const reasonTag = bestSignal?.signal ?? 'Suggestion';
+      const reasonDetail = signals.map((s) => `${s.signal} (+${s.points})`).join(', ') || 'General suggestion';
+
+      scored.push({
+        cardId: card.id,
+        card: {
+          id: card.id,
+          name: card.name,
+          cleanName: card.cleanName,
+          rarity: card.rarity,
+          cardType: card.cardType,
+          domain: card.domain,
+          energyCost: card.energyCost,
+          imageSmall: card.imageSmall,
+          keywords: card.keywords,
+        },
+        score,
+        reasonTag,
+        reasonDetail,
+        owned: isOwned,
+        _score: score,
+      });
+    }
+
+    // Sort by score descending, take top 15
+    scored.sort((a, b) => b._score - a._score);
+    const results: SuggestedCard[] = scored.slice(0, 15).map(({ _score: _, ...rest }) => rest);
+
+    // Cache for 10 minutes
+    await this.redis.setex(cacheKey, 600, JSON.stringify(results));
+
+    return results;
+  }
+
+  private getCardTypesForZone(zone: string): string[] {
+    switch (zone) {
+      case 'main':
+        return ['Unit', 'Champion Unit', 'Spell', 'Gear', 'Signature Unit', 'Signature Spell', 'Signature Gear'];
+      case 'rune':
+        return ['Rune'];
+      case 'champion':
+        return ['Legend'];
+      case 'sideboard':
+        return ['Unit', 'Champion Unit', 'Spell', 'Gear'];
+      default:
+        return ['Unit', 'Champion Unit', 'Spell', 'Gear'];
+    }
+  }
+
+  private async buildCardTypeMap(cardIds: string[]): Promise<Map<string, string | null>> {
+    const uniqueIds = [...new Set(cardIds)];
+    const rows = await this.db
+      .select({ id: cards.id, cardType: cards.cardType })
+      .from(cards)
+      .where(inArray(cards.id, uniqueIds));
+    return new Map(rows.map((r) => [r.id, r.cardType]));
+  }
+
   private async validateCardIdsExist(
     cardEntries: Array<{ cardId: string; quantity: number }>,
   ): Promise<void> {
@@ -399,28 +747,25 @@ export class DeckService {
     }
   }
 
-  private validateCardEntries(cardEntries: Array<{ cardId: string; quantity: number }>): void {
-    const cardMap = new Map<string, number>();
+  private validateCardEntriesBasic(cardEntries: Array<{ cardId: string; quantity: number; zone?: string }>): void {
+    // Aggregate quantities per cardId across main+sideboard (copy limit applies there)
+    const mainSideboardMap = new Map<string, number>();
+
     for (const entry of cardEntries) {
-      const current = cardMap.get(entry.cardId) ?? 0;
-      cardMap.set(entry.cardId, current + entry.quantity);
+      const zone = entry.zone ?? 'main';
+      if (zone === 'main' || zone === 'sideboard') {
+        const current = mainSideboardMap.get(entry.cardId) ?? 0;
+        mainSideboardMap.set(entry.cardId, current + entry.quantity);
+      }
     }
 
-    for (const [cardId, totalQty] of cardMap.entries()) {
+    for (const [cardId, totalQty] of mainSideboardMap.entries()) {
       if (totalQty > MAX_COPIES_PER_CARD) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: `Cannot have more than ${MAX_COPIES_PER_CARD} copies of card ${cardId}`,
         });
       }
-    }
-
-    const totalCards = [...cardMap.values()].reduce((sum, q) => sum + q, 0);
-    if (totalCards > MAX_DECK_CARDS) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: `Deck cannot exceed ${MAX_DECK_CARDS} cards`,
-      });
     }
   }
 }
