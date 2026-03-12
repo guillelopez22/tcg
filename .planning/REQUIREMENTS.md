@@ -17,8 +17,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **COLL-06**: User can attach photos to collection entries via R2 upload
 - [x] **COLL-07**: User can manage a wantlist (cards they want to acquire)
 - [x] **COLL-08**: User can manage a tradelist (cards they're willing to trade)
-- [ ] **COLL-09**: User can view collection stats (total cards, set completion %, value breakdown by set)
-- [ ] **COLL-10**: User can see deck recommendations based on cards they own
+- [x] **COLL-09**: User can view collection stats (total cards, set completion %, value breakdown by set)
+- [x] **COLL-10**: User can see deck recommendations based on cards they own
 
 ### Deck Builder
 
@@ -114,8 +114,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-06 | Phase 1 | Complete |
 | COLL-07 | Phase 1 | Complete |
 | COLL-08 | Phase 1 | Complete |
-| COLL-09 | Phase 1 | Pending |
-| COLL-10 | Phase 1 | Pending |
+| COLL-09 | Phase 1 | Complete |
+| COLL-10 | Phase 1 | Complete |
 | DECK-01 | Phase 2 | Pending |
 | DECK-02 | Phase 2 | Pending |
 | DECK-03 | Phase 2 | Pending |
