@@ -7,6 +7,7 @@ import { cardPrices } from './schema/card-prices';
 import { collections } from './schema/collections';
 import { wishlists } from './schema/wishlists';
 import { decks, deckCards } from './schema/decks';
+import { deckShareCodes } from './schema/deck-share-codes';
 import { listings } from './schema/listings';
 import { orders } from './schema/orders';
 
@@ -55,6 +56,11 @@ export const decksRelations = relations(decks, ({ one, many }) => ({
   user: one(users, { fields: [decks.userId], references: [users.id] }),
   coverCard: one(cards, { fields: [decks.coverCardId], references: [cards.id] }),
   cards: many(deckCards),
+  shareCodes: many(deckShareCodes),
+}));
+
+export const deckShareCodesRelations = relations(deckShareCodes, ({ one }) => ({
+  deck: one(decks, { fields: [deckShareCodes.deckId], references: [decks.id] }),
 }));
 
 export const deckCardsRelations = relations(deckCards, ({ one }) => ({

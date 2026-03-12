@@ -23,5 +23,6 @@ __exportStar(require("./sessions"), exports);
 __exportStar(require("./collections"), exports);
 __exportStar(require("./wishlists"), exports);
 __exportStar(require("./decks"), exports);
+__exportStar(require("./deck-share-codes"), exports);
 __exportStar(require("./listings"), exports);
 __exportStar(require("./orders"), exports);

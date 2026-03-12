@@ -30,6 +30,8 @@ __exportStar(require("./schemas/wishlist.schema"), exports);
 // Utilities
 __exportStar(require("./utils/compute-analytics"), exports);
 __exportStar(require("./utils/currency"), exports);
+__exportStar(require("./utils/deck-import-parser"), exports);
+__exportStar(require("./utils/draw-hand"), exports);
 __exportStar(require("./utils/like"), exports);
 __exportStar(require("./utils/pagination"), exports);
 __exportStar(require("./utils/validate-deck-format"), exports);

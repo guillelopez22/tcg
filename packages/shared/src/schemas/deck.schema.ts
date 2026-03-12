@@ -48,6 +48,7 @@ export const deckSetCardsSchema = z.object({
 export const deckBrowseSchema = z.object({
   domain: z.string().optional(),
   search: z.string().max(100).optional(),
+  championName: z.string().max(100).optional(),
   cursor: z.string().uuid().optional(),
   limit: z.number().min(1).max(50).default(10),
 });
@@ -62,6 +63,24 @@ export const deckBuildabilitySchema = z.object({
   deckId: z.string().uuid(),
 });
 
+export const shareCodeGenerateSchema = z.object({
+  deckId: z.string().uuid(),
+});
+
+export const shareCodeResolveSchema = z.object({
+  code: z.string().min(3).max(12),
+});
+
+export const deckImportTextSchema = z.object({
+  text: z.string().min(1).max(10000),
+  name: z.string().min(1).max(100).optional(),
+});
+
+export const deckImportUrlSchema = z.object({
+  url: z.string().url().max(500),
+  name: z.string().min(1).max(100).optional(),
+});
+
 export type DeckCardEntry = z.infer<typeof deckCardEntrySchema>;
 export type DeckListInput = z.infer<typeof deckListSchema>;
 export type DeckGetByIdInput = z.infer<typeof deckGetByIdSchema>;
@@ -72,3 +91,7 @@ export type DeckSetCardsInput = z.infer<typeof deckSetCardsSchema>;
 export type DeckBrowseInput = z.infer<typeof deckBrowseSchema>;
 export type DeckSuggestInput = z.infer<typeof deckSuggestSchema>;
 export type DeckBuildabilityInput = z.infer<typeof deckBuildabilitySchema>;
+export type ShareCodeGenerateInput = z.infer<typeof shareCodeGenerateSchema>;
+export type ShareCodeResolveInput = z.infer<typeof shareCodeResolveSchema>;
+export type DeckImportTextInput = z.infer<typeof deckImportTextSchema>;
+export type DeckImportUrlInput = z.infer<typeof deckImportUrlSchema>;
