@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
-import { RARITY_COLORS } from '@/lib/design-tokens';
+import { RARITY_COLORS, DOMAIN_COLORS } from '@/lib/design-tokens';
 import { DetailSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import { DeckCardEditor } from './deck-card-editor';
@@ -229,11 +229,14 @@ export function DeckDetail({ id }: DeckDetailProps) {
                 <div className="lg-card overflow-hidden divide-y divide-surface-border">
                   {deck.cards.map((entry) => {
                     const rarity = RARITY_COLORS[entry.card.rarity] ?? FALLBACK_RARITY;
+                    const primaryDomain = entry.card.domain?.split(';')[0] ?? null;
+                    const domainColor = primaryDomain ? DOMAIN_COLORS[primaryDomain] : null;
+                    const borderColor = domainColor?.border ?? rarity.border;
                     return (
                       <div key={entry.id} className="flex items-center gap-3 px-4 py-3">
                         <div className="flex-shrink-0">
                           {entry.card.imageSmall ? (
-                            <div className={`relative w-10 h-14 rounded overflow-hidden border ${rarity.border}`}>
+                            <div className={`relative w-10 h-14 rounded overflow-hidden border ${borderColor}`}>
                               <Image src={entry.card.imageSmall} alt={entry.card.name} fill sizes="40px" className="object-cover" />
                             </div>
                           ) : (
@@ -247,7 +250,11 @@ export function DeckDetail({ id }: DeckDetailProps) {
                             {entry.card.name}
                           </Link>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`lg-badge ${rarity.text} ${rarity.bg}`}>{entry.card.rarity}</span>
+                            {primaryDomain && domainColor ? (
+                              <span className={`lg-badge ${domainColor.text} ${domainColor.bg}`}>{primaryDomain}</span>
+                            ) : (
+                              <span className={`lg-badge ${rarity.text} ${rarity.bg}`}>{entry.card.rarity}</span>
+                            )}
                             {entry.card.cardType && <span className="lg-text-muted">{entry.card.cardType}</span>}
                           </div>
                         </div>

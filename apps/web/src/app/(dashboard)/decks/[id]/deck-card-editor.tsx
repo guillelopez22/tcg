@@ -695,7 +695,11 @@ export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckC
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-white truncate">{card.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`lg-badge ${rarityColors.text} ${rarityColors.bg}`}>{card.rarity}</span>
+                            {cardDomain && domainColor ? (
+                              <span className={`lg-badge ${domainColor.text} ${domainColor.bg}`}>{cardDomain}</span>
+                            ) : (
+                              <span className={`lg-badge ${rarityColors.text} ${rarityColors.bg}`}>{card.rarity}</span>
+                            )}
                             {qty > 0 && <span className="text-xs text-zinc-500">x{qty}</span>}
                             {/* Ownership badge */}
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
@@ -813,7 +817,11 @@ export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckC
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-white truncate">{suggestion.card.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span className={`lg-badge ${rarityColors.text} ${rarityColors.bg}`}>{suggestion.card.rarity}</span>
+                              {cardDomain && domainColor ? (
+                                <span className={`lg-badge ${domainColor.text} ${domainColor.bg}`}>{cardDomain}</span>
+                              ) : (
+                                <span className={`lg-badge ${rarityColors.text} ${rarityColors.bg}`}>{suggestion.card.rarity}</span>
+                              )}
                               {/* Reason tag — clickable to expand */}
                               <button
                                 onClick={() => setExpandedReason(isExpanded ? null : suggestion.cardId)}
