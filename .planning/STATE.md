@@ -3,6 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
+stopped_at: Phase 1.1 context gathered
+last_updated: "2026-03-12T16:37:31.746Z"
+last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
+progress:
+  total_phases: 6
+  completed_phases: 1
+  total_plans: 5
+  completed_plans: 5
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: planning
 stopped_at: Completed 01-05-PLAN.md — Phase 01 Collection Tracker complete
 last_updated: "2026-03-12T05:26:26.256Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
@@ -83,6 +98,10 @@ Recent decisions affecting current work:
 - [Phase 01]: Deck-sync cron module added with @nestjs/schedule running at 0 6 * * * and 0 18 * * * — keeps trending decks fresh without manual intervention
 - [Phase 01]: Trending Decks tab added to /decks page; deck-list.tsx refactored to tabbed layout: My Decks | Trending
 
+### Roadmap Evolution
+
+- Phase 01.1 inserted after Phase 1: Collection UX Polish (URGENT) — deck wizard, +/- steppers on collection grid, tradelist asking price editor, wantlist/tradelist remove buttons
+
 ### Pending Todos
 
 None yet.
@@ -96,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T05:08:07.565Z
-Stopped at: Completed 01-05-PLAN.md — Phase 01 Collection Tracker complete
-Resume file: None
+Last session: 2026-03-12T16:37:31.743Z
+Stopped at: Phase 1.1 context gathered
+Resume file: .planning/phases/01.1-collection-ux-polish/01.1-CONTEXT.md
