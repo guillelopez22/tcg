@@ -11,7 +11,8 @@
     "edit": "Edit",
     "remove": "Remove",
     "close": "Close",
-    "back": "Back"
+    "back": "Back",
+    "undo": "Undo"
   },
   "collection": {
     "title": "My Collection",
@@ -34,6 +35,8 @@
     "empty": "Your wantlist is empty",
     "addToWantlist": "Add to Wantlist",
     "removeFromWantlist": "Remove from Wantlist",
+    "removedFromWantlist": "Removed from wantlist",
+    "totalWantValue": "Total want value",
     "preferredVariant": "Preferred Variant",
     "maxPrice": "Max Price",
     "visibility": "Visibility",
@@ -46,7 +49,9 @@
     "empty": "Your tradelist is empty",
     "addToTradelist": "Add to Tradelist",
     "removeFromTradelist": "Remove from Tradelist",
+    "removedFromTradelist": "Removed from tradelist",
     "askingPrice": "Asking Price",
+    "priceUpdated": "Asking price updated",
     "visibility": "Visibility",
     "public": "Public",
     "private": "Private",

@@ -11,7 +11,8 @@
     "edit": "Editar",
     "remove": "Quitar",
     "close": "Cerrar",
-    "back": "Atras"
+    "back": "Atras",
+    "undo": "Deshacer"
   },
   "collection": {
     "title": "Mi Coleccion",
@@ -34,6 +35,8 @@
     "empty": "Tu lista de deseos esta vacia",
     "addToWantlist": "Agregar a Lista de Deseos",
     "removeFromWantlist": "Quitar de Lista de Deseos",
+    "removedFromWantlist": "Quitado de la lista de deseos",
+    "totalWantValue": "Valor total de deseos",
     "preferredVariant": "Variante Preferida",
     "maxPrice": "Precio Maximo",
     "visibility": "Visibilidad",
@@ -46,7 +49,9 @@
     "empty": "Tu lista de intercambio esta vacia",
     "addToTradelist": "Agregar a Lista de Intercambio",
     "removeFromTradelist": "Quitar de Lista de Intercambio",
+    "removedFromTradelist": "Quitado de la lista de intercambio",
     "askingPrice": "Precio de Venta",
+    "priceUpdated": "Precio actualizado",
     "visibility": "Visibilidad",
     "public": "Publica",
     "private": "Privada",

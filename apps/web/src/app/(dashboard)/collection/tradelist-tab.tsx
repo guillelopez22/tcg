@@ -3,6 +3,8 @@
 // Tradelist tab — displays trade-type wishlist entries with card thumbnails.
 // Shows asking price badge if set. Floating + button opens add-to-tradelist modal.
 // Includes a per-list public/private visibility toggle.
+// Shows dual price (Ask + Mkt) per card, pre-fills price editor with market price,
+// and shows 5-second undo toast on remove.
 
 import { useState } from 'react';
 import Image from 'next/image';
@@ -33,20 +35,22 @@ export function TradelistTab() {
 
   const updateMutation = trpc.wishlist.update.useMutation({
     onSuccess: () => {
-      toast.success('Asking price updated');
+      toast.success(t('priceUpdated'));
       void refetch();
       setPricingEntryId(null);
       setPriceInput('');
     },
-    onError: () => toast.error('Failed to update price'),
+    onError: () => toast.error(tCommon('error')),
+  });
+
+  const toggleMutation = trpc.wishlist.toggle.useMutation({
+    onSuccess: () => void refetch(),
+    onError: () => toast.error(tCommon('error')),
   });
 
   const removeMutation = trpc.wishlist.toggle.useMutation({
-    onSuccess: () => {
-      toast.success('Removed from tradelist');
-      void refetch();
-    },
-    onError: () => toast.error('Failed to remove'),
+    onSuccess: () => void refetch(),
+    onError: () => toast.error(tCommon('error')),
     onSettled: () => setRemovingCardId(null),
   });
 
@@ -67,6 +71,21 @@ export function TradelistTab() {
     } finally {
       setIsTogglingVisibility(false);
     }
+  }
+
+  function handleRemove(cardId: string) {
+    setRemovingCardId(cardId);
+    removeMutation.mutate({ cardId, type: 'trade' });
+    const toastId = toast(t('removedFromTradelist'), {
+      duration: 5000,
+      action: {
+        label: tCommon('undo'),
+        onClick: () => {
+          toggleMutation.mutate({ cardId, type: 'trade' });
+          toast.dismiss(toastId);
+        },
+      },
+    });
   }
 
   if (isLoading) {
@@ -93,7 +112,7 @@ export function TradelistTab() {
     <div className="rounded-xl border border-surface-border bg-surface-card/50 p-4 mb-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-400 leading-relaxed flex-1">
-          List cards you're willing to trade or sell. Tap <span className="text-rift-400 font-medium">+</span> to add cards, tap <span className="text-rift-400 font-medium">$</span> on a card to set an asking price.
+          List cards you&apos;re willing to trade or sell. Tap <span className="text-rift-400 font-medium">+</span> to add cards, tap <span className="text-rift-400 font-medium">$</span> on a card to set an asking price.
         </p>
         <button
           onClick={() => void handleVisibilityToggle()}
@@ -165,6 +184,8 @@ export function TradelistTab() {
         {entries.map((entry) => {
           const isRemoving = removingCardId === entry.card.id;
           const isPricing = pricingEntryId === entry.id;
+          const askingPrice = entry.askingPrice ?? null;
+          const marketPrice = entry.card.marketPrice ?? null;
           return (
             <div
               key={entry.id}
@@ -187,6 +208,23 @@ export function TradelistTab() {
                   )}
                 </div>
               </Link>
+
+              {/* Dual price display below card image */}
+              {(askingPrice || marketPrice) && (
+                <div className="px-1.5 py-1 flex flex-wrap gap-x-1.5 gap-y-0.5">
+                  {askingPrice && (
+                    <span className="text-[10px] tabular-nums text-rift-400 font-medium">
+                      Ask: ${askingPrice}
+                    </span>
+                  )}
+                  {marketPrice && (
+                    <span className="text-[10px] tabular-nums text-zinc-400">
+                      Mkt: ${marketPrice}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Inline price editor */}
               {isPricing ? (
                 <div className="absolute bottom-0 inset-x-0 p-2 bg-black/90">
@@ -239,12 +277,9 @@ export function TradelistTab() {
                 </div>
               ) : (
                 /* Action overlay: price + remove */
-                <div className="absolute bottom-0 inset-x-0 flex items-center justify-between px-1.5 py-1.5 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-0 inset-x-0 flex items-center justify-between px-1.5 py-1.5 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => {
-                      setRemovingCardId(entry.card.id);
-                      removeMutation.mutate({ cardId: entry.card.id, type: 'trade' });
-                    }}
+                    onClick={() => handleRemove(entry.card.id)}
                     disabled={isRemoving}
                     className="w-8 h-8 rounded-full bg-red-600/90 text-white flex items-center justify-center hover:bg-red-500 active:scale-90 transition-all disabled:opacity-50"
                     aria-label={`Remove ${entry.card.name} from tradelist`}
@@ -257,13 +292,11 @@ export function TradelistTab() {
                       </svg>
                     )}
                   </button>
-                  <span className="text-white font-bold text-xs tabular-nums">
-                    {entry.askingPrice ? `$${entry.askingPrice}` : ''}
-                  </span>
                   <button
                     onClick={() => {
                       setPricingEntryId(entry.id);
-                      setPriceInput(entry.askingPrice ?? '');
+                      // Pre-fill with asking price if set, otherwise market price
+                      setPriceInput(entry.askingPrice ?? marketPrice ?? '');
                     }}
                     className="w-8 h-8 rounded-full bg-rift-600/90 text-white flex items-center justify-center hover:bg-rift-500 active:scale-90 transition-all"
                     aria-label={`Set asking price for ${entry.card.name}`}

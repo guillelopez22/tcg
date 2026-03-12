@@ -3,8 +3,10 @@
 // Wantlist tab — displays want-type wishlist entries with card thumbnails
 // Links to the card detail page. Floating + button opens add-to-wantlist modal.
 // Includes a per-list public/private visibility toggle.
+// Shows market price per card and total want value summary at top.
+// Shows 5-second undo toast on remove.
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -31,16 +33,25 @@ export function WantlistTab() {
 
   const updateMutation = trpc.wishlist.update.useMutation();
 
+  const toggleMutation = trpc.wishlist.toggle.useMutation({
+    onSuccess: () => void refetch(),
+    onError: () => toast.error(tCommon('error')),
+  });
+
   const removeMutation = trpc.wishlist.toggle.useMutation({
-    onSuccess: () => {
-      toast.success('Removed from wantlist');
-      void refetch();
-    },
-    onError: () => toast.error('Failed to remove'),
+    onSuccess: () => void refetch(),
+    onError: () => toast.error(tCommon('error')),
     onSettled: () => setRemovingCardId(null),
   });
 
   const entries = data?.items ?? [];
+
+  // Total want value computed from market prices of all wantlist entries
+  const totalWantValue = useMemo(() => {
+    return entries.reduce((sum, entry) => {
+      return sum + parseFloat(entry.card.marketPrice ?? '0');
+    }, 0);
+  }, [entries]);
 
   async function handleVisibilityToggle() {
     if (entries.length === 0) {
@@ -57,6 +68,21 @@ export function WantlistTab() {
     } finally {
       setIsTogglingVisibility(false);
     }
+  }
+
+  function handleRemove(cardId: string) {
+    setRemovingCardId(cardId);
+    removeMutation.mutate({ cardId, type: 'want' });
+    const toastId = toast(t('removedFromWantlist'), {
+      duration: 5000,
+      action: {
+        label: tCommon('undo'),
+        onClick: () => {
+          toggleMutation.mutate({ cardId, type: 'want' });
+          toast.dismiss(toastId);
+        },
+      },
+    });
   }
 
   if (isLoading) {
@@ -83,7 +109,7 @@ export function WantlistTab() {
     <div className="rounded-xl border border-surface-border bg-surface-card/50 p-4 mb-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-400 leading-relaxed flex-1">
-          Mark cards you're looking for. Tap <span className="text-yellow-400 font-medium">+</span> to add cards, tap any card to set a preferred variant or max price.
+          Mark cards you&apos;re looking for. Tap <span className="text-yellow-400 font-medium">+</span> to add cards, tap any card to set a preferred variant or max price.
         </p>
         <button
           onClick={() => void handleVisibilityToggle()}
@@ -151,9 +177,16 @@ export function WantlistTab() {
   return (
     <>
       {header}
+
+      {/* Total want value summary */}
+      <div className="text-zinc-400 text-sm mb-2 tabular-nums">
+        {t('totalWantValue')}: ${totalWantValue.toFixed(2)}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {entries.map((entry) => {
           const isRemoving = removingCardId === entry.card.id;
+          const marketPrice = entry.card.marketPrice ?? null;
           return (
             <div
               key={entry.id}
@@ -183,18 +216,25 @@ export function WantlistTab() {
                   {/* Max price badge */}
                   {entry.maxPrice && (
                     <span className="absolute bottom-8 right-1 lg-badge bg-surface-card/80 text-zinc-300 text-[9px]">
-                      ≤${entry.maxPrice}
+                      &le;${entry.maxPrice}
                     </span>
                   )}
                 </div>
               </Link>
+
+              {/* Market price badge below card image */}
+              {marketPrice && (
+                <div className="px-1.5 py-1">
+                  <span className="text-zinc-400 text-[10px] tabular-nums">
+                    ${marketPrice}
+                  </span>
+                </div>
+              )}
+
               {/* Remove overlay */}
-              <div className="absolute bottom-0 inset-x-0 flex items-center justify-center px-1.5 py-1.5 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-0 inset-x-0 flex items-center justify-center px-1.5 py-1.5 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                 <button
-                  onClick={() => {
-                    setRemovingCardId(entry.card.id);
-                    removeMutation.mutate({ cardId: entry.card.id, type: 'want' });
-                  }}
+                  onClick={() => handleRemove(entry.card.id)}
                   disabled={isRemoving}
                   className="w-8 h-8 rounded-full bg-red-600/90 text-white flex items-center justify-center hover:bg-red-500 active:scale-90 transition-all disabled:opacity-50"
                   aria-label={`Remove ${entry.card.name} from wantlist`}
