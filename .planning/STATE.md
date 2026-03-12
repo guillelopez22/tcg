@@ -3,6 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
+stopped_at: Phase 01.2 context gathered
+last_updated: "2026-03-12T18:43:44.064Z"
+last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
+progress:
+  total_phases: 7
+  completed_phases: 2
+  total_plans: 8
+  completed_plans: 8
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: planning
 stopped_at: Completed 01.1-03-PLAN.md — Phase 01.1 Collection UX Polish complete
 last_updated: "2026-03-12T18:01:17.417Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
@@ -111,6 +126,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 01.1 inserted after Phase 1: Collection UX Polish (URGENT) — deck wizard, +/- steppers on collection grid, tradelist asking price editor, wantlist/tradelist remove buttons
+- Phase 01.2 inserted after Phase 1: Smart Deck Builder (URGENT)
 
 ### Pending Todos
 
@@ -125,6 +141,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T18:01:17.412Z
-Stopped at: Completed 01.1-03-PLAN.md — Phase 01.1 Collection UX Polish complete
-Resume file: None
+Last session: 2026-03-12T18:43:44.060Z
+Stopped at: Phase 01.2 context gathered
+Resume file: .planning/phases/01.2-smart-deck-builder/01.2-CONTEXT.md
