@@ -43,12 +43,15 @@ interface LegendCard {
   cleanName: string;
   domain: string | null;
   imageSmall: string | null;
+  description: string | null;
 }
 
 interface DeckSummary {
   deckId: string;
   cardCount: number;
   domainBreakdown: Record<string, number>;
+  mainCount?: number;
+  runeCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +222,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
 
   const allCards = useMemo(() => {
     const pages = [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6];
-    const cardArr: Array<{ id: string; name: string; cleanName: string; domain: string | null; cardType: string | null; imageSmall: string | null; rarity: string }> = [];
+    const cardArr: Array<{ id: string; name: string; cleanName: string; domain: string | null; cardType: string | null; imageSmall: string | null; rarity: string; energyCost: number | null; description: string | null }> = [];
     for (const page of pages) {
       if (page?.items) {
         for (const c of page.items) {
@@ -230,47 +233,219 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     return cardArr;
   }, [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6]);
 
-  function buildStarterCardsFromPool(legend: LegendCard, mode: BuildMode = 'owned_first'): Array<{ cardId: string; quantity: number }> {
-    const domains = legend.domain?.split(';') ?? [];
-    const pool = allCards.filter((c) => {
-      if (c.id === legend.id) return false;
-      if (c.cardType === 'Legend' || c.cardType === 'Token') return false;
-      if (!c.domain) return false;
-      return domains.some((d) => c.domain?.includes(d));
-    });
+  function buildStarterCardsFromPool(legend: LegendCard, mode: BuildMode = 'owned_first'): Array<{ cardId: string; quantity: number; zone?: 'main' | 'rune' | 'champion' | 'sideboard' }> {
+    const legendDomainPair = legend.domain ?? '';
+    const allowedSingleDomains = legendDomainPair.split(';').filter(Boolean);
+    const isSignature = (ct: string | null) =>
+      ct === 'Signature Unit' || ct === 'Signature Spell' || ct === 'Signature Gear';
 
-    const rarityOrder: Record<string, number> = { Legendary: 0, Epic: 1, Rare: 2, Uncommon: 3, Common: 4 };
+    type PoolCard = typeof allCards[number] & { synergyScore: number };
 
-    if (mode === 'owned_first') {
-      // Sort: owned cards first, then by rarity
-      pool.sort((a, b) => {
-        const aOwned = ownershipSet.has(a.id) ? 0 : 1;
-        const bOwned = ownershipSet.has(b.id) ? 0 : 1;
-        if (aOwned !== bOwned) return aOwned - bOwned;
-        return (rarityOrder[a.rarity] ?? 5) - (rarityOrder[b.rarity] ?? 5);
-      });
-    } else {
-      // best_fit: pure rarity + synergy order
-      pool.sort((a, b) => (rarityOrder[a.rarity] ?? 5) - (rarityOrder[b.rarity] ?? 5));
+    // --- Step 1: Extract mechanic keywords from the legend's ability text ---
+    // These are the mechanics the deck should abuse.
+    const legendText = (legend.description ?? '').toLowerCase();
+    const mechanicPatterns: Array<{ keyword: string; pattern: RegExp }> = [
+      { keyword: 'stun',      pattern: /\bstun/i },
+      { keyword: 'buff',      pattern: /\bbuff/i },
+      { keyword: 'draw',      pattern: /\bdraw\b/i },
+      { keyword: 'discard',   pattern: /\bdiscard/i },
+      { keyword: 'ready',     pattern: /\bready\b/i },
+      { keyword: 'exhaust',   pattern: /\bexhaust/i },
+      { keyword: 'kill',      pattern: /\bkill\b/i },
+      { keyword: 'heal',      pattern: /\bheal/i },
+      { keyword: 'shield',    pattern: /\bshield/i },
+      { keyword: 'mighty',    pattern: /\bmighty?\b/i },
+      { keyword: 'move',      pattern: /\bmove\b/i },
+      { keyword: 'rune',      pattern: /\brune/i },
+      { keyword: 'conquer',   pattern: /\bconquer/i },
+      { keyword: 'assault',   pattern: /\bassault/i },
+      { keyword: 'accelerate', pattern: /\baccelerate/i },
+      { keyword: 'ganking',   pattern: /\bganking/i },
+      { keyword: 'legion',    pattern: /\blegion/i },
+      { keyword: 'deathknell', pattern: /\bdeathknell/i },
+      { keyword: 'equip',     pattern: /\bequip\b/i },
+      { keyword: 'attach',    pattern: /\battach/i },
+      { keyword: 'gear',      pattern: /\bgear\b/i },
+      { keyword: 'sacrifice', pattern: /\bsacrifice/i },
+      { keyword: 'damage',    pattern: /\bdeal\s+\d+/i },
+    ];
+
+    // Find which mechanics the legend cares about
+    const legendMechanics = mechanicPatterns
+      .filter(({ pattern }) => pattern.test(legendText))
+      .map(({ keyword }) => keyword);
+
+    // Also extract the legend's champion unit name for co-card detection
+    // e.g. "Leona - Radiant Dawn" → look for other "Leona" cards (Champion Units)
+    const legendBaseName = legend.name.split(' - ')[0]?.trim().toLowerCase() ?? '';
+
+    // --- Step 2: Filter and score the card pool ---
+    // Champion Units are leveled-up forms of legends. A deck only runs the
+    // champion unit(s) that belong to its own legend (same base name).
+    // All other Champion Units are other legends' forms and must be excluded.
+    const pool: PoolCard[] = [];
+    for (const c of allCards) {
+      if (c.id === legend.id) continue;
+      if (c.cardType === 'Legend' || c.cardType === 'Token' || c.cardType === 'Rune') continue;
+      if (!c.domain) continue;
+
+      // Champion Units: only allow this legend's own leveled forms
+      if (c.cardType === 'Champion Unit') {
+        if (!c.name.toLowerCase().startsWith(legendBaseName)) continue;
+      }
+
+      if (isSignature(c.cardType)) {
+        if (c.domain !== legendDomainPair) continue;
+      } else if (c.cardType !== 'Champion Unit') {
+        // Regular cards: must match one of the legend's domains
+        if (!allowedSingleDomains.includes(c.domain)) continue;
+      }
+
+      // Score synergy: how much does this card's text align with the legend's mechanics?
+      const cardText = (c.description ?? '').toLowerCase();
+      let synergyScore = 0;
+
+      for (const mechanic of legendMechanics) {
+        const pat = mechanicPatterns.find((p) => p.keyword === mechanic);
+        if (pat && pat.pattern.test(cardText)) {
+          synergyScore += 3;
+        }
+      }
+
+      // Bonus: this legend's own Champion Unit — always include
+      if (c.cardType === 'Champion Unit') {
+        synergyScore += 5;
+      }
+
+      // Bonus: Signature cards always synergize
+      if (isSignature(c.cardType)) {
+        synergyScore += 4;
+      }
+
+      pool.push({ ...c, synergyScore });
     }
 
-    const cards: Array<{ cardId: string; quantity: number }> = [];
-    cards.push({ cardId: legend.id, quantity: 1 });
-    let total = 1;
-    const MAX = 40;
+    // --- Step 3: Sort by synergy first, then ownership/rarity ---
+    const rarityRank: Record<string, number> = { Epic: 0, Rare: 1, Uncommon: 2, Common: 3, Showcase: 0, 'Alternate Art': 0, Overnumbered: 0 };
 
-    for (const card of pool) {
-      if (total >= MAX) break;
-      if (cards.some((c) => c.cardId === card.id)) continue;
-      const qty = card.rarity === 'Common' || card.rarity === 'Uncommon' ? 2 : 1;
-      const actualQty = Math.min(qty, MAX - total);
-      if (actualQty > 0) {
-        cards.push({ cardId: card.id, quantity: actualQty });
-        total += actualQty;
+    const scoreCard = (c: PoolCard): number => {
+      let s = c.synergyScore * 10; // synergy is primary
+      if (mode === 'owned_first' && ownershipSet.has(c.id)) s += 5;
+      s -= (rarityRank[c.rarity] ?? 4); // higher rarity = better
+      return s;
+    };
+
+    pool.sort((a, b) => scoreCard(b) - scoreCard(a));
+
+    // --- Step 4: Group by energy cost bucket ---
+    // Separate out unique-per-deck cards: signatures and champion units (1 copy each)
+    const buckets = new Map<number, PoolCard[]>();
+    const uniqueCards: PoolCard[] = []; // signatures + champion units
+    for (const c of pool) {
+      if (isSignature(c.cardType) || c.cardType === 'Champion Unit') {
+        uniqueCards.push(c);
+      } else {
+        const cost = c.energyCost ?? 0;
+        const bucket = Math.min(cost, 7);
+        if (!buckets.has(bucket)) buckets.set(bucket, []);
+        buckets.get(bucket)!.push(c);
       }
     }
 
-    return cards;
+    // --- Step 5: Build the deck ---
+    const result: Array<{ cardId: string; quantity: number; zone?: 'main' | 'rune' | 'champion' | 'sideboard' }> = [];
+    const usedIds = new Set<string>();
+    let total = 0;
+    const MAIN_SIZE = 40;
+
+    // 5a) Legend x1
+    result.push({ cardId: legend.id, quantity: 1 });
+    usedIds.add(legend.id);
+    total += 1;
+
+    // 5b) Signature + Champion Unit cards x1 each
+    // Pick the best champion unit (highest synergy), skip alt art/overnumbered dupes
+    const seenChampBase = new Set<string>();
+    for (const card of uniqueCards) {
+      if (total >= MAIN_SIZE) break;
+      if (usedIds.has(card.id)) continue;
+      // Deduplicate alt art / overnumbered variants of same champion unit
+      const baseName = card.cleanName.replace(/\s*\(.*\)$/, '');
+      if (seenChampBase.has(baseName)) continue;
+      seenChampBase.add(baseName);
+      result.push({ cardId: card.id, quantity: 1 });
+      usedIds.add(card.id);
+      total += 1;
+    }
+
+    // 5c) Fill curve with synergy-ranked cards, 3 copies each
+    // Target: healthy energy curve distribution
+    const curveSlots: Array<{ bucketRange: number[]; picks: number }> = [
+      { bucketRange: [0, 1], picks: 2 },
+      { bucketRange: [2],    picks: 3 },
+      { bucketRange: [3],    picks: 3 },
+      { bucketRange: [4, 5], picks: 2 },
+      { bucketRange: [6, 7], picks: 1 },
+    ];
+
+    for (const { bucketRange, picks } of curveSlots) {
+      const candidates: PoolCard[] = [];
+      for (const b of bucketRange) {
+        for (const c of buckets.get(b) ?? []) {
+          if (!usedIds.has(c.id)) candidates.push(c);
+        }
+      }
+      // Already sorted by synergy score from step 3
+
+      let picked = 0;
+      for (const card of candidates) {
+        if (picked >= picks || total >= MAIN_SIZE) break;
+        const qty = Math.min(3, MAIN_SIZE - total);
+        if (qty <= 0) break;
+        result.push({ cardId: card.id, quantity: qty });
+        usedIds.add(card.id);
+        total += qty;
+        picked++;
+      }
+    }
+
+    // 5d) Fill remaining with best synergy cards not yet picked
+    if (total < MAIN_SIZE) {
+      for (const card of pool) {
+        if (total >= MAIN_SIZE) break;
+        if (usedIds.has(card.id)) continue;
+        if (isSignature(card.cardType)) continue;
+        const qty = Math.min(3, MAIN_SIZE - total);
+        if (qty <= 0) break;
+        result.push({ cardId: card.id, quantity: qty });
+        usedIds.add(card.id);
+        total += qty;
+      }
+    }
+
+    // --- Step 6: Pick runes for the rune zone (12 total, 6 per domain) ---
+    const RUNE_SIZE = 12;
+    if (allowedSingleDomains.length >= 2) {
+      const runesPerDomain = Math.floor(RUNE_SIZE / allowedSingleDomains.length);
+      for (const domain of allowedSingleDomains) {
+        // Find the base rune for this domain (prefer non-alt-art)
+        const rune = allCards.find(
+          (c) => c.cardType === 'Rune' && c.domain === domain && !c.name.includes('Alternate Art'),
+        );
+        if (rune) {
+          result.push({ cardId: rune.id, quantity: runesPerDomain, zone: 'rune' });
+        }
+      }
+    } else if (allowedSingleDomains.length === 1) {
+      const rune = allCards.find(
+        (c) => c.cardType === 'Rune' && c.domain === allowedSingleDomains[0] && !c.name.includes('Alternate Art'),
+      );
+      if (rune) {
+        result.push({ cardId: rune.id, quantity: RUNE_SIZE, zone: 'rune' });
+      }
+    }
+
+    return result;
   }
 
   async function handleCreateFromLegend() {
@@ -284,9 +459,10 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         cards: starterCards,
       });
 
-      // Compute domain breakdown for summary
+      // Compute domain breakdown for summary (exclude runes from domain chart)
       const domainBreakdown: Record<string, number> = {};
       for (const sc of starterCards) {
+        if (sc.zone === 'rune') continue;
         const card = allCards.find((c) => c.id === sc.cardId);
         if (card?.domain) {
           const primaryDomain = card.domain.split(';')[0];
@@ -296,8 +472,10 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         }
       }
 
-      const totalCards = starterCards.reduce((sum, sc) => sum + sc.quantity, 0);
-      setDeckSummary({ deckId: deck.id, cardCount: totalCards, domainBreakdown });
+      const mainCards = starterCards.filter((sc) => sc.zone !== 'rune').reduce((sum, sc) => sum + sc.quantity, 0);
+      const runeCards = starterCards.filter((sc) => sc.zone === 'rune').reduce((sum, sc) => sum + sc.quantity, 0);
+      const totalCards = mainCards + runeCards;
+      setDeckSummary({ deckId: deck.id, cardCount: totalCards, domainBreakdown, mainCount: mainCards, runeCount: runeCards });
       onCreated();
       setStep('deck-summary');
     } catch {
@@ -768,8 +946,8 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white group-hover:text-yellow-400 transition-colors">Build best deck</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">Pick the highest-rated cards for this legend regardless of ownership</p>
+                      <p className="text-sm font-medium text-white group-hover:text-yellow-400 transition-colors">Suggested starter</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">Pick cards that synergise with this legend regardless of ownership</p>
                     </div>
                   </div>
                 </button>
@@ -856,7 +1034,10 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-white">Deck Created!</h3>
-                <p className="text-sm text-zinc-400 mt-1">{deckSummary.cardCount} cards added as a starting point</p>
+                <p className="text-sm text-zinc-400 mt-1">
+                  {deckSummary.mainCount ?? deckSummary.cardCount} main deck
+                  {deckSummary.runeCount ? ` + ${deckSummary.runeCount} runes` : ''} added as a starting point
+                </p>
               </div>
 
               {/* Domain breakdown */}

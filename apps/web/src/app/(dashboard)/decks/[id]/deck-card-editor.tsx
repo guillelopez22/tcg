@@ -918,7 +918,11 @@ export function DeckCardEditor({ deckId, initialCards, onClose, onSaved }: DeckC
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{entry.card.name}</p>
-                        <span className={`lg-badge ${rarityColors.text} ${rarityColors.bg}`}>{entry.card.rarity}</span>
+                        {primaryDomain && domainColor ? (
+                          <span className={`lg-badge ${domainColor.text} ${domainColor.bg}`}>{primaryDomain}</span>
+                        ) : (
+                          <span className={`lg-badge ${rarityColors.text} ${rarityColors.bg}`}>{entry.card.rarity}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
