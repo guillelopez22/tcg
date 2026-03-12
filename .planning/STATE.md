@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Checkpoint 01-05-Task3: human-verify stats/recommendations/i18n"
-last_updated: "2026-03-12T04:19:54.145Z"
+stopped_at: Completed 01-05-PLAN.md — Phase 01 Collection Tracker complete
+last_updated: "2026-03-12T05:08:16.764Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 5
@@ -79,6 +79,9 @@ Recent decisions affecting current work:
 - [Phase 01]: recharts label prop uses PieLabelRenderProps type — use null-coalescing in label renderer for v3 compatibility
 - [Phase 01]: Language toggle reloads page after setting locale cookie — simplest approach for next-intl cookie-based locale without URL prefix
 - [Phase 01]: Per-list visibility uses local React state + bulk wishlist.update sequential mutations — no new bulk API endpoint needed
+- [Phase 01]: Riftdecks.com scraper reads tier badge CSS classes (not text content) to determine tier letter — text was empty, classes encode S/A/B/C
+- [Phase 01]: Deck-sync cron module added with @nestjs/schedule running at 0 6 * * * and 0 18 * * * — keeps trending decks fresh without manual intervention
+- [Phase 01]: Trending Decks tab added to /decks page; deck-list.tsx refactored to tabbed layout: My Decks | Trending
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T04:19:54.140Z
-Stopped at: Checkpoint 01-05-Task3: human-verify stats/recommendations/i18n
+Last session: 2026-03-12T05:08:07.565Z
+Stopped at: Completed 01-05-PLAN.md — Phase 01 Collection Tracker complete
 Resume file: None
