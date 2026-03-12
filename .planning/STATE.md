@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01.2-02-PLAN.md — Phase 01.2 Plan 02 service layer overhaul complete
-last_updated: "2026-03-12T19:44:23.216Z"
+stopped_at: Completed 01.2-03-PLAN.md — Phase 01.2 Plan 03 Smart Deck Editor UI complete
+last_updated: "2026-03-12T19:54:06.701Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 12
 ---
 
 ---
@@ -90,6 +90,8 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01.1 P03 | 7 | 2 tasks | 5 files |
 | Phase 01.2-smart-deck-builder P01 | 4 | 2 tasks | 9 files |
 | Phase 01.2 P02 | 17 | 3 tasks | 17 files |
+| Phase 01.2 P04 | 6 | 2 tasks | 7 files |
+| Phase 01.2-smart-deck-builder P03 | 15 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -130,6 +132,11 @@ Recent decisions affecting current work:
 - [Phase 01.2-smart-deck-builder]: validateCardEntriesBasic (sync, no DB) runs before validateCardIdsExist — BAD_REQUEST thrown without DB query
 - [Phase 01.2-smart-deck-builder]: computeAnalytics lives in packages/shared so Plan 04 UI can import it without server dependencies
 - [Phase 01.2-smart-deck-builder]: Stale compiled .js artifacts in packages/shared shadow new TS exports — all stale files must be updated after adding new exports to .ts source
+- [Phase 01.2]: computeAnalytics exported from @la-grieta/shared — was missing from index despite .ts file existing since Plan 02
+- [Phase 01.2]: energyCost added to DeckCardWithCard type and getById DB select — required by computeAnalytics for energy curve charts
+- [Phase 01.2]: BuildabilitySection uses sequential wishlist.toggle mutations for add-missing — no bulk endpoint needed, matches existing API surface
+- [Phase 01.2-smart-deck-builder]: validateDeckFormat called client-side on every deck state change — identical to server, eliminates divergence risk
+- [Phase 01.2-smart-deck-builder]: choose-build-mode wizard step: owned_first sorts card pool by ownershipSet before rarity; best_fit uses pure rarity order
 
 ### Roadmap Evolution
 
@@ -149,6 +156,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:44:23.212Z
-Stopped at: Completed 01.2-02-PLAN.md — Phase 01.2 Plan 02 service layer overhaul complete
+Last session: 2026-03-12T19:54:06.697Z
+Stopped at: Completed 01.2-03-PLAN.md — Phase 01.2 Plan 03 Smart Deck Editor UI complete
 Resume file: None
