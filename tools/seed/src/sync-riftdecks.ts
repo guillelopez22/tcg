@@ -51,7 +51,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function dedupeByUrl(links: Array<{ url: string; name: string }>): Array<{ url: string; name: string }> {
+function dedupeByUrl(links: Array<{ url: string; name: string; tier: string | null }>): Array<{ url: string; name: string; tier: string | null }> {
   const seen = new Set<string>();
   return links.filter((l) => {
     if (seen.has(l.url)) return false;
@@ -111,7 +111,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
   // Step 2: Collect deck URLs from tier list (S/A/B tier champions)
   // ------------------------------------------------------------------
   console.log('\nFetching tier list...');
-  let deckLinks: Array<{ url: string; name: string }> = [];
+  let deckLinks: Array<{ url: string; name: string; tier: string | null }> = [];
 
   try {
     const champions = await scrapeTierListChampions();
@@ -124,7 +124,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
       try {
         const championDecks = await scrapeChampionDecks(champion.slug, DECKS_PER_CHAMPION);
         console.log(`  ${champion.name} (${champion.tier}): ${championDecks.length} deck(s)`);
-        deckLinks.push(...championDecks);
+        deckLinks.push(...championDecks.map((d) => ({ ...d, tier: champion.tier })));
       } catch (err) {
         console.warn(`  Failed to scrape champion ${champion.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -146,7 +146,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
       try {
         const tournamentDecks = await scrapeTournamentDecks(tournament.url, DECKS_PER_TOURNAMENT);
         console.log(`  "${tournament.name}": ${tournamentDecks.length} deck(s)`);
-        deckLinks.push(...tournamentDecks);
+        deckLinks.push(...tournamentDecks.map((d) => ({ ...d, tier: null })));
       } catch (err) {
         console.warn(`  Failed to scrape tournament "${tournament.name}": ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -169,13 +169,13 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
   // ------------------------------------------------------------------
   // Step 5: Scrape each deck page
   // ------------------------------------------------------------------
-  const scrapedDecks: ScrapedDeck[] = [];
+  const scrapedDecks: Array<ScrapedDeck & { tier: string | null }> = [];
 
   for (const link of deckLinks) {
     try {
       const deck = await scrapeDeckPage(link.url);
       if (deck) {
-        scrapedDecks.push(deck);
+        scrapedDecks.push({ ...deck, tier: link.tier });
         console.log(`  Parsed: "${deck.name}" (${deck.cards.length} cards)`);
       } else {
         console.warn(`  Skipped (no data): ${link.url}`);
@@ -268,6 +268,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
           description: `Meta deck from riftdecks.com — ${deckData.sourceUrl}`,
           isPublic: true,
           domain: deckData.domain || null,
+          tier: deckData.tier,
           coverCardId,
           updatedAt: new Date(),
         })
@@ -287,6 +288,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
           description: `Meta deck from riftdecks.com — ${deckData.sourceUrl}`,
           isPublic: true,
           domain: deckData.domain || null,
+          tier: deckData.tier,
           coverCardId,
         })
         .returning({ id: decks.id });

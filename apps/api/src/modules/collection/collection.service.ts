@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, gt, sql, asc, desc } from 'drizzle-orm';
 import type Redis from 'ioredis';
 import type { DbClient } from '@la-grieta/db';
-import { collections, cards, sets } from '@la-grieta/db';
+import { collections, cards, sets, cardPrices } from '@la-grieta/db';
 import type {
   CollectionListInput,
   CollectionAddInput,
@@ -12,17 +12,18 @@ import type {
   CollectionAddBulkInput,
   CollectionGetByCardInput,
 } from '@la-grieta/shared';
-import { buildPaginatedResult } from '@la-grieta/shared';
+import { buildPaginatedResult, isFoilVariant } from '@la-grieta/shared';
 import type { PaginatedResult } from '@la-grieta/shared';
 import type { Collection, Card, Set } from '@la-grieta/db';
 
 export type CollectionEntryWithCard = Collection & {
-  card: Card & { set: Set };
+  card: Card & { set: Set; marketPrice: string | null; foilMarketPrice: string | null };
 };
 
 export interface CollectionStats {
   totalCards: number;
   uniqueCards: number;
+  totalMarketValue: number;
   setStats: Array<{
     setId: string;
     setName: string;
@@ -31,6 +32,17 @@ export interface CollectionStats {
     ownedCards: number;
     completionPercent: number;
   }>;
+  valueBySet: Array<{
+    setId: string;
+    setName: string;
+    totalValue: number;
+  }>;
+  rarityDistribution: {
+    common: number;
+    uncommon: number;
+    rare: number;
+    epic: number;
+  };
 }
 
 export interface UploadUrlResult {
@@ -160,10 +172,14 @@ export class CollectionService {
         set_tcgplayerGroupId: sets.tcgplayerGroupId,
         set_createdAt: sets.createdAt,
         set_updatedAt: sets.updatedAt,
+        // Price fields
+        card_marketPrice: cardPrices.marketPrice,
+        card_foilMarketPrice: cardPrices.foilMarketPrice,
       })
       .from(collections)
       .innerJoin(cards, eq(collections.cardId, cards.id))
       .innerJoin(sets, eq(cards.setId, sets.id))
+      .leftJoin(cardPrices, eq(cards.id, cardPrices.cardId))
       .where(and(...conditions))
       .orderBy(orderByCol)
       .limit(input.limit + 1);
@@ -215,6 +231,8 @@ export class CollectionService {
           createdAt: r.set_createdAt,
           updatedAt: r.set_updatedAt,
         },
+        marketPrice: r.card_marketPrice ?? null,
+        foilMarketPrice: r.card_foilMarketPrice ?? null,
       },
     }));
 
@@ -504,7 +522,10 @@ export class CollectionService {
       return {
         totalCards: totals?.totalCards ?? 0,
         uniqueCards: totals?.uniqueCards ?? 0,
+        totalMarketValue: 0,
         setStats: [],
+        valueBySet: [],
+        rarityDistribution: { common: 0, uncommon: 0, rare: 0, epic: 0 },
       };
     }
 
@@ -557,10 +578,99 @@ export class CollectionService {
       };
     });
 
+    // Query 5: market value — join collections -> cards -> card_prices
+    // Use new cache key (cache:user_stats_v2) to avoid stale cache from old shape
+    const cacheKey = `cache:user_stats_v2:${userId}`;
+    const cachedStatsExtra = await this.redis.get(cacheKey);
+
+    let totalMarketValue: number;
+    let valueBySet: Array<{ setId: string; setName: string; totalValue: number }>;
+    let rarityDistribution: { common: number; uncommon: number; rare: number; epic: number };
+
+    if (cachedStatsExtra) {
+      const parsed = JSON.parse(cachedStatsExtra) as {
+        totalMarketValue: number;
+        valueBySet: typeof valueBySet;
+        rarityDistribution: typeof rarityDistribution;
+      };
+      totalMarketValue = parsed.totalMarketValue;
+      valueBySet = parsed.valueBySet;
+      rarityDistribution = parsed.rarityDistribution;
+    } else {
+      // Fetch all collection entries for this user with their variant, card rarity, set, and prices
+      const collectionWithPrices = await this.db
+        .select({
+          variant: collections.variant,
+          setId: cards.setId,
+          rarity: cards.rarity,
+          marketPrice: cardPrices.marketPrice,
+          foilMarketPrice: cardPrices.foilMarketPrice,
+        })
+        .from(collections)
+        .innerJoin(cards, eq(collections.cardId, cards.id))
+        .innerJoin(cardPrices, eq(cards.id, cardPrices.cardId))
+        .where(eq(collections.userId, userId));
+
+      // Calculate total market value using variant mapping
+      let total = 0;
+      const valueMap = new Map<string, number>();
+      const rarityCount = { common: 0, uncommon: 0, rare: 0, epic: 0 };
+
+      for (const row of collectionWithPrices) {
+        // Use foil price for foil variants, normal price otherwise
+        const priceStr = isFoilVariant(row.variant)
+          ? row.foilMarketPrice
+          : row.marketPrice;
+        const price = priceStr ? parseFloat(priceStr) : 0;
+        total += price;
+        valueMap.set(row.setId, (valueMap.get(row.setId) ?? 0) + price);
+      }
+
+      totalMarketValue = Math.round(total * 100) / 100;
+
+      valueBySet = allSets
+        .filter((s) => valueMap.has(s.id))
+        .map((s) => ({
+          setId: s.id,
+          setName: s.name,
+          totalValue: Math.round((valueMap.get(s.id) ?? 0) * 100) / 100,
+        }));
+
+      // Query 6: rarity distribution (entries without price join for accuracy)
+      const rarityRows = await this.db
+        .select({
+          rarity: cards.rarity,
+          count: sql<number>`COUNT(*)::int`,
+        })
+        .from(collections)
+        .innerJoin(cards, eq(collections.cardId, cards.id))
+        .where(eq(collections.userId, userId))
+        .groupBy(cards.rarity);
+
+      for (const row of rarityRows) {
+        const rarity = (row.rarity ?? '').toLowerCase();
+        if (rarity === 'common') rarityCount.common += row.count;
+        else if (rarity === 'uncommon') rarityCount.uncommon += row.count;
+        else if (rarity === 'rare') rarityCount.rare += row.count;
+        else if (rarity === 'epic') rarityCount.epic += row.count;
+      }
+      rarityDistribution = rarityCount;
+
+      // Cache for 5 minutes
+      await this.redis.setex(
+        cacheKey,
+        300,
+        JSON.stringify({ totalMarketValue, valueBySet, rarityDistribution }),
+      );
+    }
+
     return {
       totalCards: totals?.totalCards ?? 0,
       uniqueCards: totals?.uniqueCards ?? 0,
+      totalMarketValue,
       setStats,
+      valueBySet,
+      rarityDistribution,
     };
   }
 }

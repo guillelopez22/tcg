@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, gt, desc } from 'drizzle-orm';
 import type Redis from 'ioredis';
 import type { DbClient } from '@la-grieta/db';
-import { wishlists, cards, sets } from '@la-grieta/db';
+import { wishlists, cards, sets, cardPrices } from '@la-grieta/db';
 import type { Wishlist } from '@la-grieta/db';
 import type { WishlistToggleInput, WishlistUpdateInput, WishlistListInput } from '@la-grieta/shared';
 import { buildPaginatedResult } from '@la-grieta/shared';
@@ -22,6 +22,7 @@ export interface WishlistCard {
   setId: string;
   setSlug: string;
   setName: string;
+  marketPrice: string | null;
 }
 
 export type WishlistEntryWithCard = Wishlist & {
@@ -150,10 +151,13 @@ export class WishlistService {
         // Set fields
         card_setSlug: sets.slug,
         card_setName: sets.name,
+        // Price fields
+        card_marketPrice: cardPrices.marketPrice,
       })
       .from(wishlists)
       .innerJoin(cards, eq(wishlists.cardId, cards.id))
       .innerJoin(sets, eq(cards.setId, sets.id))
+      .leftJoin(cardPrices, eq(cards.id, cardPrices.cardId))
       .where(and(...conditions))
       .orderBy(desc(wishlists.createdAt))
       .limit(input.limit + 1);
@@ -178,6 +182,7 @@ export class WishlistService {
         setId: r.card_setId,
         setSlug: r.card_setSlug,
         setName: r.card_setName,
+        marketPrice: r.card_marketPrice ?? null,
       },
     }));
 
