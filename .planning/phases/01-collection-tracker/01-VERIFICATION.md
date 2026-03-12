@@ -1,9 +1,14 @@
 ---
 phase: 01-collection-tracker
-verified: 2026-03-11T00:00:00Z
+verified: 2026-03-11T12:00:00Z
 status: passed
 score: 12/12 must-haves verified
-re_verification: false
+re_verification:
+  previous_status: passed
+  previous_score: 12/12
+  gaps_closed: []
+  gaps_remaining: []
+  regressions: []
 gaps: []
 human_verification:
   - test: "Switch language to Spanish via dashboard nav toggle"
@@ -22,10 +27,28 @@ human_verification:
 
 # Phase 01: Collection Tracker Verification Report
 
-**Phase Goal:** Per-copy collection tracker with add/edit/delete, condition tracking, wishlist, tradelist, card scanner, collection stats — ready for marketplace listing
+**Phase Goal:** Players can digitize their entire card collection with multi-copy, variant, and condition tracking, manage wantlists and tradelists, and view meaningful stats about their holdings
 **Verified:** 2026-03-11
 **Status:** PASSED
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — regression check after git-modified files (collection.service.ts, copy-list.tsx, [cardId]/page.tsx, card.constants.ts, seed-tournament-decks.ts, pnpm-lock.yaml)
+
+## Re-verification Summary
+
+Previous verification: PASSED (12/12), 2026-03-11.
+
+Five source files were modified since the initial verification (per git status). All modified files were re-read and verified against their original evidence claims:
+
+| Modified File | Previous Claim | Regression Found? |
+|---|---|---|
+| `apps/api/src/modules/collection/collection.service.ts` | Per-copy CRUD, stats with isFoilVariant market value, 670 lines | No — file remains 670 lines; `isFoilVariant` now imported from `@la-grieta/shared` and used correctly at line 615 for foil-vs-normal price selection; all CRUD methods intact |
+| `apps/web/src/app/(dashboard)/collection/[cardId]/copy-list.tsx` | Per-copy accordion with CopyEditForm | No — full accordion implementation intact; CopyEditForm imported at line 9, rendered at line 137 |
+| `apps/web/src/app/(dashboard)/collection/[cardId]/page.tsx` | getByCard + wishlist.getForCard queries | No — both tRPC queries at lines 48 and 57; wishlist toggle, addCopy mutation, CopyList all wired |
+| `packages/shared/src/constants/card.constants.ts` | CARD_VARIANTS and WISHLIST_TYPES exported | No — CARD_VARIANTS at line 28, WISHLIST_TYPES at line 31; new `FOIL_VARIANTS` set and `isFoilVariant()` helper added and exported via `packages/shared/src/index.ts` (additive, not breaking) |
+| `tools/seed/src/seed-tournament-decks.ts` | Seed script for tournament decks | No — substantive implementation; reads tournament-decks.json, upserts via Drizzle, creates system user if absent |
+
+No regressions detected. All 12 truths remain verified.
+
+---
 
 ## Goal Achievement
 
@@ -33,18 +56,18 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Collections table uses per-copy model (variant/condition/purchasePrice/photoUrl/photoKey; no quantity; no unique(userId+cardId) constraint) | VERIFIED | `packages/db/src/schema/collections.ts` — `variant` col present, no quantity col, only non-unique composite `index('idx_collections_user_card')` |
-| 2 | Wishlists table exists with want/trade type discriminator | VERIFIED | `packages/db/src/schema/wishlists.ts` — `type: wishlistTypeEnum('type').notNull()`, `uniqueIndex('idx_wishlists_user_card_type')` |
-| 3 | cardVariantEnum and wishlistTypeEnum exist in database enums | VERIFIED | `packages/db/src/schema/enums.ts` lines 12-19 |
+| 1 | Collections table uses per-copy model (variant/condition/purchasePrice/photoUrl/photoKey; no quantity; no unique(userId+cardId) constraint) | VERIFIED | `packages/db/src/schema/collections.ts` — variant col present, no quantity col, only non-unique composite index |
+| 2 | Wishlists table exists with want/trade type discriminator | VERIFIED | `packages/db/src/schema/wishlists.ts` — `type: wishlistTypeEnum('type').notNull()`, unique index on user+card+type |
+| 3 | cardVariantEnum and wishlistTypeEnum exist in database enums | VERIFIED | `packages/db/src/schema/enums.ts` — both enums present |
 | 4 | Zod schemas validate per-copy model (add/update/bulk/list/getByCard; no quantity field; wishlist toggle/update/list) | VERIFIED | `packages/shared/src/schemas/collection.schema.ts` and `wishlist.schema.ts` — no quantity, variant present, all schemas exported |
-| 5 | R2 upload accepts 'collection' purpose | VERIFIED | `collection.service.ts` calls `r2.generateUploadUrl({ purpose: 'collection', ... })` with validation |
-| 6 | next-intl configured; t() works in server and client components | VERIFIED | `apps/web/src/i18n/request.ts` cookie-based config; `apps/web/messages/en.json` and `es.json` exist with all namespaces |
-| 7 | Collection service uses pure insert (no upsert); supports per-copy CRUD with variant/condition/purchasePrice/photo | VERIFIED | `collection.service.ts` — `add()` always inserts new row (comment: "Per-copy model: always insert a new row"); full CRUD methods present |
-| 8 | Wishlist module fully functional (toggle, update, list, getForCard) | VERIFIED | `wishlist.service.ts` — all four methods substantively implemented with DB queries |
-| 9 | Collection UI: four-tab page, card grid with copy count badges, add-cards modal with fuse.js, card detail page with per-copy editing and wishlist toggles | VERIFIED | `page.tsx`, `collection-grid.tsx`, `add-cards-modal.tsx` (Fuse.js imported line 8), `[cardId]/page.tsx`, `copy-list.tsx`, `copy-edit-form.tsx` all exist and are wired |
-| 10 | Scanner enhanced: continuous auto-detect, confirmation overlay with explicit add required, configurable cooldown, session summary with wishlist toggles | VERIFIED | `card-scanner.tsx` (getUserMedia, addBulkMutation), `scan-confirmation.tsx` (confidence displayPct), `scanner-settings.tsx` (localStorage cooldown), `scan-session-summary.tsx` (wishlist.toggle mutation line 62) |
-| 11 | Stats tab: total cards/copies/value, set completion bars, recharts charts, deck recommendations with synergy reasoning | VERIFIED | `stats-tab.tsx` (trpc.collection.stats.useQuery line 18), `stats-charts.tsx` (recharts imported), `deck-recommendations.tsx` (deckRecommendations.getRecommendations.useQuery line 19) |
-| 12 | Spanish translations complete; language toggle in dashboard nav switches EN/ES | VERIFIED | `es.json` (complete Spanish, "Mi Coleccion" etc.); `language-toggle.tsx` wired into `dashboard-nav.tsx` (LanguageToggle imported line 7, rendered line 57) |
+| 5 | R2 upload accepts 'collection' purpose | VERIFIED | `collection.service.ts` calls `r2.generateUploadUrl({ purpose: 'collection', ... })` |
+| 6 | next-intl configured; t() works in server and client components | VERIFIED | `apps/web/src/i18n/request.ts` cookie-based config; `en.json` and `es.json` exist with all namespaces |
+| 7 | Collection service uses pure insert (no upsert); supports per-copy CRUD with variant/condition/purchasePrice/photo | VERIFIED | `collection.service.ts` — `add()` always inserts (line 248 comment: "Per-copy model: always insert a new row"); full CRUD; stats uses `isFoilVariant` for accurate market value |
+| 8 | Wishlist module fully functional (toggle, update, list, getForCard) | VERIFIED | `wishlist.service.ts` — all four methods with real DB queries |
+| 9 | Collection UI: four-tab page, card grid with copy count badges, add-cards modal with fuse.js, card detail page with per-copy editing and wishlist toggles | VERIFIED | `page.tsx`, `collection-grid.tsx`, `add-cards-modal.tsx`, `[cardId]/page.tsx`, `copy-list.tsx`, `copy-edit-form.tsx` all exist and are wired |
+| 10 | Scanner enhanced: continuous auto-detect, confirmation overlay with explicit add required, configurable cooldown, session summary with wishlist toggles | VERIFIED | `card-scanner.tsx`, `scan-confirmation.tsx`, `scanner-settings.tsx`, `scan-session-summary.tsx` all present and wired |
+| 11 | Stats tab: total cards/copies/value, set completion bars, recharts charts, deck recommendations with synergy reasoning | VERIFIED | `stats-tab.tsx`, `stats-charts.tsx`, `deck-recommendations.tsx` all wired to tRPC endpoints |
+| 12 | Spanish translations complete; language toggle in dashboard nav switches EN/ES | VERIFIED | `es.json` complete; `LanguageToggle` imported at line 7 and rendered at line 57 of `dashboard-nav.tsx` |
 
 **Score:** 12/12 truths verified
 
@@ -54,41 +77,41 @@ human_verification:
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `packages/db/src/schema/enums.ts` | cardVariantEnum, wishlistTypeEnum | VERIFIED | Both enums present at lines 12 and 19 |
+| `packages/db/src/schema/enums.ts` | cardVariantEnum, wishlistTypeEnum | VERIFIED | Both enums present |
 | `packages/db/src/schema/collections.ts` | Per-copy schema with variant, no quantity | VERIFIED | variant col, no quantity, non-unique index |
 | `packages/db/src/schema/wishlists.ts` | Want/trade type discriminator | VERIFIED | wishlistTypeEnum col, isPublic, maxPrice, askingPrice |
 | `packages/shared/src/schemas/collection.schema.ts` | Per-copy Zod schemas | VERIFIED | collectionAddSchema has variant, no quantity |
-| `packages/shared/src/schemas/wishlist.schema.ts` | wishlistToggleSchema exported | VERIFIED | toggle/update/list schemas all present |
-| `packages/shared/src/constants/card.constants.ts` | CARD_VARIANTS exported | VERIFIED | CARD_VARIANTS and WISHLIST_TYPES at lines 28-31 |
+| `packages/shared/src/schemas/wishlist.schema.ts` | wishlistToggleSchema exported | VERIFIED | toggle/update/list schemas present |
+| `packages/shared/src/constants/card.constants.ts` | CARD_VARIANTS, WISHLIST_TYPES, isFoilVariant exported | VERIFIED | CARD_VARIANTS line 28, WISHLIST_TYPES line 31, isFoilVariant line 41 — re-verified post-modification |
 | `apps/web/messages/en.json` | English translations with 'collection' namespace | VERIFIED | All namespaces present |
-| `apps/web/messages/es.json` | Complete Spanish translations | VERIFIED | Full Spanish translations ("Mi Coleccion", "Cargando...", etc.) |
+| `apps/web/messages/es.json` | Complete Spanish translations | VERIFIED | Full Spanish translations present |
 | `apps/web/src/i18n/request.ts` | Cookie-based locale detection | VERIFIED | Cookie-based getRequestConfig present |
-| `apps/api/src/modules/collection/collection.service.ts` | Per-copy CRUD, stats with market value | VERIFIED | add/addBulk/update/remove/getByCard/getUploadUrl/stats all substantive (670 lines) |
+| `apps/api/src/modules/collection/collection.service.ts` | Per-copy CRUD, stats with market value, 670 lines | VERIFIED | All methods intact; isFoilVariant used in stats — re-verified post-modification |
 | `apps/api/src/modules/wishlist/wishlist.service.ts` | toggle/update/list/getForCard | VERIFIED | All four methods with real DB queries |
 | `apps/api/src/modules/wishlist/wishlist.router.ts` | tRPC procedures | VERIFIED | Registered in trpc.router.ts line 40 |
 | `apps/web/src/app/(dashboard)/collection/page.tsx` | Four-tab layout with CollectionTabs | VERIFIED | StatsTab, WantlistTab, TradelistTab, CollectionGrid all rendered |
 | `apps/web/src/app/(dashboard)/collection/collection-grid.tsx` | Card grid with copyCount badges | VERIFIED | trpc.collection.list.useInfiniteQuery, copy count grouping logic |
-| `apps/web/src/app/(dashboard)/collection/add-cards-modal.tsx` | Fuse.js multi-select search | VERIFIED | Fuse imported line 8, addBulk mutation wired |
-| `apps/web/src/app/(dashboard)/collection/[cardId]/page.tsx` | getByCard + wishlist.getForCard | VERIFIED | Both queries at lines 48 and 57 |
-| `apps/web/src/app/(dashboard)/collection/[cardId]/copy-list.tsx` | Per-copy accordion | VERIFIED | CopyEditForm integration |
-| `apps/web/src/app/(dashboard)/collection/[cardId]/copy-edit-form.tsx` | purchasePrice field | VERIFIED | purchasePrice field at line 54/92/144 |
+| `apps/web/src/app/(dashboard)/collection/add-cards-modal.tsx` | Fuse.js multi-select search | VERIFIED | Fuse imported, addBulk mutation wired |
+| `apps/web/src/app/(dashboard)/collection/[cardId]/page.tsx` | getByCard + wishlist.getForCard | VERIFIED | Both queries at lines 48 and 57 — re-verified post-modification |
+| `apps/web/src/app/(dashboard)/collection/[cardId]/copy-list.tsx` | Per-copy accordion | VERIFIED | CopyEditForm rendered at line 137 — re-verified post-modification |
+| `apps/web/src/app/(dashboard)/collection/[cardId]/copy-edit-form.tsx` | purchasePrice field | VERIFIED | purchasePrice field present |
 | `apps/web/src/app/(dashboard)/collection/wantlist-tab.tsx` | Wishlist list + visibility toggle | VERIFIED | trpc.wishlist.list.useQuery, isPublic state, bulk update mutation |
 | `apps/web/src/app/(dashboard)/collection/tradelist-tab.tsx` | Tradelist display | VERIFIED | Same pattern as wantlist |
 | `apps/web/src/app/(dashboard)/collection/stats-tab.tsx` | totalValue stat card | VERIFIED | trpc.collection.stats.useQuery, totalMarketValue rendered |
 | `apps/web/src/app/(dashboard)/collection/stats-charts.tsx` | recharts visualizations | VERIFIED | recharts ResponsiveContainer, BarChart, PieChart all imported |
 | `apps/web/src/app/(dashboard)/collection/deck-recommendations.tsx` | ownership % and synergy reasoning | VERIFIED | deckRecommendations.getRecommendations.useQuery wired |
 | `apps/api/src/modules/deck-recommendations/deck-recommendations.service.ts` | Synergy engine | VERIFIED | getRecommendations method with composite scoring |
-| `apps/api/__tests__/scanner.service.spec.ts` | NCC threshold tests | VERIFIED | 12 tests, NCC_IDENTIFY_THRESHOLD imported and tested |
-| `apps/web/src/app/(dashboard)/scanner/card-scanner.tsx` | getUserMedia | VERIFIED | getUserMedia at lines 106/111 |
-| `apps/web/src/app/(dashboard)/scanner/scan-confirmation.tsx` | confidence displayPct | VERIFIED | ScanMatch interface includes displayPct field |
-| `apps/web/src/app/(dashboard)/scanner/scan-session-summary.tsx` | sessionSummary prop | VERIFIED | sessionSummary prop at line 39, wishlist.toggle at line 62 |
+| `apps/web/src/app/(dashboard)/scanner/card-scanner.tsx` | getUserMedia | VERIFIED | getUserMedia present |
+| `apps/web/src/app/(dashboard)/scanner/scan-confirmation.tsx` | confidence displayPct | VERIFIED | ScanMatch interface includes displayPct |
+| `apps/web/src/app/(dashboard)/scanner/scan-session-summary.tsx` | sessionSummary prop + wishlist.toggle | VERIFIED | sessionSummary prop present, wishlist.toggle mutation wired |
 | `apps/web/src/app/(dashboard)/scanner/scanner-settings.tsx` | cooldown localStorage | VERIFIED | STORAGE_KEY 'scanner:cooldown', loadCooldown/saveCooldown |
 | `apps/web/src/components/language-toggle.tsx` | locale cookie switch | VERIFIED | useLocale(), cookie set, window.location.reload() |
-| `apps/web/src/components/dashboard-nav.tsx` | LanguageToggle wired in | VERIFIED | Imported line 7, rendered line 57 |
-| `apps/api/src/modules/deck-sync/deck-sync.service.ts` | Cron at 6AM/6PM | VERIFIED | @Cron('0 6,18 * * *') at line 23 |
+| `apps/web/src/components/dashboard-nav.tsx` | LanguageToggle wired in | VERIFIED | Imported line 7, rendered line 57 — re-verified |
+| `apps/api/src/modules/deck-sync/deck-sync.service.ts` | Cron at 6AM/6PM | VERIFIED | @Cron('0 6,18 * * *') present |
 | `tools/seed/src/scrape-riftdecks.ts` | cheerio scraper | VERIFIED | cheerio imported, BASE_URL riftdecks.com |
 | `tools/seed/tournament-decks.json` | Seed data for decks | VERIFIED | File exists |
 | `apps/web/src/app/(dashboard)/decks/trending-decks.tsx` | Trending decks tab | VERIFIED | trpc.deck queries, wishlist actions |
+| `tools/seed/src/seed-tournament-decks.ts` | Idempotent upsert seed script | VERIFIED | Reads tournament-decks.json, Drizzle upsert, system user creation — re-verified post-modification |
 
 ---
 
@@ -96,22 +119,24 @@ human_verification:
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `packages/db/src/schema/collections.ts` | `packages/db/src/schema/enums.ts` | cardVariantEnum import | WIRED | Import at line 4 |
-| `packages/db/src/schema/wishlists.ts` | `packages/db/src/schema/enums.ts` | wishlistTypeEnum import | WIRED | Import at line 4 |
-| `packages/shared/src/schemas/collection.schema.ts` | `packages/shared/src/constants/card.constants.ts` | CARD_VARIANTS | WIRED | Import at line 2 |
-| `apps/api/src/modules/collection/collection.service.ts` | DB collections table | db.insert/select/update/delete | WIRED | Drizzle queries throughout; insert at line 252, select at 319, update at 336, delete at 360 |
-| `apps/api/src/modules/wishlist/wishlist.service.ts` | DB wishlists table | db.insert/select/delete | WIRED | insert at line 73, select at line 54, delete at line 68 |
-| `apps/api/src/trpc/trpc.router.ts` | wishlist router | wishlist namespace | WIRED | `wishlist: this.wishlistRouter.buildRouter()` at line 40 |
+| `packages/db/src/schema/collections.ts` | `packages/db/src/schema/enums.ts` | cardVariantEnum import | WIRED | Import present |
+| `packages/db/src/schema/wishlists.ts` | `packages/db/src/schema/enums.ts` | wishlistTypeEnum import | WIRED | Import present |
+| `packages/shared/src/schemas/collection.schema.ts` | `packages/shared/src/constants/card.constants.ts` | CARD_VARIANTS | WIRED | Import present |
+| `packages/shared/src/constants/card.constants.ts` | `packages/shared/src/index.ts` | export * re-export | WIRED | `export * from './constants/card.constants'` in index.ts |
+| `apps/api/src/modules/collection/collection.service.ts` | `@la-grieta/shared` | isFoilVariant | WIRED | Imported at line 15, used at line 615 in stats() — new link added in current modification |
+| `apps/api/src/modules/collection/collection.service.ts` | DB collections table | db.insert/select/update/delete | WIRED | insert line 249, select line 319, update line 336, delete line 360 |
+| `apps/api/src/modules/wishlist/wishlist.service.ts` | DB wishlists table | db.insert/select/delete | WIRED | All three present |
+| `apps/api/src/trpc/trpc.router.ts` | wishlist router | wishlist namespace | WIRED | Line 40 |
 | `apps/api/src/trpc/trpc.router.ts` | deckRecommendations router | deckRecommendations namespace | WIRED | Line 44 |
-| `apps/web/collection/collection-grid.tsx` | API via tRPC | trpc.collection.list | WIRED | useInfiniteQuery at line 59 |
-| `apps/web/collection/add-cards-modal.tsx` | API via tRPC | trpc.collection.addBulk | WIRED | useMutation wired; addBulk called on confirm |
+| `apps/web/collection/collection-grid.tsx` | API via tRPC | trpc.collection.list | WIRED | useInfiniteQuery present |
+| `apps/web/collection/add-cards-modal.tsx` | API via tRPC | trpc.collection.addBulk | WIRED | useMutation wired |
 | `apps/web/collection/[cardId]/page.tsx` | API via tRPC | collection.getByCard + wishlist.getForCard | WIRED | Both queries at lines 48 and 57 |
-| `apps/web/scanner/card-scanner.tsx` | scanner API | trpc.scanner.identify | WIRED | identifyMutation at line 65 |
-| `apps/web/scanner/card-scanner.tsx` | collection API | trpc.collection.addBulk | WIRED | addBulkMutation at line 70; mutate called at line 351 |
-| `apps/web/scanner/scan-session-summary.tsx` | wishlist API | trpc.wishlist.toggle | WIRED | wishlistToggleMutation at line 62 |
-| `apps/web/collection/stats-tab.tsx` | collection API | trpc.collection.stats | WIRED | useQuery at line 18 |
-| `apps/web/collection/deck-recommendations.tsx` | deckRecommendations API | deckRecommendations.getRecommendations | WIRED | useQuery at line 19 |
-| `apps/web/components/language-toggle.tsx` | dashboard-nav.tsx | LanguageToggle rendered | WIRED | Imported and rendered in DashboardNav |
+| `apps/web/scanner/card-scanner.tsx` | scanner API | trpc.scanner.identify | WIRED | identifyMutation present |
+| `apps/web/scanner/card-scanner.tsx` | collection API | trpc.collection.addBulk | WIRED | addBulkMutation present |
+| `apps/web/scanner/scan-session-summary.tsx` | wishlist API | trpc.wishlist.toggle | WIRED | wishlistToggleMutation present |
+| `apps/web/collection/stats-tab.tsx` | collection API | trpc.collection.stats | WIRED | useQuery present |
+| `apps/web/collection/deck-recommendations.tsx` | deckRecommendations API | deckRecommendations.getRecommendations | WIRED | useQuery present |
+| `apps/web/components/language-toggle.tsx` | dashboard-nav.tsx | LanguageToggle rendered | WIRED | Imported line 7, rendered line 57 |
 
 ---
 
@@ -126,29 +151,27 @@ human_verification:
 | COLL-05 | 01-01, 01-02, 01-03 | Record purchase price per copy | SATISFIED | purchasePrice column in schema; collectionUpdateSchema; price input in copy-edit-form.tsx |
 | COLL-06 | 01-01, 01-02, 01-03 | Attach photos via R2 upload | SATISFIED | photoUrl/photoKey columns; getUploadUrl service method; PhotoUpload component |
 | COLL-07 | 01-01, 01-02, 01-03 | Manage wantlist | SATISFIED | wishlists table; wishlist toggle/list; WantlistTab with cards and visibility toggle |
-| COLL-08 | 01-01, 01-02, 01-03 | Manage tradelist | SATISFIED | Same infrastructure; 'trade' type discriminator; TradelistTab |
-| COLL-09 | 01-05 | View collection stats | SATISFIED | stats-tab.tsx with totalValue, setCompletion bars, recharts charts |
+| COLL-08 | 01-01, 01-02, 01-03 | Manage tradelist | SATISFIED | 'trade' type discriminator; TradelistTab |
+| COLL-09 | 01-05 | View collection stats | SATISFIED | stats-tab.tsx with totalValue (foil-aware), setCompletion bars, recharts charts |
 | COLL-10 | 01-05 | Deck recommendations based on owned cards | SATISFIED | DeckRecommendationsService with ownership % scoring; deck-recommendations.tsx UI |
 | PLAT-01 | 01-01, 01-05 | EN/ES with language toggle | SATISFIED | next-intl with cookie-based locale; complete es.json; LanguageToggle in DashboardNav |
 | PLAT-03 | 01-04 | Camera scanning on desktop and mobile | SATISFIED | getUserMedia with facingMode: 'environment' for mobile; falls back to webcam on desktop |
 
-All 12 requirements satisfied.
-
-**Orphaned requirements check:** No requirements mapped to Phase 1 in REQUIREMENTS.md that do not appear in plan frontmatter.
+All 12 requirements satisfied. No orphaned requirements — REQUIREMENTS.md traceability table maps exactly COLL-01 through COLL-10, PLAT-01, and PLAT-03 to Phase 1, and all are accounted for in plan frontmatter.
 
 ---
 
 ### Anti-Patterns Found
 
-No blockers detected. Notable observations:
+No regressions or new blockers detected in modified files. Previously noted observations remain:
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `scan-session-summary.tsx` | 47-57 | Market price placeholder — "—" shown for all cards | Info | Session market prices rely on card_prices data; if card_prices table is empty (no price sync run), all prices show as placeholder. Not a code bug — a data dependency. |
-| `add-cards-modal.tsx` | implicit | Set name excluded from fuse.js search (set?.name replaced with '') | Info | Card search cannot filter by set name. Per SUMMARY.md this was intentional — the list endpoint doesn't include nested set object. Behavior is explicit. |
-| `collection.service.ts` | 495-669 | stats() runs up to 6 DB queries per call | Info | Partially mitigated by Redis caching. Not a blocking issue but worth noting for Phase 2 scale. |
+| `scan-session-summary.tsx` | 47-57 | Market price placeholder ("—") for all cards | Info | Data dependency on card_prices table; not a code bug |
+| `add-cards-modal.tsx` | implicit | Set name excluded from fuse.js search | Info | Intentional — list endpoint does not include nested set object |
+| `collection.service.ts` | 495-669 | stats() runs up to 6 DB queries per call | Info | Mitigated by 5-minute Redis cache; not a blocking issue |
 
-No TODO/FIXME/PLACEHOLDER blocking patterns found in key files.
+No TODO/FIXME/PLACEHOLDER blocking patterns found in any key file. The only `return null` in modified files is in `seed-tournament-decks.ts` inside a `.map()` lambda for missing card lookups — expected behavior, not a stub.
 
 ---
 
@@ -163,13 +186,13 @@ No TODO/FIXME/PLACEHOLDER blocking patterns found in key files.
 #### 2. Stats Tab with Live Data
 
 **Test:** After adding at least 5 cards to the collection, navigate to /collection and click the Stats tab.
-**Expected:** Total Unique Cards, Total Copies, Total Market Value stat boxes are populated. Set completion bars show progress for Origins/Spiritforged. Recharts bar chart and rarity donut chart render without errors.
+**Expected:** Total Unique Cards, Total Copies, Total Market Value stat boxes are populated. Set completion bars show progress for Origins/Spiritforged. Recharts bar chart and rarity donut chart render without errors. Market value correctly uses foil prices for alt_art, overnumbered, and signature variants.
 **Why human:** Requires live DB data and rendered React components with recharts.
 
 #### 3. Deck Recommendations with Seeded Data
 
 **Test:** Run `pnpm tsx tools/seed/src/seed-tournament-decks.ts` (requires DATABASE_URL). Then navigate to Stats tab Deck Recommendations section.
-**Expected:** At least one recommendation appears with champion art, ownership %, synergy reasoning text (e.g., "This deck shares X domain cards with your collection"), expandable missing cards, and "Add all missing to wantlist" button.
+**Expected:** At least one recommendation appears with champion art, ownership %, synergy reasoning text, expandable missing cards, and "Add all missing to wantlist" button.
 **Why human:** Depends on live DB + user collection data + seeded decks.
 
 #### 4. Mobile Camera Scanner
@@ -182,15 +205,14 @@ No TODO/FIXME/PLACEHOLDER blocking patterns found in key files.
 
 ### Summary
 
-All 12 observable truths are verified in the codebase. Every artifact exists with substantive implementation (no stubs). All key links between components and API endpoints are wired. All 12 Phase 1 requirements (COLL-01 through COLL-10, PLAT-01, PLAT-03) have implementation evidence in the codebase.
+All 12 observable truths remain verified. The re-verification focused on five git-modified files — none introduced regressions. The most notable change in the current modification set is the addition of `isFoilVariant()` to `card.constants.ts` (exported through the shared package index) and its use in `collection.service.ts` stats to select foil vs. normal market prices for alt_art, overnumbered, and signature variants. This is an additive improvement to COLL-09 accuracy, not a breaking change.
 
-The implementation correctly handles all core design decisions: per-copy model with one DB row per physical card copy, wishlist as a separate table with type discriminator, next-intl cookie-based locale detection (no URL prefix), and scanner requiring explicit user confirmation before adding cards.
+All 12 Phase 1 requirements (COLL-01 through COLL-10, PLAT-01, PLAT-03) have implementation evidence in the codebase. No gaps. No regressions.
 
-Four items are flagged for human verification but are matters of runtime/visual behavior rather than missing implementation — the code structures supporting all four are fully present.
-
-**Phase 01 goal is achieved.** The collection tracker is functional and ready to serve as the data foundation for Phase 02 (Marketplace).
+**Phase 01 goal is achieved.** The collection tracker is functional and ready to serve as the data foundation for Phase 02 (Deck Builder Enhancements).
 
 ---
 
 _Verified: 2026-03-11_
+_Re-verified: 2026-03-11 (post-modification regression check)_
 _Verifier: Claude (gsd-verifier)_
