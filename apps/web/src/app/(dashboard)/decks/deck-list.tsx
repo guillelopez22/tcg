@@ -8,10 +8,11 @@ import { useAuth } from '@/lib/auth-context';
 import { ListSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import { TrendingDecks } from './trending-decks';
+import { CommunityDecks } from './community-decks';
 import { DeckWizard } from './deck-wizard';
 import { ImportDeckModal } from './import-deck-modal';
 
-type DeckTab = 'my-decks' | 'trending';
+type DeckTab = 'my-decks' | 'community' | 'trending';
 
 function isNonLatinScript(text: string): boolean {
   return /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(text);
@@ -122,6 +123,7 @@ export function DeckList() {
 
   const tabs: Array<{ key: DeckTab; label: string }> = [
     { key: 'my-decks', label: 'My Decks' },
+    { key: 'community', label: 'Community' },
     { key: 'trending', label: 'Trending' },
   ];
 
@@ -165,6 +167,8 @@ export function DeckList() {
 
       {/* Tab content */}
       {activeTab === 'trending' && <TrendingDecks />}
+
+      {activeTab === 'community' && <CommunityDecks />}
 
       {activeTab === 'my-decks' && (
         <>
