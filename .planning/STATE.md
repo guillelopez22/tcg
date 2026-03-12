@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 02-01-PLAN.md — Phase 02 Plan 01 Backend Foundation complete
-last_updated: "2026-03-12T23:47:27.113Z"
+stopped_at: Completed 02-02-PLAN.md — Phase 02 Plan 02 UI complete
+last_updated: "2026-03-12T23:54:56.823Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 ---
@@ -93,6 +93,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01.2 P04 | 6 | 2 tasks | 7 files |
 | Phase 01.2-smart-deck-builder P03 | 15 | 2 tasks | 2 files |
 | Phase 02 P01 | 8 | 2 tasks | 24 files |
+| Phase 02 P02 | 6 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -141,6 +142,9 @@ Recent decisions affecting current work:
 - [Phase 02-01]: drawHand uses Fisher-Yates shuffle (Math.random) adequate for preview hands
 - [Phase 02-01]: resolveShareCode registered as tRPC QUERY (read-only) not mutation — callers use .useQuery()
 - [Phase 02-01]: importFromText does NOT create deck — returns resolved+unmatched for client preview first
+- [Phase 02]: HandSimulator renders below tabs on all deck detail views; uses drawHand() from @la-grieta/shared, main-zone only, no probability stats
+- [Phase 02]: resolveShareCode called via utils.deck.resolveShareCode.fetch() (tRPC query .fetch()) in import modal — not useMutation
+- [Phase 02]: Import modal always shows preview before deck.create — no direct import, no merge with existing decks
 
 ### Roadmap Evolution
 
@@ -160,6 +164,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T23:47:27.109Z
-Stopped at: Completed 02-01-PLAN.md — Phase 02 Plan 01 Backend Foundation complete
+Last session: 2026-03-12T23:54:56.820Z
+Stopped at: Completed 02-02-PLAN.md — Phase 02 Plan 02 UI complete
 Resume file: None
