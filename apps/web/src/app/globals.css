@@ -1,0 +1,293 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════
+   LA GRIETA DESIGN SYSTEM
+   Single source of truth for all UI styles.
+   Components use these class names instead of inline Tailwind.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Base ───────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface text-white font-sans;
+    scroll-behavior: smooth;
+    background-image: radial-gradient(
+      ellipse at top,
+      rgba(79, 106, 245, 0.05) 0%,
+      transparent 50%
+    );
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-rift-500 ring-offset-2 ring-offset-surface;
+  }
+}
+
+/* ── Component Classes ──────────────────────────────── */
+
+@layer components {
+  /* — Layout — */
+
+  .lg-container {
+    @apply max-w-5xl mx-auto px-4 w-full;
+  }
+
+  .lg-page-padding {
+    @apply pb-20 sm:pb-6;
+  }
+
+  /* — Navigation bar (shared by all navs) — */
+
+  .lg-navbar {
+    @apply border-b border-surface-border bg-surface-card/80 backdrop-blur-sm sticky top-0 z-40;
+  }
+
+  .lg-navbar-inner {
+    @apply lg-container flex items-center justify-between h-14;
+  }
+
+  .lg-logo {
+    @apply text-lg font-bold text-white hover:text-rift-400 transition-colors flex-shrink-0;
+  }
+
+  .lg-nav-link {
+    @apply px-3 py-2 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:text-white hover:bg-surface-elevated;
+  }
+
+  .lg-nav-link-active {
+    @apply px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-rift-950/80 text-rift-400;
+  }
+
+  /* — Mobile bottom nav — */
+
+  .lg-mobile-nav {
+    @apply sm:hidden fixed bottom-0 inset-x-0 border-t border-surface-border bg-surface-card/90 backdrop-blur-md z-50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .lg-mobile-nav-link {
+    @apply flex flex-col items-center justify-center gap-1 py-2 px-3 min-h-[56px] min-w-[64px] transition-colors text-zinc-500;
+  }
+
+  .lg-mobile-nav-link-active {
+    @apply flex flex-col items-center justify-center gap-1 py-2 px-3 min-h-[56px] min-w-[64px] transition-colors text-rift-400;
+  }
+
+  /* — Form inputs — */
+
+  .lg-input {
+    @apply w-full rounded-lg border border-surface-border bg-surface-card px-3 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-rift-500 focus:outline-none transition-colors;
+  }
+
+  .lg-select {
+    @apply rounded-lg border border-surface-border bg-surface-card px-3 py-2 text-sm text-white focus:border-rift-500 focus:outline-none transition-colors;
+  }
+
+  .lg-label {
+    @apply text-sm font-medium text-zinc-300;
+  }
+
+  .lg-field {
+    @apply flex flex-col gap-1;
+  }
+
+  .lg-hint {
+    @apply text-xs text-zinc-500;
+  }
+
+  /* — Buttons — */
+
+  .lg-btn {
+    @apply rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .lg-btn-primary {
+    @apply lg-btn bg-rift-600 text-white py-2.5 px-5 hover:bg-rift-500;
+  }
+
+  .lg-btn-secondary {
+    @apply lg-btn border border-surface-border text-white py-2.5 px-5 hover:border-rift-500 hover:text-rift-400;
+  }
+
+  .lg-btn-ghost {
+    @apply lg-btn text-zinc-400 py-2 px-3 hover:text-white hover:bg-surface-elevated;
+  }
+
+  .lg-btn-danger {
+    @apply lg-btn text-red-400 py-2 px-3 border border-red-800/50 hover:bg-red-900/20;
+  }
+
+  .lg-btn-link {
+    @apply text-sm text-rift-400 hover:text-rift-300 transition-colors;
+  }
+
+  /* — Cards / Panels — */
+
+  .lg-card {
+    @apply rounded-xl border border-surface-border bg-surface-card;
+  }
+
+  .lg-card-interactive {
+    @apply lg-card overflow-hidden shadow-md shadow-black/20 transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1 hover:border-rift-600/50;
+  }
+
+  /* — Alerts — */
+
+  .lg-alert-error {
+    @apply rounded-lg border border-red-800 bg-red-900/20 px-4 py-3 text-sm text-red-300;
+  }
+
+  .lg-alert-inline {
+    @apply rounded-md bg-red-900/30 border border-red-800 px-3 py-2 text-sm text-red-300;
+  }
+
+  /* — Badges — */
+
+  .lg-badge {
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium;
+  }
+
+  /* — Text hierarchy — */
+
+  .lg-page-title {
+    @apply text-xl font-bold text-white;
+  }
+
+  .lg-section-title {
+    @apply text-sm font-medium text-zinc-400;
+  }
+
+  .lg-text-secondary {
+    @apply text-sm text-zinc-400;
+  }
+
+  .lg-text-muted {
+    @apply text-xs text-zinc-500;
+  }
+
+  /* — Stat boxes — */
+
+  .lg-stat-box {
+    @apply lg-card px-4 py-3;
+  }
+
+  .lg-stat-label {
+    @apply text-xs text-zinc-400 mb-0.5;
+  }
+
+  .lg-stat-value {
+    @apply text-2xl font-bold text-white;
+  }
+
+  /* — Spinner — */
+
+  .lg-spinner {
+    @apply h-8 w-8 animate-spin rounded-full border-2 border-rift-500 border-t-transparent;
+  }
+
+  .lg-spinner-sm {
+    @apply h-6 w-6 animate-spin rounded-full border-2 border-rift-500 border-t-transparent;
+  }
+
+  /* — Quantity controls — */
+
+  .lg-qty-btn {
+    @apply w-10 h-10 flex items-center justify-center rounded-lg border border-surface-border text-zinc-400 hover:bg-surface-elevated hover:text-white transition-colors touch-manipulation disabled:opacity-50;
+  }
+
+  /* — Collection tabs — */
+
+  .lg-tab-active {
+    @apply text-rift-400 border-b-2 border-rift-400 pb-2 px-3 text-sm font-medium whitespace-nowrap transition-colors;
+  }
+
+  .lg-tab-inactive {
+    @apply text-zinc-400 border-b-2 border-transparent pb-2 px-3 text-sm font-medium whitespace-nowrap hover:text-zinc-200 transition-colors;
+  }
+
+  /* — Copy count badge overlay — */
+
+  .lg-badge-count {
+    @apply absolute top-1 right-1 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-rift-600 text-white text-[10px] font-bold px-1 shadow-lg;
+  }
+
+  /* — Floating action button — */
+
+  .lg-fab {
+    @apply fixed bottom-20 right-4 sm:bottom-6 z-30 w-12 h-12 rounded-full bg-rift-600 text-white flex items-center justify-center shadow-lg shadow-rift-900/50 hover:bg-rift-500 active:scale-95 transition-all;
+  }
+
+  /* — Modal / bottom sheet — */
+
+  .lg-modal-backdrop {
+    @apply fixed inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end sm:items-center justify-center;
+  }
+
+  .lg-modal-sheet {
+    @apply w-full sm:max-w-lg bg-surface-card rounded-t-2xl sm:rounded-2xl border border-surface-border overflow-hidden max-h-[85vh] flex flex-col;
+  }
+}
+
+/* ── Animations ─────────────────────────────────────── */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes card-enter {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes rift-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.8; }
+}
+
+/* ── Utilities ──────────────────────────────────────── */
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
