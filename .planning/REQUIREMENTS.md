@@ -11,12 +11,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **COLL-01**: User can add cards to collection by searching and selecting from the card database
 - [ ] **COLL-02**: User can add cards to collection via camera scanning with confirmation step
-- [ ] **COLL-03**: User can set variant per copy (Normal, Alt-Art, Overnumbered, Signature)
-- [ ] **COLL-04**: User can set condition per copy (NM, LP, MP, HP, Damaged)
-- [ ] **COLL-05**: User can record purchase price per copy
-- [ ] **COLL-06**: User can attach photos to collection entries via R2 upload
-- [ ] **COLL-07**: User can manage a wantlist (cards they want to acquire)
-- [ ] **COLL-08**: User can manage a tradelist (cards they're willing to trade)
+- [x] **COLL-03**: User can set variant per copy (Normal, Alt-Art, Overnumbered, Signature)
+- [x] **COLL-04**: User can set condition per copy (NM, LP, MP, HP, Damaged)
+- [x] **COLL-05**: User can record purchase price per copy
+- [x] **COLL-06**: User can attach photos to collection entries via R2 upload
+- [x] **COLL-07**: User can manage a wantlist (cards they want to acquire)
+- [x] **COLL-08**: User can manage a tradelist (cards they're willing to trade)
 - [ ] **COLL-09**: User can view collection stats (total cards, set completion %, value breakdown by set)
 - [ ] **COLL-10**: User can see deck recommendations based on cards they own
 
@@ -66,7 +66,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Platform
 
-- [ ] **PLAT-01**: App supports English and Spanish with language toggle
+- [x] **PLAT-01**: App supports English and Spanish with language toggle
 - [ ] **PLAT-02**: News section displaying Riftbound community updates and announcements
 - [ ] **PLAT-03**: Camera scanning works on both desktop (webcam) and mobile browsers (getUserMedia)
 
@@ -108,12 +108,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | COLL-01 | Phase 1 | Pending |
 | COLL-02 | Phase 1 | Pending |
-| COLL-03 | Phase 1 | Pending |
-| COLL-04 | Phase 1 | Pending |
-| COLL-05 | Phase 1 | Pending |
-| COLL-06 | Phase 1 | Pending |
-| COLL-07 | Phase 1 | Pending |
-| COLL-08 | Phase 1 | Pending |
+| COLL-03 | Phase 1 | Complete |
+| COLL-04 | Phase 1 | Complete |
+| COLL-05 | Phase 1 | Complete |
+| COLL-06 | Phase 1 | Complete |
+| COLL-07 | Phase 1 | Complete |
+| COLL-08 | Phase 1 | Complete |
 | COLL-09 | Phase 1 | Pending |
 | COLL-10 | Phase 1 | Pending |
 | DECK-01 | Phase 2 | Pending |
@@ -148,7 +148,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WHAP-05 | Phase 5 | Pending |
 | WHAP-06 | Phase 5 | Pending |
 | WHAP-07 | Phase 5 | Pending |
-| PLAT-01 | Phase 1 | Pending |
+| PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Pending |
 | PLAT-03 | Phase 1 | Pending |
 

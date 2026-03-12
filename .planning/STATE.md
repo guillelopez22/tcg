@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-11T23:38:55.633Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-12T00:26:49.730Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P01 | 12 | 3 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,9 @@ Recent decisions affecting current work:
 - [Init]: Collection Tracker ships first — everything downstream (marketplace, want-match, deck buildability) depends on correct multi-copy schema from migration zero. UNIQUE(user_id, card_id) constraint must NOT be used.
 - [Init]: Camera scanning uses perceptual hashing (blockhash-js client + sharp-phash server) — always requires confirmation step, never auto-adds. Manual search is co-equal entry point.
 - [Init]: WhatsApp template approval must be submitted during Phase 4 — 2-4 week phone warming period is critical path for Phase 5.
+- [Phase 01]: Per-copy model: each collection row is one physical copy, no quantity column, upsert logic removed from service
+- [Phase 01]: next-intl uses cookie-based locale (no URL prefix), ES file uses EN placeholders for now
+- [Phase 01]: Migration applied via direct SQL script (migrate-01-01.cjs) due to drizzle-kit interactive push limitation
 
 ### Pending Todos
 
@@ -75,6 +79,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:38:55.628Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-collection-tracker/01-CONTEXT.md
+Last session: 2026-03-12T00:26:49.727Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
