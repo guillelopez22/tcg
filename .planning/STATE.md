@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-03-12T00:26:49.730Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-03-12T00:45:20.417Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 12 | 3 tasks | 23 files |
+| Phase 01 P02 | 14 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Per-copy model: each collection row is one physical copy, no quantity column, upsert logic removed from service
 - [Phase 01]: next-intl uses cookie-based locale (no URL prefix), ES file uses EN placeholders for now
 - [Phase 01]: Migration applied via direct SQL script (migrate-01-01.cjs) due to drizzle-kit interactive push limitation
+- [Phase 01]: R2Service injected as interface via R2_TOKEN — keeps CollectionService testable without S3 credentials; CoreModule creates the concrete wrapper
+- [Phase 01]: Wishlist toggle uses check-then-insert/delete pattern; unique index on (userId, cardId, type) in DB enforces data integrity
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T00:26:49.727Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-03-12T00:45:20.413Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
