@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-12T00:45:20.417Z"
+stopped_at: "Checkpoint: Awaiting human verify of 01-03 collection UI"
+last_updated: "2026-03-12T00:59:31.073Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 4
   percent: 0
 ---
 
@@ -52,6 +52,8 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01 P01 | 12 | 3 tasks | 23 files |
 | Phase 01 P02 | 14 | 2 tasks | 14 files |
+| Phase 01 P03 | 10 | 2 tasks | 11 files |
+| Phase 01 P04 | 25 | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -68,6 +70,11 @@ Recent decisions affecting current work:
 - [Phase 01]: Migration applied via direct SQL script (migrate-01-01.cjs) due to drizzle-kit interactive push limitation
 - [Phase 01]: R2Service injected as interface via R2_TOKEN — keeps CollectionService testable without S3 credentials; CoreModule creates the concrete wrapper
 - [Phase 01]: Wishlist toggle uses check-then-insert/delete pattern; unique index on (userId, cardId, type) in DB enforces data integrity
+- [Phase 01]: addBulk returns Collection[] array (not { count }) — success toast uses data.length
+- [Phase 01]: PhotoUpload uses XMLHttpRequest instead of fetch for real upload progress events
+- [Phase 01]: NCC_IDENTIFY_THRESHOLD = 0.93 exported as named constant in scanner.service.ts for testability
+- [Phase 01]: identify() filters at 0.93 server-side; displayPct = Math.round(((score-0.3)/0.7)*100) computed per match
+- [Phase 01]: ScannerOrchestrator lifts session state; CardScanner receives props (no auto-add enforced at component boundary)
 
 ### Pending Todos
 
@@ -82,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T00:45:20.413Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-03-12T00:59:18.963Z
+Stopped at: Checkpoint: Awaiting human verify of 01-03 collection UI
 Resume file: None
