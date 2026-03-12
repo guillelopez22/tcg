@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
@@ -10,6 +11,57 @@ import { TrendingDecks } from './trending-decks';
 import { DeckWizard } from './deck-wizard';
 
 type DeckTab = 'my-decks' | 'trending';
+
+// Sub-component: renders buildability percentage for a single deck
+function DeckBuildability({ deckId }: { deckId: string }) {
+  const { user } = useAuth();
+  const { data, isLoading } = trpc.deck.buildability.useQuery(
+    { deckId },
+    { enabled: !!user },
+  );
+
+  if (isLoading) {
+    return <span className="text-xs text-zinc-600">Loading...</span>;
+  }
+
+  if (!data) return null;
+
+  const { owned, total, pct } = data;
+  const colorClass =
+    pct >= 80 ? 'text-emerald-400' : pct >= 40 ? 'text-amber-400' : 'text-red-400';
+
+  return (
+    <span className="text-xs text-zinc-500">
+      You own {owned}/{total}{' '}
+      <span className={`font-medium ${colorClass}`}>({pct}%)</span>
+    </span>
+  );
+}
+
+// Sub-component: renders Draft/Complete status badge
+function DeckStatusBadge({ status }: { status: string | null | undefined }) {
+  if (!status) return null;
+
+  if (status === 'complete') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 flex-shrink-0">
+        <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M2 6l3 3 5-5" />
+        </svg>
+        Complete
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 flex-shrink-0">
+      <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M2 10V8l6-6 2 2-6 6H2z" />
+      </svg>
+      Draft
+    </span>
+  );
+}
 
 export function DeckList() {
   const { user } = useAuth();
@@ -118,36 +170,53 @@ export function DeckList() {
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {decks.map((deck) => (
-              <div key={deck.id} className="lg-card overflow-hidden flex">
-                <div className="w-16 flex-shrink-0 bg-surface-elevated flex items-center justify-center">
-                  <IconDecks className="w-6 h-6 text-zinc-700" />
+            {decks.map((deck) => {
+              const deckWithStatus = deck as typeof deck & { status?: string | null };
+              return (
+                <div key={deck.id} className="lg-card overflow-hidden flex">
+                  <div className="w-16 flex-shrink-0 bg-surface-elevated flex items-center justify-center relative overflow-hidden">
+                    {(deck as { coverCard?: { imageSmall: string | null } | null }).coverCard?.imageSmall ? (
+                      <Image
+                        src={(deck as { coverCard: { imageSmall: string } }).coverCard.imageSmall}
+                        alt=""
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <IconDecks className="w-6 h-6 text-zinc-700" />
+                    )}
+                  </div>
+                  <div className="flex-1 px-3 py-2 min-w-0">
+                    <div className="flex items-start gap-2 justify-between">
+                      <Link href={`/decks/${deck.id}`} className="hover:text-rift-400 transition-colors min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{deck.name}</p>
+                      </Link>
+                      <DeckStatusBadge status={deckWithStatus.status} />
+                    </div>
+                    <p className="lg-text-muted">
+                      {deck.domain ?? 'No domain'}
+                      {deck.isPublic && <span className="ml-2 text-rift-500">Public</span>}
+                    </p>
+                    <DeckBuildability deckId={deck.id} />
+                  </div>
+                  <div className="flex items-center pr-2">
+                    <button
+                      onClick={() => handleDeleteClick(deck.id)}
+                      disabled={deleteDeck.isPending}
+                      className={`min-w-[2.75rem] h-10 px-2 flex items-center justify-center text-xs transition-colors rounded-lg disabled:opacity-50 ${
+                        deletingId === deck.id
+                          ? 'text-red-400 bg-red-900/20 border border-red-800 font-medium'
+                          : 'text-zinc-600 hover:text-red-400'
+                      }`}
+                      aria-label={deletingId === deck.id ? `Confirm delete ${deck.name}` : `Delete ${deck.name}`}
+                    >
+                      {deletingId === deck.id ? 'Sure?' : '\u2715'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1 px-3 py-2 min-w-0">
-                  <Link href={`/decks/${deck.id}`} className="hover:text-rift-400 transition-colors">
-                    <p className="text-sm font-medium text-white truncate">{deck.name}</p>
-                  </Link>
-                  <p className="lg-text-muted">
-                    {deck.domain ?? 'No domain'}
-                    {deck.isPublic && <span className="ml-2 text-rift-500">Public</span>}
-                  </p>
-                </div>
-                <div className="flex items-center pr-2">
-                  <button
-                    onClick={() => handleDeleteClick(deck.id)}
-                    disabled={deleteDeck.isPending}
-                    className={`min-w-[2.75rem] h-10 px-2 flex items-center justify-center text-xs transition-colors rounded-lg disabled:opacity-50 ${
-                      deletingId === deck.id
-                        ? 'text-red-400 bg-red-900/20 border border-red-800 font-medium'
-                        : 'text-zinc-600 hover:text-red-400'
-                    }`}
-                    aria-label={deletingId === deck.id ? `Confirm delete ${deck.name}` : `Delete ${deck.name}`}
-                  >
-                    {deletingId === deck.id ? 'Sure?' : '\u2715'}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {hasNextPage && (
