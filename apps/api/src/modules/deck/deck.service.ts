@@ -13,7 +13,7 @@ import type {
   DeckSetCardsInput,
   DeckBrowseInput,
 } from '@la-grieta/shared';
-import { buildPaginatedResult, escapeLike } from '@la-grieta/shared';
+import { buildPaginatedResult, escapeLike, MAX_COPIES_PER_CARD as SHARED_MAX_COPIES } from '@la-grieta/shared';
 import type { PaginatedResult } from '@la-grieta/shared';
 
 export type DeckCardWithCard = DeckCard & {
@@ -22,8 +22,8 @@ export type DeckCardWithCard = DeckCard & {
     name: string;
     cleanName: string;
     rarity: string;
-    cardType: string;
-    domain: string;
+    cardType: string | null;
+    domain: string | null;
     imageSmall: string | null;
     imageLarge: string | null;
   };
@@ -31,33 +31,79 @@ export type DeckCardWithCard = DeckCard & {
 
 export type DeckWithCards = Deck & { cards: DeckCardWithCard[] };
 
+export type CoverCard = {
+  id: string;
+  name: string | null;
+  cleanName: string | null;
+  imageSmall: string | null;
+};
+
+export type DeckWithCover = Deck & {
+  coverCard: CoverCard | null;
+};
+
 export type DeckWithCreator = Deck & {
   user: {
     username: string;
     displayName: string | null;
   };
+  coverCard: CoverCard | null;
 };
 
-const MAX_DECK_CARDS = 60;
-const MAX_COPIES_PER_CARD = 4;
+const MAX_DECK_CARDS = 61; // 40 main + 12 runes + 1 champion + 8 sideboard
+const MAX_COPIES_PER_CARD = SHARED_MAX_COPIES; // 3 — Riftbound official limit
 
 @Injectable()
 export class DeckService {
   constructor(private readonly db: DbClient) {}
 
-  async list(userId: string, input: DeckListInput): Promise<PaginatedResult<Deck>> {
+  async list(userId: string, input: DeckListInput): Promise<PaginatedResult<DeckWithCover>> {
     const conditions = [eq(decks.userId, userId)];
 
     if (input.cursor) {
       conditions.push(gt(decks.id, input.cursor));
     }
 
-    const rows = await this.db
-      .select()
+    const flatRows = await this.db
+      .select({
+        id: decks.id,
+        userId: decks.userId,
+        name: decks.name,
+        description: decks.description,
+        coverCardId: decks.coverCardId,
+        isPublic: decks.isPublic,
+        domain: decks.domain,
+        tier: decks.tier,
+        status: decks.status,
+        createdAt: decks.createdAt,
+        updatedAt: decks.updatedAt,
+        cover_id: cards.id,
+        cover_name: cards.name,
+        cover_cleanName: cards.cleanName,
+        cover_imageSmall: cards.imageSmall,
+      })
       .from(decks)
+      .leftJoin(cards, eq(decks.coverCardId, cards.id))
       .where(and(...conditions))
       .orderBy(decks.id)
       .limit(input.limit + 1);
+
+    const rows: DeckWithCover[] = flatRows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      name: r.name,
+      description: r.description,
+      coverCardId: r.coverCardId,
+      isPublic: r.isPublic,
+      domain: r.domain,
+      tier: r.tier,
+      status: r.status,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      coverCard: r.cover_id
+        ? { id: r.cover_id, name: r.cover_name, cleanName: r.cover_cleanName, imageSmall: r.cover_imageSmall }
+        : null,
+    }));
 
     return buildPaginatedResult(rows, input.limit);
   }
@@ -83,6 +129,7 @@ export class DeckService {
         deckId: deckCards.deckId,
         cardId: deckCards.cardId,
         quantity: deckCards.quantity,
+        zone: deckCards.zone,
         createdAt: deckCards.createdAt,
         updatedAt: deckCards.updatedAt,
         card: {
@@ -117,6 +164,7 @@ export class DeckService {
         name: input.name,
         description: input.description ?? null,
         isPublic: input.isPublic ?? false,
+        coverCardId: input.coverCardId ?? null,
       })
       .returning();
 
@@ -289,14 +337,21 @@ export class DeckService {
         isPublic: decks.isPublic,
         domain: decks.domain,
         tier: decks.tier,
+        status: decks.status,
         createdAt: decks.createdAt,
         updatedAt: decks.updatedAt,
         // Creator fields (safe subset only — no email, passwordHash, whatsappPhone, etc.)
         user_username: users.username,
         user_displayName: users.displayName,
+        // Cover card fields
+        cover_id: cards.id,
+        cover_name: cards.name,
+        cover_cleanName: cards.cleanName,
+        cover_imageSmall: cards.imageSmall,
       })
       .from(decks)
       .innerJoin(users, eq(decks.userId, users.id))
+      .leftJoin(cards, eq(decks.coverCardId, cards.id))
       .where(and(...conditions))
       .orderBy(decks.id)
       .limit(input.limit + 1);
@@ -310,12 +365,16 @@ export class DeckService {
       isPublic: r.isPublic,
       domain: r.domain,
       tier: r.tier,
+      status: r.status,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       user: {
         username: r.user_username,
         displayName: r.user_displayName,
       },
+      coverCard: r.cover_id
+        ? { id: r.cover_id, name: r.cover_name, cleanName: r.cover_cleanName, imageSmall: r.cover_imageSmall }
+        : null,
     }));
 
     return buildPaginatedResult(rows, input.limit);

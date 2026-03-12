@@ -17,3 +17,4 @@ export * from './schemas/wishlist.schema';
 export * from './utils/currency';
 export * from './utils/like';
 export * from './utils/pagination';
+export * from './utils/validate-deck-format';

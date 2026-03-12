@@ -86,6 +86,7 @@ export class CardService {
         tcgplayerId: cards.tcgplayerId,
         tcgplayerUrl: cards.tcgplayerUrl,
         isProduct: cards.isProduct,
+        keywords: cards.keywords,
         createdAt: cards.createdAt,
         updatedAt: cards.updatedAt,
         price: {
@@ -144,6 +145,7 @@ export class CardService {
         tcgplayerId: cards.tcgplayerId,
         tcgplayerUrl: cards.tcgplayerUrl,
         isProduct: cards.isProduct,
+        keywords: cards.keywords,
         createdAt: cards.createdAt,
         updatedAt: cards.updatedAt,
         set: {
@@ -234,6 +236,7 @@ export class CardService {
         tcgplayerId: cards.tcgplayerId,
         tcgplayerUrl: cards.tcgplayerUrl,
         isProduct: cards.isProduct,
+        keywords: cards.keywords,
         createdAt: cards.createdAt,
         updatedAt: cards.updatedAt,
         set: {
