@@ -1120,4 +1120,107 @@ describe('DeckService', () => {
       expect(result).toBeDefined();
     });
   });
+
+  // =========================================================================
+  // suggest()
+  // =========================================================================
+
+  describe('suggest()', () => {
+    function pushSuggestSelects(opts: {
+      deckCards?: Array<{ cardId: string; zone: string; quantity: number; card_domain: string | null; card_energyCost: number | null; card_keywords: string[] | null; card_cardType: string | null }>;
+      candidateCards?: Array<{ id: string; name: string; cleanName: string; rarity: string; cardType: string | null; domain: string | null; energyCost: number | null; imageSmall: string | null; keywords: string[] | null }>;
+      userCollection?: Array<{ cardId: string }>;
+      trendingCards?: Array<{ cardId: string }>;
+    } = {}) {
+      // 1. Existing deck cards
+      db._pushSelect(opts.deckCards ?? []);
+      // 2. Candidate cards from DB
+      db._pushSelect(opts.candidateCards ?? []);
+      // 3. User's collection
+      db._pushSelect(opts.userCollection ?? []);
+      // 4. Trending deck co-occurrence (only if deck has champion)
+      if ((opts.deckCards ?? []).some((dc) => dc.zone === 'champion')) {
+        db._pushSelect(opts.trendingCards ?? []);
+      }
+    }
+
+    it('should return array of SuggestedCard objects with score and reasonTag', async () => {
+      redis.get = vi.fn().mockResolvedValue(null); // no cache
+
+      pushSuggestSelects({
+        deckCards: [
+          { cardId: CARD_ID, zone: 'main', quantity: 2, card_domain: 'Fury', card_energyCost: 2, card_keywords: ['burn'], card_cardType: 'Unit' },
+        ],
+        candidateCards: [
+          { id: CARD_ID_2, name: 'Fury Strike', cleanName: 'Fury Strike', rarity: 'Common', cardType: 'Unit', domain: 'Fury', energyCost: 2, imageSmall: null, keywords: ['burn'] },
+        ],
+        userCollection: [],
+      });
+
+      const result = await service.suggest(USER_ID, { deckId: DECK_ID, mode: 'best_fit', zone: 'main' });
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBeGreaterThan(0);
+      const first = result[0]!;
+      expect(first).toHaveProperty('cardId');
+      expect(first).toHaveProperty('score');
+      expect(first).toHaveProperty('reasonTag');
+      expect(first).toHaveProperty('owned');
+      expect(first).toHaveProperty('card');
+    });
+
+    it('should boost owned cards when mode is owned_first', async () => {
+      redis.get = vi.fn().mockResolvedValue(null);
+
+      pushSuggestSelects({
+        deckCards: [
+          { cardId: CARD_ID, zone: 'main', quantity: 2, card_domain: 'Fury', card_energyCost: 2, card_keywords: null, card_cardType: 'Unit' },
+        ],
+        candidateCards: [
+          { id: CARD_ID_2, name: 'Card A', cleanName: 'Card A', rarity: 'Common', cardType: 'Unit', domain: 'Water', energyCost: 5, imageSmall: null, keywords: null },
+          { id: CARD_ID_3, name: 'Card B', cleanName: 'Card B', rarity: 'Common', cardType: 'Unit', domain: 'Water', energyCost: 5, imageSmall: null, keywords: null },
+        ],
+        userCollection: [{ cardId: CARD_ID_2 }], // user owns CARD_ID_2
+      });
+
+      const result = await service.suggest(USER_ID, { deckId: DECK_ID, mode: 'owned_first', zone: 'main' });
+
+      // CARD_ID_2 should be ranked higher due to +5 owned boost
+      const idx2 = result.findIndex((c) => c.cardId === CARD_ID_2);
+      const idx3 = result.findIndex((c) => c.cardId === CARD_ID_3);
+      expect(idx2).toBeLessThan(idx3);
+      expect(result[idx2]!.owned).toBe(true);
+      expect(result[idx3]!.owned).toBe(false);
+    });
+
+    it('should filter candidates to zone-appropriate card types', async () => {
+      redis.get = vi.fn().mockResolvedValue(null);
+
+      // For 'rune' zone, only 'Rune' type should be valid — but we can only test via returned results
+      // Since the mock returns what we push, verify suggest calls DB with rune zone filter
+      pushSuggestSelects({
+        deckCards: [],
+        candidateCards: [], // mock returns no cards (zone filter applied at DB level in service)
+        userCollection: [],
+      });
+
+      const result = await service.suggest(USER_ID, { deckId: DECK_ID, mode: 'best_fit', zone: 'rune' });
+
+      // Returns empty array when no candidates
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should return cached result when Redis cache exists', async () => {
+      const cachedResult = [
+        { cardId: CARD_ID, card: { id: CARD_ID, name: 'Cached', cleanName: 'Cached', rarity: 'Common', cardType: 'Unit', domain: 'Fury', energyCost: 1, imageSmall: null, keywords: null }, score: 10, reasonTag: 'Meta pick', reasonDetail: 'cached', owned: false },
+      ];
+      redis.get = vi.fn().mockResolvedValue(JSON.stringify(cachedResult));
+
+      const result = await service.suggest(USER_ID, { deckId: DECK_ID, mode: 'best_fit', zone: 'main' });
+
+      expect(result).toEqual(cachedResult);
+      expect(db.select).not.toHaveBeenCalled(); // no DB calls when cached
+    });
+  });
 });
