@@ -45,7 +45,7 @@ Plans:
 **Goal:** Polish collection grid interactions (optimistic UI, undo toasts, long-press variant picker, copy removal picker), add market price display to tradelist/wantlist, and refine the deck wizard (tier badges, preview step, legend search, summary step, non-Latin name handling)
 **Requirements**: UXP-01, UXP-02, UXP-03, UXP-04, UXP-05, UXP-06, UXP-07, UXP-08, UXP-09, UXP-10, UXP-11, UXP-12
 **Depends on:** Phase 1
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 01.1-01-PLAN.md — Backend: tier column, price joins in wishlist/collection, legends endpoint
