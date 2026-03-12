@@ -9,8 +9,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Collection Tracker
 
-- [ ] **COLL-01**: User can add cards to collection by searching and selecting from the card database
-- [ ] **COLL-02**: User can add cards to collection via camera scanning with confirmation step
+- [x] **COLL-01**: User can add cards to collection by searching and selecting from the card database
+- [x] **COLL-02**: User can add cards to collection via camera scanning with confirmation step
 - [x] **COLL-03**: User can set variant per copy (Normal, Alt-Art, Overnumbered, Signature)
 - [x] **COLL-04**: User can set condition per copy (NM, LP, MP, HP, Damaged)
 - [x] **COLL-05**: User can record purchase price per copy
@@ -68,7 +68,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **PLAT-01**: App supports English and Spanish with language toggle
 - [ ] **PLAT-02**: News section displaying Riftbound community updates and announcements
-- [ ] **PLAT-03**: Camera scanning works on both desktop (webcam) and mobile browsers (getUserMedia)
+- [x] **PLAT-03**: Camera scanning works on both desktop (webcam) and mobile browsers (getUserMedia)
 
 ## v2 Requirements
 
@@ -106,8 +106,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COLL-01 | Phase 1 | Pending |
-| COLL-02 | Phase 1 | Pending |
+| COLL-01 | Phase 1 | Complete |
+| COLL-02 | Phase 1 | Complete |
 | COLL-03 | Phase 1 | Complete |
 | COLL-04 | Phase 1 | Complete |
 | COLL-05 | Phase 1 | Complete |
@@ -150,7 +150,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WHAP-07 | Phase 5 | Pending |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Pending |
-| PLAT-03 | Phase 1 | Pending |
+| PLAT-03 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 42 total
