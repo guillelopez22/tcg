@@ -10,6 +10,7 @@ import { DetailSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import { DeckCardEditor } from './deck-card-editor';
 import { DeckAnalytics } from './deck-analytics';
+import { HandSimulator } from './hand-simulator';
 
 const FALLBACK_RARITY = { text: 'text-zinc-400', bg: 'bg-zinc-800/50', border: 'border-zinc-700', glow: '' };
 
@@ -48,7 +49,7 @@ function DeckStatusBadge({ status }: { status: string | null | undefined }) {
 function BuildabilitySection({ deckId }: { deckId: string }) {
   const { data, isLoading } = trpc.deck.buildability.useQuery({ deckId });
 
-  const addMissing = trpc.wishlist.toggle.useMutation();
+  const addMissing = trpc.wishlist.addIfMissing.useMutation();
 
   async function handleAddMissing() {
     if (!data || data.missingCardIds.length === 0) return;
@@ -274,6 +275,19 @@ export function DeckDetail({ id }: DeckDetailProps) {
             <div className="lg-card px-5 py-4">
               <DeckAnalytics cards={deck.cards} />
             </div>
+          )}
+
+          {/* Sample Hand section — visible on all tabs when deck has main-zone cards */}
+          {deck.cards.some((c) => c.zone === 'main') && (
+            <HandSimulator
+              cards={deck.cards.map((c) => ({
+                cardId: c.card.id,
+                quantity: c.quantity,
+                name: c.card.name,
+                imageSmall: c.card.imageSmall ?? null,
+                zone: c.zone,
+              }))}
+            />
           )}
         </>
       )}
