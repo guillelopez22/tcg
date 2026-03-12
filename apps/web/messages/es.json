@@ -1,0 +1,78 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "search": "Search",
+    "add": "Add",
+    "edit": "Edit",
+    "remove": "Remove",
+    "close": "Close",
+    "back": "Back"
+  },
+  "collection": {
+    "title": "My Collection",
+    "addCards": "Add Cards",
+    "noCopies": "No copies yet",
+    "copies": "{count} copies",
+    "totalCards": "Total Cards",
+    "filters": "Filters",
+    "sort": "Sort",
+    "variant": "Variant",
+    "condition": "Condition",
+    "purchasePrice": "Purchase Price",
+    "photo": "Photo",
+    "notes": "Notes",
+    "removeCopy": "Remove this copy",
+    "removeConfirm": "Are you sure you want to remove this copy?"
+  },
+  "wantlist": {
+    "title": "Wantlist",
+    "empty": "Your wantlist is empty",
+    "addToWantlist": "Add to Wantlist",
+    "removeFromWantlist": "Remove from Wantlist",
+    "preferredVariant": "Preferred Variant",
+    "maxPrice": "Max Price"
+  },
+  "tradelist": {
+    "title": "Tradelist",
+    "empty": "Your tradelist is empty",
+    "addToTradelist": "Add to Tradelist",
+    "removeFromTradelist": "Remove from Tradelist",
+    "askingPrice": "Asking Price"
+  },
+  "stats": {
+    "title": "Stats",
+    "totalUnique": "Unique Cards",
+    "totalCopies": "Total Copies",
+    "totalValue": "Total Value",
+    "setCompletion": "Set Completion",
+    "rarityDistribution": "Rarity Distribution",
+    "valueBreakdown": "Value by Set",
+    "deckRecommendations": "Deck Recommendations"
+  },
+  "scanner": {
+    "title": "Card Scanner",
+    "scanning": "Scanning...",
+    "detected": "Card Detected",
+    "confidence": "Confidence",
+    "addCard": "Add Card",
+    "sessionSummary": "Session Summary",
+    "totalScanned": "Cards Scanned",
+    "totalValue": "Session Value",
+    "cooldown": "Cooldown",
+    "resume": "Resume Scanning"
+  },
+  "nav": {
+    "collection": "Collection",
+    "wantlist": "Wantlist",
+    "tradelist": "Tradelist",
+    "stats": "Stats",
+    "scanner": "Scanner",
+    "decks": "Decks",
+    "profile": "Profile"
+  }
+}
