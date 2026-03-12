@@ -129,42 +129,46 @@ export function mapImagePathToExternalId(imagePath: string): string {
 
 /**
  * Fetch /stats/tier-list and return all champion entries with their tier.
+ *
+ * Page structure: a table where each row contains:
+ *   <td><a href="/legends/{slug}">Champion Name</a></td>
+ *   <td><span class="badge bg-azure">S</span></td>   (or bg-green=A, bg-yellow=B, bg-orange=C)
  */
 export async function scrapeTierListChampions(): Promise<ChampionEntry[]> {
   const html = await fetchHtml(`${BASE_URL}/stats/tier-list`);
   const $ = cheerio.load(html);
   const champions: ChampionEntry[] = [];
 
-  // Tier list structure: sections with tier labels (S, A, B, etc.)
-  // Each champion links to /legends/{slug}
-  // Look for tier sections — common patterns: headings with tier letter, then champion cards/links
+  // Map badge CSS classes to tier letters
+  const badgeTierMap: Record<string, string> = {
+    'bg-azure': 'S',
+    'bg-green': 'A',
+    'bg-yellow': 'B',
+    'bg-orange': 'C',
+  };
+
+  // Each champion is in a table row with a link to /legends/{slug}
   $('a[href^="/legends/"]').each((_i, el) => {
     const href = $(el).attr('href') ?? '';
     const slug = href.replace('/legends/', '').split('?')[0] ?? '';
     if (!slug) return;
 
-    // Walk up to find the nearest tier label in the same section
-    // Try to find a parent container that has a tier heading
+    // Find the containing row (<tr>) and look for a tier badge
+    const row = $(el).closest('tr');
     let tier = 'unknown';
-    const parents = $(el).parents();
-    parents.each((_j, parent) => {
-      const tierText = $(parent).find('[class*="tier"], [class*="Tier"]').first().text().trim();
-      if (tierText && /^[SABC]$/i.test(tierText)) {
-        tier = tierText.toUpperCase();
-        return false; // break
+
+    row.find('span.badge').each((_j, badge) => {
+      const classes = $(badge).attr('class') ?? '';
+      for (const [cssClass, tierLetter] of Object.entries(badgeTierMap)) {
+        if (classes.includes(cssClass) && !classes.includes(`${cssClass}-lt`)) {
+          tier = tierLetter;
+          return false; // break
+        }
       }
     });
 
-    // Fallback: look for a data attribute on the element or its parent
-    const dataTier =
-      $(el).attr('data-tier') ??
-      $(el).closest('[data-tier]').attr('data-tier') ??
-      '';
-    if (dataTier) tier = dataTier.toUpperCase();
-
     const name = $(el).text().trim() || slug;
 
-    // Deduplicate by slug
     if (!champions.find((c) => c.slug === slug)) {
       champions.push({ slug, name, tier });
     }
