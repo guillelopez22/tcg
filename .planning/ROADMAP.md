@@ -14,6 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Collection Tracker** - Players can digitize every card they own with full variant, condition, and photo support plus wantlist and tradelist management (completed 2026-03-12)
 - [ ] **Phase 1.1: Collection UX Polish** - (INSERTED) Optimistic grid interactions, undo toasts, market price display, deck wizard refinements
+- [ ] **Phase 1.2: Smart Deck Builder** - (INSERTED) Zone-aware deck editor with format validation, suggestion engine, analytics, and collection integration
 - [ ] **Phase 2: Deck Builder Enhancements** - Competitive players can build, validate, analyze, and share decks with champion-first workflow and format-legal enforcement
 - [ ] **Phase 3: Points Tracker** - Any two players can run a scored match with real-time sync via QR code — no account required for the joining player
 - [ ] **Phase 4: Tournament Manager** - A tournament organizer can run a full Swiss tournament offline from registration through standings, with crash-safe state
@@ -40,6 +41,19 @@ Plans:
 - [x] 01-04-PLAN.md — Scanner enhancements (confirmation, cooldown, session summary)
 - [x] 01-05-PLAN.md — Stats, deck recommendations, Spanish translations, language toggle
 
+### Phase 01.2: Smart Deck Builder (INSERTED)
+
+**Goal:** Upgrade the existing deck builder into a smart, collection-aware editor with zone-based format validation (40 main + 12 runes + 1 champion + sideboard), real-time analytics (energy curve, domain distribution, card type breakdown, rarity, market value), ownership integration (own badges, buildability %, wantlist integration), and intelligent card suggestions (synergy-based with domain + curve + meta co-occurrence + text keyword analysis)
+**Requirements**: DECK-01, DECK-02, DECK-04
+**Depends on:** Phase 1
+**Plans:** 4 plans
+
+Plans:
+- [ ] 01.2-01-PLAN.md — DB migration + zone/status schema + Zod schemas + deck constants
+- [ ] 01.2-02-PLAN.md — Service layer: zone validation, suggestion engine, buildability, keyword tagging
+- [ ] 01.2-03-PLAN.md — Editor UI: zone tabs, ownership badges, suggestion tab, mini analytics, swap prompt
+- [ ] 01.2-04-PLAN.md — Deck list/detail: buildability %, status badges, full analytics, add-missing-to-wantlist
+
 ### Phase 01.1: Collection UX Polish (INSERTED)
 
 **Goal:** Polish collection grid interactions (optimistic UI, undo toasts, long-press variant picker, copy removal picker), add market price display to tradelist/wantlist, and refine the deck wizard (tier badges, preview step, legend search, summary step, non-Latin name handling)
@@ -55,7 +69,7 @@ Plans:
 ### Phase 2: Deck Builder Enhancements
 **Goal**: Players can build format-legal decks with a champion-first workflow, analyze energy curves and hand probability, and share or import decks using standard community formats
 **Depends on**: Phase 1
-**Requirements**: DECK-01, DECK-02, DECK-03, DECK-04, DECK-05, DECK-06, DECK-07, DECK-08, DECK-09
+**Requirements**: DECK-03, DECK-05, DECK-06, DECK-07, DECK-08, DECK-09
 **Success Criteria** (what must be TRUE):
   1. User selects a champion first when creating a deck, and the builder enforces the 40 main + 12 runes + 1 champion format with real-time violation feedback
   2. User can simulate drawing a sample opening hand from any deck they are building
@@ -103,12 +117,13 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 1.1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Collection Tracker | 5/5 | Complete   | 2026-03-12 |
-| 1.1 Collection UX Polish | 1/3 | In Progress|  |
+| 1.1 Collection UX Polish | 3/3 | Complete |  |
+| 1.2 Smart Deck Builder | 0/4 | Not started | - |
 | 2. Deck Builder Enhancements | 0/? | Not started | - |
 | 3. Points Tracker | 0/? | Not started | - |
 | 4. Tournament Manager | 0/? | Not started | - |
