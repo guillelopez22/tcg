@@ -20,6 +20,7 @@ import {
   escapeLike,
   validateDeckFormat,
   MAX_COPIES_PER_CARD,
+  RUNE_DECK_SIZE,
   SIGNATURE_TYPES,
   getZoneForCardType,
 } from '@la-grieta/shared';
@@ -517,21 +518,10 @@ export class DeckService {
       .innerJoin(cards, eq(deckCards.cardId, cards.id))
       .where(eq(deckCards.deckId, input.deckId));
 
-    // Determine dominant domain of current deck
-    const domainCounts = new Map<string, number>();
-    for (const dc of existingDeckCards) {
-      if (dc.card_domain) {
-        domainCounts.set(dc.card_domain, (domainCounts.get(dc.card_domain) ?? 0) + dc.quantity);
-      }
-    }
-    let dominantDomain: string | null = null;
-    let maxCount = 0;
-    for (const [domain, count] of domainCounts) {
-      if (count > maxCount) {
-        maxCount = count;
-        dominantDomain = domain;
-      }
-    }
+    // Derive allowed domains from the champion's dual-domain (e.g. "Fury;Chaos" → ["Fury","Chaos"])
+    const championEntry = existingDeckCards.find((dc) => dc.zone === 'champion');
+    const championDomain = championEntry?.card_domain ?? null; // e.g. "Fury;Chaos"
+    const allowedDomains = championDomain ? championDomain.split(';') : [];
 
     // Compute energy curve of existing deck (for gap analysis)
     const energyCurve = new Map<number, number>();
@@ -597,8 +587,6 @@ export class DeckService {
     const ownedCardIds = new Set(userCollection.map((c) => c.cardId));
 
     // Load trending decks sharing the same champion for co-occurrence scoring
-    // Champion is the card in the 'champion' zone of the current deck
-    const championEntry = existingDeckCards.find((dc) => dc.zone === 'champion');
     const coOccurrenceCardIds = new Set<string>();
     if (championEntry) {
       const trendingDeckRows = await this.db
@@ -623,15 +611,30 @@ export class DeckService {
     type ScoredCandidate = SuggestedCard & { _score: number };
     const scored: ScoredCandidate[] = [];
 
+    const isSignatureType = (ct: string | null) =>
+      ct === 'Signature Unit' || ct === 'Signature Spell' || ct === 'Signature Gear';
+
     for (const card of candidateCards) {
       // Skip cards already in this deck
       if (existingCardIds.has(card.id)) continue;
 
+      // Hard domain filter — only suggest cards legal for this champion
+      if (allowedDomains.length > 0) {
+        if (isSignatureType(card.cardType)) {
+          // Signature cards must match the champion's exact domain pair
+          if (card.domain !== championDomain) continue;
+        } else if (card.domain) {
+          // Regular domain cards must belong to one of the champion's two domains (or be neutral)
+          if (!allowedDomains.includes(card.domain)) continue;
+        }
+        // Neutral cards (domain is null) are always allowed
+      }
+
       let score = 0;
       const signals: Array<{ signal: string; points: number }> = [];
 
-      // Domain match: +3 if card domain matches dominant domain
-      if (dominantDomain && card.domain === dominantDomain) {
+      // Domain match: +3 if card domain matches one of the champion's domains
+      if (allowedDomains.length > 0 && card.domain && allowedDomains.includes(card.domain)) {
         score += 3;
         signals.push({ signal: 'Domain match', points: 3 });
       }
@@ -750,22 +753,15 @@ export class DeckService {
   }
 
   private validateCardEntriesBasic(cardEntries: Array<{ cardId: string; quantity: number; zone?: string }>): void {
-    // Aggregate quantities per cardId across main+sideboard (copy limit applies there)
-    const mainSideboardMap = new Map<string, number>();
-
+    // Basic sanity check — per-card quantity cap.
+    // Rune cards can legitimately have up to RUNE_DECK_SIZE (12) copies,
+    // and old data may not have correct zone values, so we use the higher
+    // bound here. Full zone-specific limits are enforced by validateDeckFormat.
     for (const entry of cardEntries) {
-      const zone = entry.zone ?? 'main';
-      if (zone === 'main' || zone === 'sideboard') {
-        const current = mainSideboardMap.get(entry.cardId) ?? 0;
-        mainSideboardMap.set(entry.cardId, current + entry.quantity);
-      }
-    }
-
-    for (const [cardId, totalQty] of mainSideboardMap.entries()) {
-      if (totalQty > MAX_COPIES_PER_CARD) {
+      if (entry.quantity > RUNE_DECK_SIZE) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `Cannot have more than ${MAX_COPIES_PER_CARD} copies of card ${cardId}`,
+          message: `Cannot have more than ${RUNE_DECK_SIZE} copies of a single card`,
         });
       }
     }
