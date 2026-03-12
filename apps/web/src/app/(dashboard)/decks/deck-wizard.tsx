@@ -181,7 +181,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
 
   // Load user collection for "Build with my cards" mode (ownership-based sorting)
   const { data: collectionData } = trpc.collection.list.useQuery(
-    { limit: 200 },
+    { limit: 100 },
     { enabled: isOpen && path === 'legend', staleTime: 5 * 60 * 1000 },
   );
 
