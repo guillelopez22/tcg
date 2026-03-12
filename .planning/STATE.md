@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: "Checkpoint 01-04-Task4: human-verify scanner flow"
-last_updated: "2026-03-12T00:59:33.982Z"
+stopped_at: "Checkpoint 01-05-Task3: human-verify stats/recommendations/i18n"
+last_updated: "2026-03-12T04:19:54.145Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 14 | 2 tasks | 14 files |
 | Phase 01 P03 | 10 | 2 tasks | 11 files |
 | Phase 01 P04 | 25 | 3 tasks | 13 files |
+| Phase 01 P05 | 17 | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Recent decisions affecting current work:
 - [Phase 01]: NCC_IDENTIFY_THRESHOLD = 0.93 exported as named constant in scanner.service.ts for testability
 - [Phase 01]: identify() filters at 0.93 server-side; displayPct = Math.round(((score-0.3)/0.7)*100) computed per match
 - [Phase 01]: ScannerOrchestrator lifts session state; CardScanner receives props (no auto-add enforced at component boundary)
+- [Phase 01]: recharts label prop uses PieLabelRenderProps type — use null-coalescing in label renderer for v3 compatibility
+- [Phase 01]: Language toggle reloads page after setting locale cookie — simplest approach for next-intl cookie-based locale without URL prefix
+- [Phase 01]: Per-list visibility uses local React state + bulk wishlist.update sequential mutations — no new bulk API endpoint needed
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T00:59:33.978Z
-Stopped at: Checkpoint 01-04-Task4: human-verify scanner flow
+Last session: 2026-03-12T04:19:54.140Z
+Stopped at: Checkpoint 01-05-Task3: human-verify stats/recommendations/i18n
 Resume file: None
