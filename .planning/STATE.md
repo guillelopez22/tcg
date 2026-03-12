@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 1.1 context gathered
-last_updated: "2026-03-12T16:37:31.746Z"
+stopped_at: Completed 01.1-01-PLAN.md
+last_updated: "2026-03-12T17:02:25.666Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
 ---
 
 ---
@@ -70,6 +70,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P03 | 10 | 2 tasks | 11 files |
 | Phase 01 P04 | 25 | 3 tasks | 13 files |
 | Phase 01 P05 | 17 | 2 tasks | 17 files |
+| Phase 01.1 P01 | 8 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [Phase 01]: Riftdecks.com scraper reads tier badge CSS classes (not text content) to determine tier letter — text was empty, classes encode S/A/B/C
 - [Phase 01]: Deck-sync cron module added with @nestjs/schedule running at 0 6 * * * and 0 18 * * * — keeps trending decks fresh without manual intervention
 - [Phase 01]: Trending Decks tab added to /decks page; deck-list.tsx refactored to tabbed layout: My Decks | Trending
+- [Phase 01.1]: LEFT JOIN (not INNER JOIN) for card_prices in list queries — not all cards have price data
+- [Phase 01.1]: getLegends() caches in Redis at cache:card_legends with 1h TTL — legends only change on card sync
+- [Phase 01.1]: DeckWithCreator type does not need explicit tier field — Deck already includes it via schema inference
 
 ### Roadmap Evolution
 
@@ -115,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T16:37:31.743Z
-Stopped at: Phase 1.1 context gathered
-Resume file: .planning/phases/01.1-collection-ux-polish/01.1-CONTEXT.md
+Last session: 2026-03-12T17:02:09.766Z
+Stopped at: Completed 01.1-01-PLAN.md
+Resume file: None
