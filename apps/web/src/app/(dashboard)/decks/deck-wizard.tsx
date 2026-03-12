@@ -505,7 +505,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     if (!selectedDeckId || !previewDeck) return;
     setIsBusy(true);
     try {
-      const cards = previewDeck.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity }));
+      const cards = previewDeck.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity, zone: c.zone ?? 'main' }));
       const rawName = previewDeck.name;
       // Find the legend card to use its name for non-Latin deck names
       const legendCard = previewDeck.cards.find((c) => c.card.cardType === 'Legend');
