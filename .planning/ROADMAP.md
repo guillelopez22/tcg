@@ -76,7 +76,12 @@ Plans:
   3. User can view energy and domain distribution charts for their deck
   4. User can export a deck as a short share code and import any deck from a share code, a Riftbound.gg list, or a Piltover Archive format
   5. User can browse community-shared decks and view decks used in notable tournaments
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — DB schema, shared utilities (drawHand, import parsers), Zod schemas, API service methods + router endpoints
+- [ ] 02-02-PLAN.md — UI: hand simulator, share buttons, import modal with preview
+- [ ] 02-03-PLAN.md — UI: community decks tab + 3-tab layout restructure
 
 ### Phase 3: Points Tracker
 **Goal**: Any two players at a table can start a scored match, sync scores to both screens in real time via a QR code, and see the correct battlefield-control scoring rules applied automatically
@@ -124,7 +129,7 @@ Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
 | 1. Collection Tracker | 5/5 | Complete   | 2026-03-12 |
 | 1.1 Collection UX Polish | 3/3 | Complete |  |
 | 1.2 Smart Deck Builder | 0/4 | Not started | - |
-| 2. Deck Builder Enhancements | 0/? | Not started | - |
+| 2. Deck Builder Enhancements | 0/3 | Not started | - |
 | 3. Points Tracker | 0/? | Not started | - |
 | 4. Tournament Manager | 0/? | Not started | - |
 | 5. WhatsApp Marketplace | 0/? | Not started | - |
