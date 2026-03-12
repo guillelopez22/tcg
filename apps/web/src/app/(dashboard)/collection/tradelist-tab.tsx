@@ -1,26 +1,52 @@
 'use client';
 
 // Tradelist tab — displays trade-type wishlist entries with card thumbnails.
-// Shows asking price badge if set. Empty state encourages adding from collection.
+// Shows asking price badge if set. Floating + button opens add-to-tradelist modal.
+// Includes a per-list public/private visibility toggle.
 
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { CardGridSkeleton } from '@/components/skeletons';
+import { AddToWishlistModal } from './add-to-wishlist-modal';
 
 export function TradelistTab() {
   const { user } = useAuth();
   const t = useTranslations('tradelist');
   const tCommon = useTranslations('common');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Visibility state — default private. True = public, false = private.
+  const [isPublic, setIsPublic] = useState(false);
+  const [isTogglingVisibility, setIsTogglingVisibility] = useState(false);
 
   const { data, isLoading, isError, refetch } = trpc.wishlist.list.useQuery(
     { type: 'trade', limit: 100 },
     { enabled: !!user },
   );
 
+  const updateMutation = trpc.wishlist.update.useMutation();
+
   const entries = data?.items ?? [];
+
+  async function handleVisibilityToggle() {
+    if (entries.length === 0) {
+      setIsPublic(!isPublic);
+      return;
+    }
+    const next = !isPublic;
+    setIsTogglingVisibility(true);
+    try {
+      for (const entry of entries) {
+        await updateMutation.mutateAsync({ id: entry.id, isPublic: next });
+      }
+      setIsPublic(next);
+    } finally {
+      setIsTogglingVisibility(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -42,47 +68,128 @@ export function TradelistTab() {
     );
   }
 
+  const header = (
+    <div className="rounded-xl border border-surface-border bg-surface-card/50 p-4 mb-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-zinc-400 leading-relaxed flex-1">
+          List cards you're willing to trade or sell. Tap <span className="text-rift-400 font-medium">+</span> to add cards, tap any card to set an asking price.
+        </p>
+        <button
+          onClick={() => void handleVisibilityToggle()}
+          disabled={isTogglingVisibility}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+            isPublic
+              ? 'text-green-400 bg-green-900/20 hover:bg-green-900/30'
+              : 'text-zinc-400 bg-surface-elevated hover:bg-zinc-700/50'
+          } disabled:opacity-50`}
+          title={t('visibilityToggleLabel')}
+          aria-label={t('visibilityToggleLabel')}
+        >
+          {isPublic ? (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18" strokeLinecap="round" />
+              </svg>
+              {t('public')}
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 018 0v4" strokeLinecap="round" />
+              </svg>
+              {t('private')}
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
   if (entries.length === 0) {
     return (
-      <div className="text-center py-16">
-        <div className="text-4xl mb-3 opacity-30">🔄</div>
-        <p className="lg-text-secondary mb-4">{t('empty')}</p>
-        <p className="lg-text-muted">Add cards from your collection to your tradelist</p>
-      </div>
+      <>
+        {header}
+        <div className="text-center py-10">
+          <p className="lg-text-secondary mb-4">{t('empty')}</p>
+          <button onClick={() => setIsModalOpen(true)} className="lg-btn-secondary px-4 py-2">
+            {t('addToTradelist')}
+          </button>
+        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="lg-fab"
+          aria-label={t('addToTradelist')}
+          title={t('addToTradelist')}
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+        <AddToWishlistModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={() => void refetch()}
+          type="trade"
+        />
+      </>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      {entries.map((entry) => (
-        <Link
-          key={entry.id}
-          href={`/collection/${entry.card.id}`}
-          className="relative rounded-xl overflow-hidden border border-surface-border bg-surface-card hover:border-rift-600/50 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
-        >
-          <div className="aspect-[2/3] relative bg-surface-elevated">
-            {entry.card.imageSmall ? (
-              <Image
-                src={entry.card.imageSmall}
-                alt={entry.card.name}
-                fill
-                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center p-2">
-                <span className="text-xs text-zinc-600 text-center">{entry.card.name}</span>
-              </div>
-            )}
-            {/* Asking price badge */}
-            {entry.askingPrice && (
-              <span className="absolute bottom-1 right-1 lg-badge bg-surface-card/80 text-zinc-300 text-[9px]">
-                ${entry.askingPrice}
-              </span>
-            )}
-          </div>
-        </Link>
-      ))}
-    </div>
+    <>
+      {header}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {entries.map((entry) => (
+          <Link
+            key={entry.id}
+            href={`/collection/${entry.card.id}`}
+            className="relative rounded-xl overflow-hidden border border-surface-border bg-surface-card hover:border-rift-600/50 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+          >
+            <div className="aspect-[2/3] relative bg-surface-elevated">
+              {entry.card.imageSmall ? (
+                <Image
+                  src={entry.card.imageSmall}
+                  alt={entry.card.name}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-2">
+                  <span className="text-xs text-zinc-600 text-center">{entry.card.name}</span>
+                </div>
+              )}
+              {/* Asking price badge */}
+              {entry.askingPrice && (
+                <span className="absolute bottom-1 right-1 lg-badge bg-surface-card/80 text-zinc-300 text-[9px]">
+                  ${entry.askingPrice}
+                </span>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Floating + button */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="lg-fab"
+        aria-label={t('addToTradelist')}
+        title={t('addToTradelist')}
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+
+      <AddToWishlistModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => void refetch()}
+        type="trade"
+      />
+    </>
   );
 }

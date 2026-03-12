@@ -67,8 +67,10 @@ export class DeckRecommendationsService {
       return [];
     }
 
+    type ScoredRecommendation = DeckRecommendation & { _compositeScore: number };
+
     // Step 3: For each deck, fetch deck cards and compute scores
-    const recommendations: DeckRecommendation[] = [];
+    const recommendations: ScoredRecommendation[] = [];
 
     for (const deck of publicDecks) {
       // Get deck cards with card details
@@ -158,16 +160,18 @@ export class DeckRecommendationsService {
         synergyReasoning,
         domain: deck.domain,
         _compositeScore: compositeScore,
-      } as DeckRecommendation & { _compositeScore: number });
+      });
     }
 
     // Sort by composite score (ownership + synergy) descending
-    (recommendations as Array<DeckRecommendation & { _compositeScore?: number }>).sort(
-      (a, b) => ((b as { _compositeScore?: number })._compositeScore ?? b.ownershipPct) - ((a as { _compositeScore?: number })._compositeScore ?? a.ownershipPct),
+    recommendations.sort(
+      (a, b) => (b._compositeScore ?? b.ownershipPct) - (a._compositeScore ?? a.ownershipPct),
     );
 
     // Remove internal score field and return top 5
-    return recommendations.slice(0, 5).map(({ _compositeScore: _, ...rec }) => rec as DeckRecommendation);
+    return recommendations.slice(0, 5).map(
+      ({ _compositeScore: _score, ...rec }) => rec as DeckRecommendation,
+    );
   }
 
   private computeSynergyScore(

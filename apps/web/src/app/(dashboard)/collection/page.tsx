@@ -10,6 +10,7 @@ import { CollectionTabs, type CollectionTab } from './collection-tabs';
 import { CollectionGrid } from './collection-grid';
 import { WantlistTab } from './wantlist-tab';
 import { TradelistTab } from './tradelist-tab';
+import { StatsTab } from './stats-tab';
 
 export default function CollectionPage() {
   const t = useTranslations('nav');
@@ -34,11 +35,7 @@ export default function CollectionPage() {
       {activeTab === 'collection' && <CollectionGrid />}
       {activeTab === 'wantlist' && <WantlistTab />}
       {activeTab === 'tradelist' && <TradelistTab />}
-      {activeTab === 'stats' && (
-        <div className="text-center py-16">
-          <p className="lg-text-secondary">{tStats('title')} — Coming in Plan 05</p>
-        </div>
-      )}
+      {activeTab === 'stats' && <StatsTab />}
     </div>
   );
 }

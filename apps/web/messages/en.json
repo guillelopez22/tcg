@@ -35,14 +35,22 @@
     "addToWantlist": "Add to Wantlist",
     "removeFromWantlist": "Remove from Wantlist",
     "preferredVariant": "Preferred Variant",
-    "maxPrice": "Max Price"
+    "maxPrice": "Max Price",
+    "visibility": "Visibility",
+    "public": "Public",
+    "private": "Private",
+    "visibilityToggleLabel": "Wantlist Visibility"
   },
   "tradelist": {
     "title": "Tradelist",
     "empty": "Your tradelist is empty",
     "addToTradelist": "Add to Tradelist",
     "removeFromTradelist": "Remove from Tradelist",
-    "askingPrice": "Asking Price"
+    "askingPrice": "Asking Price",
+    "visibility": "Visibility",
+    "public": "Public",
+    "private": "Private",
+    "visibilityToggleLabel": "Tradelist Visibility"
   },
   "stats": {
     "title": "Stats",
@@ -52,7 +60,15 @@
     "setCompletion": "Set Completion",
     "rarityDistribution": "Rarity Distribution",
     "valueBreakdown": "Value by Set",
-    "deckRecommendations": "Deck Recommendations"
+    "deckRecommendations": "Deck Recommendations",
+    "noSets": "No sets found",
+    "ownership": "Owned",
+    "missingCards": "{count} missing",
+    "addAllMissing": "Add all missing to Wantlist",
+    "adding": "Adding...",
+    "addedToWantlist": "{count} cards added to wantlist",
+    "addedToWantlistConfirm": "Added to wantlist",
+    "noRecommendations": "Build your collection to get deck recommendations"
   },
   "scanner": {
     "title": "Card Scanner",
@@ -94,6 +110,7 @@
     "stats": "Stats",
     "scanner": "Scanner",
     "decks": "Decks",
-    "profile": "Profile"
+    "profile": "Profile",
+    "language": "Language"
   }
 }
