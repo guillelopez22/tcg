@@ -1,9 +1,10 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { TRPCError } from '@trpc/server';
 import { eq, and, gt, ilike, inArray, sql } from 'drizzle-orm';
+import { customAlphabet } from 'nanoid';
 import type Redis from 'ioredis';
 import type { DbClient } from '@la-grieta/db';
-import { decks, deckCards, cards, users, collections } from '@la-grieta/db';
+import { decks, deckCards, cards, users, collections, deckShareCodes } from '@la-grieta/db';
 import type { Deck, DeckCard } from '@la-grieta/db';
 import type {
   DeckListInput,
@@ -14,6 +15,8 @@ import type {
   DeckSetCardsInput,
   DeckBrowseInput,
   DeckSuggestInput,
+  DeckImportTextInput,
+  DeckImportUrlInput,
 } from '@la-grieta/shared';
 import {
   buildPaginatedResult,
@@ -23,8 +26,11 @@ import {
   RUNE_DECK_SIZE,
   SIGNATURE_TYPES,
   getZoneForCardType,
+  autoDetectAndParse,
 } from '@la-grieta/shared';
 import type { PaginatedResult } from '@la-grieta/shared';
+
+const nanoidAlphabet = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
 
 export type DeckCardWithCard = DeckCard & {
   card: {
@@ -88,6 +94,18 @@ export type BuildabilityResult = {
   missingCardIds: string[];
 };
 
+export type ResolvedDeckCardEntry = {
+  cardId: string;
+  quantity: number;
+  zone: 'main' | 'rune' | 'champion';
+};
+
+export type ImportResult = {
+  resolved: ResolvedDeckCardEntry[];
+  unmatched: string[];
+  deckName: string;
+};
+
 @Injectable()
 export class DeckService {
   constructor(
@@ -126,7 +144,7 @@ export class DeckService {
       .orderBy(decks.id)
       .limit(input.limit + 1);
 
-    const rows: DeckWithCover[] = flatRows.map((r) => ({
+    let rows: DeckWithCover[] = flatRows.map((r) => ({
       id: r.id,
       userId: r.userId,
       name: r.name,
@@ -142,6 +160,41 @@ export class DeckService {
         ? { id: r.cover_id, name: r.cover_name, cleanName: r.cover_cleanName, imageSmall: r.cover_imageSmall }
         : null,
     }));
+
+    // Backfill: for decks missing a coverCard, find their Legend card
+    const missingCoverIds = rows.filter((r) => !r.coverCard).map((r) => r.id);
+    if (missingCoverIds.length > 0) {
+      const legendRows = await this.db
+        .select({
+          deckId: deckCards.deckId,
+          cardId: cards.id,
+          cardName: cards.name,
+          cleanName: cards.cleanName,
+          imageSmall: cards.imageSmall,
+          domain: cards.domain,
+        })
+        .from(deckCards)
+        .innerJoin(cards, and(eq(deckCards.cardId, cards.id), eq(cards.cardType, 'Legend')))
+        .where(inArray(deckCards.deckId, missingCoverIds));
+
+      const legendMap = new Map(legendRows.map((r) => [r.deckId, r]));
+
+      rows = rows.map((row) => {
+        if (row.coverCard) return row;
+        const legend = legendMap.get(row.id);
+        if (!legend) return row;
+        // Also persist the fix so it doesn't re-query next time
+        void this.db.update(decks).set({
+          coverCardId: legend.cardId,
+          domain: row.domain ?? (legend.domain?.split(';')[0] ?? null),
+        }).where(eq(decks.id, row.id));
+        return {
+          ...row,
+          coverCard: { id: legend.cardId, name: legend.cardName, cleanName: legend.cleanName, imageSmall: legend.imageSmall },
+          domain: row.domain ?? (legend.domain?.split(';')[0] ?? null),
+        };
+      });
+    }
 
     return buildPaginatedResult(rows, input.limit);
   }
@@ -198,6 +251,8 @@ export class DeckService {
 
     // Compute status from format validation if cards provided
     let status: string = 'draft';
+    let autoCoverCardId: string | null = null;
+    let autoDomain: string | null = null;
     if (input.cards && input.cards.length > 0) {
       const cardTypeMap = await this.buildCardTypeMap(input.cards.map((c) => c.cardId));
       const entries = input.cards.map((c) => ({
@@ -207,6 +262,22 @@ export class DeckService {
       }));
       const errors = validateDeckFormat(entries, cardTypeMap);
       status = errors.length === 0 ? 'complete' : 'draft';
+
+      // Auto-detect coverCardId and domain from Legend card if not provided
+      if (!input.coverCardId) {
+        const legendCardId = input.cards.find((c) => cardTypeMap.get(c.cardId) === 'Legend')?.cardId;
+        if (legendCardId) {
+          autoCoverCardId = legendCardId;
+          const [legendRow] = await this.db
+            .select({ domain: cards.domain })
+            .from(cards)
+            .where(eq(cards.id, legendCardId))
+            .limit(1);
+          if (legendRow?.domain) {
+            autoDomain = legendRow.domain.split(';')[0] ?? null;
+          }
+        }
+      }
     }
 
     const [created] = await this.db
@@ -216,7 +287,8 @@ export class DeckService {
         name: input.name,
         description: input.description ?? null,
         isPublic: input.isPublic ?? false,
-        coverCardId: input.coverCardId ?? null,
+        coverCardId: input.coverCardId ?? autoCoverCardId,
+        domain: autoDomain ?? undefined,
         status,
       })
       .returning();
@@ -390,6 +462,18 @@ export class DeckService {
 
     if (input.search) {
       conditions.push(ilike(decks.name, `%${escapeLike(input.search)}%`));
+    }
+
+    if (input.championName) {
+      const escapedName = escapeLike(input.championName);
+      conditions.push(
+        sql`${decks.id} IN (
+          SELECT dc.deck_id FROM deck_cards dc
+          INNER JOIN cards c ON dc.card_id = c.id
+          WHERE dc.zone = 'champion'
+          AND c.clean_name ILIKE ${`%${escapedName}%`}
+        )`,
+      );
     }
 
     if (input.cursor) {
@@ -707,6 +791,129 @@ export class DeckService {
     await this.redis.setex(cacheKey, 600, JSON.stringify(results));
 
     return results;
+  }
+
+  async generateShareCode(userId: string, deckId: string): Promise<string> {
+    const [deck] = await this.db
+      .select({ id: decks.id, userId: decks.userId, isPublic: decks.isPublic })
+      .from(decks)
+      .where(eq(decks.id, deckId))
+      .limit(1);
+
+    if (!deck) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Deck not found' });
+    }
+
+    if (deck.userId !== userId) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'You do not own this deck' });
+    }
+
+    if (!deck.isPublic) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Only public decks can be shared. Make this deck public first.',
+      });
+    }
+
+    // Try to generate a unique code up to 3 times
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const code = `LG-${nanoidAlphabet()}`;
+      try {
+        await this.db.insert(deckShareCodes).values({ code, deckId });
+        return code;
+      } catch (err) {
+        // Retry on unique violation (code collision, extremely rare)
+        if (
+          err instanceof Error &&
+          err.message.includes('duplicate key') ||
+          (err instanceof Error && err.message.includes('unique constraint'))
+        ) {
+          lastError = err;
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Failed to generate share code after retries',
+      cause: lastError,
+    });
+  }
+
+  async resolveShareCode(code: string): Promise<DeckWithCards> {
+    const [row] = await this.db
+      .select({ deckId: deckShareCodes.deckId })
+      .from(deckShareCodes)
+      .where(eq(deckShareCodes.code, code))
+      .limit(1);
+
+    if (!row) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Deck no longer available' });
+    }
+
+    return this.getById(null, { id: row.deckId });
+  }
+
+  async importFromText(userId: string, input: DeckImportTextInput): Promise<ImportResult> {
+    const parseResult = autoDetectAndParse(input.text);
+
+    // Resolve card names against DB using ILIKE on cleanName
+    const resolved: ResolvedDeckCardEntry[] = [];
+    const unmatched: string[] = [...parseResult.unmatched];
+
+    for (const entry of parseResult.entries) {
+      const [matched] = await this.db
+        .select({ id: cards.id })
+        .from(cards)
+        .where(ilike(cards.cleanName, `%${escapeLike(entry.cardName)}%`))
+        .limit(1);
+
+      if (matched) {
+        resolved.push({ cardId: matched.id, quantity: entry.quantity, zone: entry.zone });
+      } else {
+        unmatched.push(entry.cardName);
+      }
+    }
+
+    return {
+      resolved,
+      unmatched,
+      deckName: input.name ?? 'Imported Deck',
+    };
+  }
+
+  async importFromUrl(userId: string, input: DeckImportUrlInput): Promise<ImportResult> {
+    let text: string;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
+      let response: Response;
+      try {
+        response = await fetch(input.url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const html = await response.text();
+      // Strip HTML tags to extract plain text content
+      text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    } catch {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Could not fetch that URL. Try pasting the deck list text instead.',
+      });
+    }
+
+    return this.importFromText(userId, { text, name: input.name });
   }
 
   private getCardTypesForZone(zone: string): string[] {

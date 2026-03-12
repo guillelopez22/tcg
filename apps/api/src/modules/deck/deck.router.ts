@@ -11,6 +11,10 @@ import {
   deckBrowseSchema,
   deckSuggestSchema,
   deckBuildabilitySchema,
+  shareCodeGenerateSchema,
+  shareCodeResolveSchema,
+  deckImportTextSchema,
+  deckImportUrlSchema,
 } from '@la-grieta/shared';
 
 @Injectable()
@@ -61,6 +65,26 @@ export class DeckRouter {
       buildability: proc
         .input(deckBuildabilitySchema)
         .query(({ ctx, input }) => this.deckService.getBuildability(ctx.userId, input.deckId)),
+
+      // Share code endpoints
+      generateShareCode: proc
+        .input(shareCodeGenerateSchema)
+        .mutation(({ ctx, input }) => this.deckService.generateShareCode(ctx.userId, input.deckId)),
+
+      // resolveShareCode is a QUERY (read-only, no side effects)
+      // Clients should call with .useQuery() or .fetch(), NOT .mutate()
+      resolveShareCode: pub
+        .input(shareCodeResolveSchema)
+        .query(({ input }) => this.deckService.resolveShareCode(input.code)),
+
+      // Import endpoints
+      importFromText: proc
+        .input(deckImportTextSchema)
+        .mutation(({ ctx, input }) => this.deckService.importFromText(ctx.userId, input)),
+
+      importFromUrl: proc
+        .input(deckImportUrlSchema)
+        .mutation(({ ctx, input }) => this.deckService.importFromUrl(ctx.userId, input)),
     });
   }
 }
