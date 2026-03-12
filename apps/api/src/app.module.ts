@@ -3,8 +3,9 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { CoreModule } from './core/core.module';
 import { TrpcModule } from './trpc/trpc.module';
 import { HealthModule } from './modules/health/health.module';
+import { DeckSyncModule } from './modules/deck-sync/deck-sync.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), CoreModule, TrpcModule, HealthModule],
+  imports: [ScheduleModule.forRoot(), CoreModule, TrpcModule, HealthModule, DeckSyncModule],
 })
 export class AppModule {}

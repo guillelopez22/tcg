@@ -11,9 +11,10 @@ import { DeckModule } from '../modules/deck/deck.module';
 import { PriceSyncModule } from '../modules/price-sync/price-sync.module';
 import { ScannerModule } from '../modules/scanner/scanner.module';
 import { DeckRecommendationsModule } from '../modules/deck-recommendations/deck-recommendations.module';
+import { DeckSyncModule } from '../modules/deck-sync/deck-sync.module';
 
 @Module({
-  imports: [TrpcCoreModule, AuthModule, CardModule, UserModule, CollectionModule, WishlistModule, DeckModule, PriceSyncModule, ScannerModule, DeckRecommendationsModule],
+  imports: [TrpcCoreModule, AuthModule, CardModule, UserModule, CollectionModule, WishlistModule, DeckModule, PriceSyncModule, ScannerModule, DeckRecommendationsModule, DeckSyncModule],
   providers: [TrpcRouter],
   controllers: [TrpcController],
   exports: [TrpcCoreModule],
