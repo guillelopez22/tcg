@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-12T23:07:54.894Z"
+stopped_at: Completed 02-01-PLAN.md — Phase 02 Plan 01 Backend Foundation complete
+last_updated: "2026-03-12T23:47:27.113Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
 ---
 
 ---
@@ -92,6 +92,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01.2 P02 | 17 | 3 tasks | 17 files |
 | Phase 01.2 P04 | 6 | 2 tasks | 7 files |
 | Phase 01.2-smart-deck-builder P03 | 15 | 2 tasks | 2 files |
+| Phase 02 P01 | 8 | 2 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,9 @@ Recent decisions affecting current work:
 - [Phase 01.2]: BuildabilitySection uses sequential wishlist.toggle mutations for add-missing — no bulk endpoint needed, matches existing API surface
 - [Phase 01.2-smart-deck-builder]: validateDeckFormat called client-side on every deck state change — identical to server, eliminates divergence risk
 - [Phase 01.2-smart-deck-builder]: choose-build-mode wizard step: owned_first sorts card pool by ownershipSet before rarity; best_fit uses pure rarity order
+- [Phase 02-01]: drawHand uses Fisher-Yates shuffle (Math.random) adequate for preview hands
+- [Phase 02-01]: resolveShareCode registered as tRPC QUERY (read-only) not mutation — callers use .useQuery()
+- [Phase 02-01]: importFromText does NOT create deck — returns resolved+unmatched for client preview first
 
 ### Roadmap Evolution
 
@@ -156,6 +160,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T23:07:54.891Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-deck-builder-enhancements/02-CONTEXT.md
+Last session: 2026-03-12T23:47:27.109Z
+Stopped at: Completed 02-01-PLAN.md — Phase 02 Plan 01 Backend Foundation complete
+Resume file: None
