@@ -23,7 +23,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Deck Builder
 
 - [ ] **DECK-01**: User can build a deck using champion-first workflow (pick champion, then add cards)
-- [ ] **DECK-02**: Deck builder validates format in real time (40 main + 12 runes + 1 champion)
+- [x] **DECK-02**: Deck builder validates format in real time (40 main + 12 runes + 1 champion)
 - [ ] **DECK-03**: User can simulate sample opening hands from their deck
 - [ ] **DECK-04**: User can view deck analytics (energy curve, domain distribution)
 - [ ] **DECK-05**: User can export deck as a short share code
@@ -117,7 +117,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-09 | Phase 1 | Complete |
 | COLL-10 | Phase 1 | Complete |
 | DECK-01 | Phase 2 | Pending |
-| DECK-02 | Phase 2 | Pending |
+| DECK-02 | Phase 2 | Complete |
 | DECK-03 | Phase 2 | Pending |
 | DECK-04 | Phase 2 | Pending |
 | DECK-05 | Phase 2 | Pending |
