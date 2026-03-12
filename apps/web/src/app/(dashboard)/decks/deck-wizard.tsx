@@ -2,6 +2,8 @@
 
 // Deck creation wizard — guides users through building a new deck.
 // Three paths: Suggested (import a trending deck), Build Around Legend, Build From Scratch.
+// Features: tier badges on trending decks, preview step before import, legend search +
+// domain filter, deck summary step after legend-path creation, non-Latin name fallback.
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
@@ -18,8 +20,15 @@ const DOMAIN_COLORS: Record<string, string> = {
   Order: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
 };
 
+const TIER_STYLES: Record<string, string> = {
+  S: 'bg-yellow-500/20 text-yellow-400',
+  A: 'bg-emerald-500/20 text-emerald-400',
+  B: 'bg-blue-500/20 text-blue-400',
+  C: 'bg-zinc-500/20 text-zinc-400',
+};
+
 type WizardPath = null | 'suggested' | 'legend' | 'scratch';
-type WizardStep = 'choose-path' | 'pick-suggested' | 'pick-legend' | 'name-deck';
+type WizardStep = 'choose-path' | 'pick-suggested' | 'preview-suggested' | 'pick-legend' | 'name-deck' | 'deck-summary';
 
 interface DeckWizardProps {
   isOpen: boolean;
@@ -35,13 +44,45 @@ interface LegendCard {
   imageSmall: string | null;
 }
 
+interface DeckSummary {
+  deckId: string;
+  cardCount: number;
+  domainBreakdown: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
+// Non-Latin script helpers
+// ---------------------------------------------------------------------------
+
+function isNonLatinScript(text: string): boolean {
+  return /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(text);
+}
+
+function getDisplayName(rawName: string, domain?: string | null): { primary: string; subtitle: string | null } {
+  const cleaned = rawName.replace(/^\[RD\]\s*/, '');
+  if (isNonLatinScript(cleaned)) {
+    return { primary: domain ? `${domain} Deck` : 'Imported Deck', subtitle: cleaned };
+  }
+  return { primary: cleaned, subtitle: null };
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
   const router = useRouter();
   const [path, setPath] = useState<WizardPath>(null);
   const [step, setStep] = useState<WizardStep>('choose-path');
   const [selectedLegend, setSelectedLegend] = useState<LegendCard | null>(null);
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [deckName, setDeckName] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const [deckSummary, setDeckSummary] = useState<DeckSummary | null>(null);
+
+  // Legend search and domain filter state
+  const [legendSearch, setLegendSearch] = useState('');
+  const [legendDomainFilter, setLegendDomainFilter] = useState<string | null>(null);
 
   // Reset state when opening/closing
   useEffect(() => {
@@ -49,65 +90,59 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
       setPath(null);
       setStep('choose-path');
       setSelectedLegend(null);
+      setSelectedDeckId(null);
       setDeckName('');
       setIsBusy(false);
+      setDeckSummary(null);
+      setLegendSearch('');
+      setLegendDomainFilter(null);
     }
   }, [isOpen]);
 
-  // Fetch legends for the "build around legend" path
-  const { data: allCardsData } = trpc.card.list.useQuery(
-    { limit: 100 },
+  // Fetch legends via the dedicated legends endpoint (single query, replaces 6 chained)
+  const { data: legendsData } = trpc.card.legends.useQuery(
+    undefined,
     { enabled: isOpen, staleTime: Infinity },
   );
-  const { data: allCardsP2 } = trpc.card.list.useQuery(
-    { limit: 100, cursor: allCardsData?.nextCursor ?? undefined },
-    { enabled: isOpen && !!allCardsData?.nextCursor, staleTime: Infinity },
-  );
-  const { data: allCardsP3 } = trpc.card.list.useQuery(
-    { limit: 100, cursor: allCardsP2?.nextCursor ?? undefined },
-    { enabled: isOpen && !!allCardsP2?.nextCursor, staleTime: Infinity },
-  );
-  const { data: allCardsP4 } = trpc.card.list.useQuery(
-    { limit: 100, cursor: allCardsP3?.nextCursor ?? undefined },
-    { enabled: isOpen && !!allCardsP3?.nextCursor, staleTime: Infinity },
-  );
-  const { data: allCardsP5 } = trpc.card.list.useQuery(
-    { limit: 100, cursor: allCardsP4?.nextCursor ?? undefined },
-    { enabled: isOpen && !!allCardsP4?.nextCursor, staleTime: Infinity },
-  );
-  const { data: allCardsP6 } = trpc.card.list.useQuery(
-    { limit: 100, cursor: allCardsP5?.nextCursor ?? undefined },
-    { enabled: isOpen && !!allCardsP5?.nextCursor, staleTime: Infinity },
-  );
 
-  const allCards = useMemo(() => {
-    const pages = [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6];
-    const cards: Array<{ id: string; name: string; cleanName: string; domain: string | null; cardType: string | null; imageSmall: string | null; rarity: string }> = [];
-    for (const page of pages) {
-      if (page?.items) {
-        for (const c of page.items) {
-          if (c.cardType) cards.push(c as typeof cards[number]);
-        }
-      }
-    }
-    return cards;
-  }, [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6]);
-
-  // Deduplicate legends — keep only the base version (no Overnumbered/Alternate Art)
-  const legends = useMemo(() => {
+  // All legends from the endpoint — deduplicate by cleanName (base version only)
+  const allLegends = useMemo((): LegendCard[] => {
+    if (!legendsData) return [];
     const seen = new Set<string>();
-    return allCards
+    return (legendsData as LegendCard[])
       .filter((c) => {
-        if (c.cardType !== 'Legend') return false;
-        // Skip alt-art and overnumbered variants by checking name suffix
         if (c.name.includes('(Overnumbered)') || c.name.includes('(Alternate Art)')) return false;
-        // Deduplicate by cleanName
         if (seen.has(c.cleanName)) return false;
         seen.add(c.cleanName);
         return true;
       })
-      .sort((a, b) => a.name.localeCompare(b.name)) as LegendCard[];
-  }, [allCards]);
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [legendsData]);
+
+  // Unique domains across all legends (for filter chips)
+  const legendDomains = useMemo(() => {
+    const domains = new Set<string>();
+    for (const legend of allLegends) {
+      for (const d of legend.domain.split(';')) {
+        if (d) domains.add(d);
+      }
+    }
+    return Array.from(domains).sort();
+  }, [allLegends]);
+
+  // Client-side filtered legends
+  const legends = useMemo(() => {
+    return allLegends.filter((legend) => {
+      const searchMatch = legendSearch
+        ? legend.cleanName.toLowerCase().includes(legendSearch.toLowerCase()) ||
+          legend.name.toLowerCase().includes(legendSearch.toLowerCase())
+        : true;
+      const domainMatch = legendDomainFilter
+        ? legend.domain.split(';').includes(legendDomainFilter)
+        : true;
+      return searchMatch && domainMatch;
+    });
+  }, [allLegends, legendSearch, legendDomainFilter]);
 
   // Fetch trending decks for the "suggested" path
   const { data: trendingData } = trpc.deck.browse.useQuery(
@@ -116,36 +151,85 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
   );
   const trendingDecks = trendingData?.items ?? [];
 
-  const utils = trpc.useUtils();
+  // Fetch selected deck for preview step
+  const { data: previewDeck, isLoading: isPreviewLoading } = trpc.deck.getById.useQuery(
+    { id: selectedDeckId ?? '' },
+    { enabled: !!selectedDeckId && step === 'preview-suggested', staleTime: 60_000 },
+  );
+
+  // Group preview deck cards by cardType
+  const previewCardGroups = useMemo(() => {
+    if (!previewDeck?.cards) return {};
+    const groups: Record<string, { name: string; quantity: number }[]> = {};
+    for (const dc of previewDeck.cards) {
+      const type = dc.card.cardType ?? 'Other';
+      if (!groups[type]) groups[type] = [];
+      groups[type].push({ name: dc.card.name, quantity: dc.quantity });
+    }
+    return groups;
+  }, [previewDeck]);
+
   const createDeck = trpc.deck.create.useMutation();
   const setCards = trpc.deck.setCards.useMutation();
 
-  // Build a starter deck around a legend's domains
-  function buildStarterCards(legend: LegendCard): Array<{ cardId: string; quantity: number }> {
+  // We still need allCards for buildStarterCardsFromPool. Load them lazily only when legend path is active.
+  const { data: allCardsData } = trpc.card.list.useQuery(
+    { limit: 100 },
+    { enabled: isOpen && path === 'legend', staleTime: Infinity },
+  );
+  const { data: allCardsP2 } = trpc.card.list.useQuery(
+    { limit: 100, cursor: allCardsData?.nextCursor ?? undefined },
+    { enabled: isOpen && path === 'legend' && !!allCardsData?.nextCursor, staleTime: Infinity },
+  );
+  const { data: allCardsP3 } = trpc.card.list.useQuery(
+    { limit: 100, cursor: allCardsP2?.nextCursor ?? undefined },
+    { enabled: isOpen && path === 'legend' && !!allCardsP2?.nextCursor, staleTime: Infinity },
+  );
+  const { data: allCardsP4 } = trpc.card.list.useQuery(
+    { limit: 100, cursor: allCardsP3?.nextCursor ?? undefined },
+    { enabled: isOpen && path === 'legend' && !!allCardsP3?.nextCursor, staleTime: Infinity },
+  );
+  const { data: allCardsP5 } = trpc.card.list.useQuery(
+    { limit: 100, cursor: allCardsP4?.nextCursor ?? undefined },
+    { enabled: isOpen && path === 'legend' && !!allCardsP4?.nextCursor, staleTime: Infinity },
+  );
+  const { data: allCardsP6 } = trpc.card.list.useQuery(
+    { limit: 100, cursor: allCardsP5?.nextCursor ?? undefined },
+    { enabled: isOpen && path === 'legend' && !!allCardsP5?.nextCursor, staleTime: Infinity },
+  );
+
+  const allCards = useMemo(() => {
+    const pages = [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6];
+    const cardArr: Array<{ id: string; name: string; cleanName: string; domain: string | null; cardType: string | null; imageSmall: string | null; rarity: string }> = [];
+    for (const page of pages) {
+      if (page?.items) {
+        for (const c of page.items) {
+          if (c.cardType) cardArr.push(c as typeof cardArr[number]);
+        }
+      }
+    }
+    return cardArr;
+  }, [allCardsData, allCardsP2, allCardsP3, allCardsP4, allCardsP5, allCardsP6]);
+
+  function buildStarterCardsFromPool(legend: LegendCard): Array<{ cardId: string; quantity: number }> {
     const domains = legend.domain.split(';');
-    // Get cards that match any of the legend's domains (excluding other legends and tokens)
     const pool = allCards.filter((c) => {
       if (c.id === legend.id) return false;
       if (c.cardType === 'Legend' || c.cardType === 'Token') return false;
       if (!c.domain) return false;
-      // Card matches if its domain is one of the legend's domains, or contains one
       return domains.some((d) => c.domain?.includes(d));
     });
 
-    // Sort by rarity priority (prefer rares/epics for a more interesting deck)
     const rarityOrder: Record<string, number> = { Legendary: 0, Epic: 1, Rare: 2, Uncommon: 3, Common: 4 };
     pool.sort((a, b) => (rarityOrder[a.rarity] ?? 5) - (rarityOrder[b.rarity] ?? 5));
 
     const cards: Array<{ cardId: string; quantity: number }> = [];
-    // Add the legend itself
     cards.push({ cardId: legend.id, quantity: 1 });
     let total = 1;
-    const MAX = 40; // Start with 40 cards, user can tweak
+    const MAX = 40;
 
-    // Add unique cards with quantity based on rarity
     for (const card of pool) {
       if (total >= MAX) break;
-      // Skip if already added (shouldn't happen, but safety)
       if (cards.some((c) => c.cardId === card.id)) continue;
       const qty = card.rarity === 'Common' || card.rarity === 'Uncommon' ? 2 : 1;
       const actualQty = Math.min(qty, MAX - total);
@@ -162,19 +246,29 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     if (!selectedLegend || !deckName.trim()) return;
     setIsBusy(true);
     try {
-      const starterCards = buildStarterCards(selectedLegend);
-      const domain = selectedLegend.domain.split(';')[0] ?? undefined;
+      const starterCards = buildStarterCardsFromPool(selectedLegend);
       const deck = await createDeck.mutateAsync({
         name: deckName.trim(),
         cards: starterCards,
-        ...(domain ? {} : {}),
       });
-      // Set the cover card to the legend and domain
-      await setCards.mutateAsync({ id: deck.id, cards: starterCards });
-      toast.success('Deck created! Customize it in the editor.');
+      await setCards.mutateAsync({ deckId: deck.id, cards: starterCards });
+
+      // Compute domain breakdown for summary
+      const domainBreakdown: Record<string, number> = {};
+      for (const sc of starterCards) {
+        const card = allCards.find((c) => c.id === sc.cardId);
+        if (card?.domain) {
+          const primaryDomain = card.domain.split(';')[0];
+          if (primaryDomain) {
+            domainBreakdown[primaryDomain] = (domainBreakdown[primaryDomain] ?? 0) + sc.quantity;
+          }
+        }
+      }
+
+      const totalCards = starterCards.reduce((sum, sc) => sum + sc.quantity, 0);
+      setDeckSummary({ deckId: deck.id, cardCount: totalCards, domainBreakdown });
       onCreated();
-      onClose();
-      router.push(`/decks/${deck.id}`);
+      setStep('deck-summary');
     } catch {
       toast.error('Failed to create deck');
     } finally {
@@ -198,13 +292,13 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     }
   }
 
-  async function handleImportDeck(deckId: string) {
+  async function handleConfirmImport() {
+    if (!selectedDeckId || !previewDeck) return;
     setIsBusy(true);
     try {
-      const fullDeck = await utils.deck.getById.fetch({ id: deckId });
-      if (!fullDeck) throw new Error('Deck not found');
-      const cards = fullDeck.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity }));
-      const name = fullDeck.name.replace(/^\[RD\]\s*/, '');
+      const cards = previewDeck.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity }));
+      const rawName = previewDeck.name;
+      const { primary: name } = getDisplayName(rawName, previewDeck.domain?.split(';')[0]);
       const deck = await createDeck.mutateAsync({ name, cards });
       toast.success('Deck imported! You can customize it.');
       onCreated();
@@ -231,6 +325,9 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     if (step === 'name-deck' && path === 'legend') {
       setStep('pick-legend');
       setDeckName('');
+    } else if (step === 'preview-suggested') {
+      setSelectedDeckId(null);
+      setStep('pick-suggested');
     } else {
       setStep('choose-path');
       setPath(null);
@@ -246,7 +343,21 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     setStep('name-deck');
   }
 
+  function handleSelectTrendingDeck(deckId: string) {
+    setSelectedDeckId(deckId);
+    setStep('preview-suggested');
+  }
+
   if (!isOpen) return null;
+
+  const stepTitle: Record<WizardStep, string> = {
+    'choose-path': 'New Deck',
+    'pick-suggested': 'Pick a Deck',
+    'preview-suggested': 'Preview Deck',
+    'pick-legend': 'Choose Your Legend',
+    'name-deck': 'Name Your Deck',
+    'deck-summary': 'Deck Created!',
+  };
 
   return (
     <div className="lg-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -254,19 +365,14 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-surface-border flex-shrink-0">
           <div className="flex items-center gap-2">
-            {step !== 'choose-path' && (
+            {step !== 'choose-path' && step !== 'deck-summary' && (
               <button onClick={handleBack} className="lg-btn-ghost p-1.5" aria-label="Back">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
             )}
-            <h2 className="lg-page-title text-base">
-              {step === 'choose-path' && 'New Deck'}
-              {step === 'pick-suggested' && 'Pick a Deck'}
-              {step === 'pick-legend' && 'Choose Your Legend'}
-              {step === 'name-deck' && 'Name Your Deck'}
-            </h2>
+            <h2 className="lg-page-title text-base">{stepTitle[step]}</h2>
           </div>
           <button onClick={onClose} className="lg-btn-ghost p-1.5" aria-label="Close">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -339,7 +445,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
           {/* Step 2a: Pick a suggested/trending deck */}
           {step === 'pick-suggested' && (
             <div className="space-y-3">
-              <p className="lg-text-muted text-sm mb-2">Pick a meta deck to import as your own. You can edit it after.</p>
+              <p className="lg-text-muted text-sm mb-2">Pick a meta deck to preview and import as your own. You can edit it after.</p>
               {trendingDecks.length === 0 && (
                 <div className="text-center py-8">
                   <div className="lg-spinner-sm mx-auto mb-2" />
@@ -347,13 +453,14 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                 </div>
               )}
               {trendingDecks.map((deck) => {
-                const displayName = deck.name.replace(/^\[RD\]\s*/, '');
                 const domainPrimary = deck.domain?.split(';')[0] ?? null;
+                const { primary: displayName, subtitle } = getDisplayName(deck.name, domainPrimary);
                 const cls = (domainPrimary && DOMAIN_COLORS[domainPrimary]) ?? 'text-zinc-400 bg-zinc-400/10 border-zinc-400/30';
+                const tierStyle = deck.tier ? (TIER_STYLES[deck.tier] ?? TIER_STYLES['C']) : null;
                 return (
                   <button
                     key={deck.id}
-                    onClick={() => void handleImportDeck(deck.id)}
+                    onClick={() => handleSelectTrendingDeck(deck.id)}
                     disabled={isBusy}
                     className="w-full text-left rounded-xl border border-surface-border bg-surface-card p-3 hover:border-rift-600/50 transition-all disabled:opacity-50"
                   >
@@ -366,7 +473,17 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{displayName}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-white truncate">{displayName}</p>
+                          {deck.tier && tierStyle && (
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${tierStyle}`}>
+                              {deck.tier}
+                            </span>
+                          )}
+                        </div>
+                        {subtitle && (
+                          <p className="text-[10px] text-zinc-500 truncate mt-0.5">{subtitle}</p>
+                        )}
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {domainPrimary && (
                             <span className={`lg-badge border text-[10px] font-semibold ${cls}`}>
@@ -381,7 +498,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                         </div>
                       </div>
                       <svg className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </div>
                   </button>
@@ -390,14 +507,106 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
             </div>
           )}
 
-          {/* Step 2b: Pick a legend */}
+          {/* Step 2a-preview: Preview a trending deck before importing */}
+          {step === 'preview-suggested' && (
+            <div className="space-y-4">
+              {isPreviewLoading || !previewDeck ? (
+                <div className="text-center py-8">
+                  <div className="lg-spinner-sm mx-auto mb-2" />
+                  <p className="lg-text-muted text-sm">Loading deck...</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    {(() => {
+                      const domainPrimary = previewDeck.domain?.split(';')[0] ?? null;
+                      const { primary: displayName, subtitle } = getDisplayName(previewDeck.name, domainPrimary);
+                      return (
+                        <div className="mb-3">
+                          <h3 className="text-base font-semibold text-white">{displayName}</h3>
+                          {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
+                          <p className="text-xs text-zinc-500 mt-1">{previewDeck.cards.length} card types</p>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Cards grouped by type */}
+                    <div className="space-y-3">
+                      {Object.entries(previewCardGroups).map(([type, typeCards]) => (
+                        <div key={type} className="rounded-lg border border-surface-border bg-surface-card/50 p-3">
+                          <p className="text-xs font-semibold text-zinc-400 mb-2">
+                            {type} <span className="text-zinc-600">({typeCards.reduce((s, c) => s + c.quantity, 0)})</span>
+                          </p>
+                          <div className="space-y-1">
+                            {typeCards.map((c) => (
+                              <div key={c.name} className="flex items-center justify-between">
+                                <span className="text-xs text-white">{c.name}</span>
+                                <span className="text-xs text-zinc-500 tabular-nums">x{c.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => void handleConfirmImport()}
+                    disabled={isBusy}
+                    className="lg-btn-primary w-full py-3 disabled:opacity-50"
+                  >
+                    {isBusy ? 'Importing...' : 'Confirm Import'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Step 2b: Pick a legend with search + domain filters */}
           {step === 'pick-legend' && (
             <div className="space-y-3">
               <p className="lg-text-muted text-sm mb-2">Choose a Legend to build your deck around.</p>
+
+              {/* Search input */}
+              <input
+                type="text"
+                placeholder="Search legends..."
+                className="lg-input w-full"
+                value={legendSearch}
+                onChange={(e) => setLegendSearch(e.target.value)}
+              />
+
+              {/* Domain filter chips */}
+              {legendDomains.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {legendDomains.map((domain) => {
+                    const cls = DOMAIN_COLORS[domain] ?? 'text-zinc-400 bg-zinc-400/10 border-zinc-400/30';
+                    const isActive = legendDomainFilter === domain;
+                    return (
+                      <button
+                        key={domain}
+                        onClick={() => setLegendDomainFilter(isActive ? null : domain)}
+                        className={`text-xs px-2 py-1 rounded-full border font-medium transition-all ${cls} ${
+                          isActive ? 'ring-2 ring-current ring-offset-1 ring-offset-transparent' : 'opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        {domain}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {legends.length === 0 && (
                 <div className="text-center py-8">
-                  <div className="lg-spinner-sm mx-auto mb-2" />
-                  <p className="lg-text-muted text-sm">Loading legends...</p>
+                  {allLegends.length === 0 ? (
+                    <>
+                      <div className="lg-spinner-sm mx-auto mb-2" />
+                      <p className="lg-text-muted text-sm">Loading legends...</p>
+                    </>
+                  ) : (
+                    <p className="lg-text-muted text-sm">No legends match your search.</p>
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -510,6 +719,48 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                     : 'Create Empty Deck'}
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* Step 5: Deck summary (after legend-path creation) */}
+          {step === 'deck-summary' && deckSummary && (
+            <div className="space-y-4">
+              <div className="text-center py-4">
+                <div className="w-16 h-16 rounded-full bg-green-900/30 text-green-400 flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">Deck Created!</h3>
+                <p className="text-sm text-zinc-400 mt-1">{deckSummary.cardCount} cards added as a starting point</p>
+              </div>
+
+              {/* Domain breakdown */}
+              {Object.keys(deckSummary.domainBreakdown).length > 0 && (
+                <div>
+                  <p className="text-xs text-zinc-500 mb-2">Domain breakdown</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(deckSummary.domainBreakdown).map(([domain, count]) => {
+                      const cls = DOMAIN_COLORS[domain] ?? 'text-zinc-400 bg-zinc-400/10 border-zinc-400/30';
+                      return (
+                        <span key={domain} className={`text-xs px-2 py-1 rounded-full border font-medium tabular-nums ${cls}`}>
+                          {domain} {count}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  onClose();
+                  router.push(`/decks/${deckSummary.deckId}`);
+                }}
+                className="lg-btn-primary w-full py-3"
+              >
+                Go to Editor
+              </button>
             </div>
           )}
 
