@@ -17,6 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Constants
 __exportStar(require("./constants/card.constants"), exports);
 __exportStar(require("./constants/listing.constants"), exports);
+__exportStar(require("./constants/match.constants"), exports);
 __exportStar(require("./constants/order.constants"), exports);
 // Schemas
 __exportStar(require("./schemas/auth.schema"), exports);
@@ -24,6 +25,8 @@ __exportStar(require("./schemas/card.schema"), exports);
 __exportStar(require("./schemas/collection.schema"), exports);
 __exportStar(require("./schemas/deck.schema"), exports);
 __exportStar(require("./schemas/listing.schema"), exports);
+__exportStar(require("./schemas/match.schema"), exports);
+__exportStar(require("./schemas/news.schema"), exports);
 __exportStar(require("./schemas/order.schema"), exports);
 __exportStar(require("./schemas/user.schema"), exports);
 __exportStar(require("./schemas/wishlist.schema"), exports);

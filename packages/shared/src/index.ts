@@ -1,6 +1,7 @@
 // Constants
 export * from './constants/card.constants';
 export * from './constants/listing.constants';
+export * from './constants/match.constants';
 export * from './constants/order.constants';
 
 // Schemas
@@ -9,6 +10,8 @@ export * from './schemas/card.schema';
 export * from './schemas/collection.schema';
 export * from './schemas/deck.schema';
 export * from './schemas/listing.schema';
+export * from './schemas/match.schema';
+export * from './schemas/news.schema';
 export * from './schemas/order.schema';
 export * from './schemas/user.schema';
 export * from './schemas/wishlist.schema';

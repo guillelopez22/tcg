@@ -10,6 +10,8 @@ import { decks, deckCards } from './schema/decks';
 import { deckShareCodes } from './schema/deck-share-codes';
 import { listings } from './schema/listings';
 import { orders } from './schema/orders';
+import { matchSessions } from './schema/match-sessions';
+import { matchPlayers } from './schema/match-players';
 
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
@@ -77,4 +79,12 @@ export const ordersRelations = relations(orders, ({ one }) => ({
   buyer: one(users, { fields: [orders.buyerId], references: [users.id], relationName: 'buyer' }),
   seller: one(users, { fields: [orders.sellerId], references: [users.id], relationName: 'seller' }),
   listing: one(listings, { fields: [orders.listingId], references: [listings.id] }),
+}));
+
+export const matchSessionsRelations = relations(matchSessions, ({ many }) => ({
+  players: many(matchPlayers),
+}));
+
+export const matchPlayersRelations = relations(matchPlayers, ({ one }) => ({
+  session: one(matchSessions, { fields: [matchPlayers.sessionId], references: [matchSessions.id] }),
 }));

@@ -8,6 +8,20 @@
       "when": 1773274543439,
       "tag": "0000_spicy_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773360398679,
+      "tag": "0001_salty_ego",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773369909000,
+      "tag": "0002_match_and_news",
+      "breakpoints": true
     }
   ]
 }

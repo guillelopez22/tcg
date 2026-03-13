@@ -10,3 +10,6 @@ export * from './decks';
 export * from './deck-share-codes';
 export * from './listings';
 export * from './orders';
+export * from './match-sessions';
+export * from './match-players';
+export * from './news-articles';

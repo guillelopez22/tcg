@@ -1,0 +1,115 @@
+{
+  "id": "f4a2d8c1-3e5b-4f6a-9b7c-0d1e2a3b4c5d",
+  "prevId": "e705ec97-80ab-4397-b0f4-753a0a8b0c66",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.match_sessions": {
+      "name": "match_sessions",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "code": { "name": "code", "type": "varchar(12)", "primaryKey": false, "notNull": true },
+        "format": { "name": "format", "type": "match_format", "typeSchema": "public", "primaryKey": false, "notNull": true },
+        "status": { "name": "status", "type": "match_status", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'waiting'" },
+        "host_user_id": { "name": "host_user_id", "type": "uuid", "primaryKey": false, "notNull": false },
+        "win_target": { "name": "win_target", "type": "integer", "primaryKey": false, "notNull": true },
+        "state": { "name": "state", "type": "jsonb", "primaryKey": false, "notNull": true, "default": "'{}'::jsonb" },
+        "winner_id": { "name": "winner_id", "type": "varchar(50)", "primaryKey": false, "notNull": false },
+        "started_at": { "name": "started_at", "type": "timestamp", "primaryKey": false, "notNull": false },
+        "ended_at": { "name": "ended_at", "type": "timestamp", "primaryKey": false, "notNull": false },
+        "created_at": { "name": "created_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" },
+        "updated_at": { "name": "updated_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "idx_match_sessions_code": { "name": "idx_match_sessions_code", "columns": [{ "expression": "code", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": true, "concurrently": false, "method": "btree", "with": {} },
+        "idx_match_sessions_host_user_id": { "name": "idx_match_sessions_host_user_id", "columns": [{ "expression": "host_user_id", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": false, "concurrently": false, "method": "btree", "with": {} },
+        "idx_match_sessions_status": { "name": "idx_match_sessions_status", "columns": [{ "expression": "status", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": false, "concurrently": false, "method": "btree", "with": {} }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": { "match_sessions_code_unique": { "name": "match_sessions_code_unique", "nullsNotDistinct": false, "columns": ["code"] } },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.match_players": {
+      "name": "match_players",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "session_id": { "name": "session_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "user_id": { "name": "user_id", "type": "uuid", "primaryKey": false, "notNull": false },
+        "guest_name": { "name": "guest_name", "type": "varchar(100)", "primaryKey": false, "notNull": false },
+        "display_name": { "name": "display_name", "type": "varchar(100)", "primaryKey": false, "notNull": true },
+        "role": { "name": "role", "type": "player_role", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'player'" },
+        "team_id": { "name": "team_id", "type": "integer", "primaryKey": false, "notNull": false },
+        "color": { "name": "color", "type": "varchar(20)", "primaryKey": false, "notNull": true },
+        "final_score": { "name": "final_score", "type": "integer", "primaryKey": false, "notNull": false },
+        "is_winner": { "name": "is_winner", "type": "boolean", "primaryKey": false, "notNull": true, "default": false },
+        "joined_at": { "name": "joined_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "idx_match_players_session_id": { "name": "idx_match_players_session_id", "columns": [{ "expression": "session_id", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": false, "concurrently": false, "method": "btree", "with": {} },
+        "idx_match_players_user_id": { "name": "idx_match_players_user_id", "columns": [{ "expression": "user_id", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": false, "concurrently": false, "method": "btree", "with": {} }
+      },
+      "foreignKeys": {
+        "match_players_session_id_match_sessions_id_fk": {
+          "name": "match_players_session_id_match_sessions_id_fk",
+          "tableFrom": "match_players",
+          "tableTo": "match_sessions",
+          "schemaTo": "public",
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.news_articles": {
+      "name": "news_articles",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "url": { "name": "url", "type": "varchar(500)", "primaryKey": false, "notNull": true },
+        "title": { "name": "title", "type": "varchar(300)", "primaryKey": false, "notNull": true },
+        "excerpt": { "name": "excerpt", "type": "text", "primaryKey": false, "notNull": false },
+        "thumbnail_url": { "name": "thumbnail_url", "type": "varchar(500)", "primaryKey": false, "notNull": false },
+        "source": { "name": "source", "type": "varchar(100)", "primaryKey": false, "notNull": true },
+        "published_at": { "name": "published_at", "type": "timestamp", "primaryKey": false, "notNull": false },
+        "scraped_at": { "name": "scraped_at", "type": "timestamp", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {
+        "idx_news_articles_url": { "name": "idx_news_articles_url", "columns": [{ "expression": "url", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": true, "concurrently": false, "method": "btree", "with": {} },
+        "idx_news_articles_scraped_at": { "name": "idx_news_articles_scraped_at", "columns": [{ "expression": "scraped_at", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": false, "concurrently": false, "method": "btree", "with": {} },
+        "idx_news_articles_published_at": { "name": "idx_news_articles_published_at", "columns": [{ "expression": "published_at", "isExpression": false, "asc": true, "nulls": "last" }], "isUnique": false, "concurrently": false, "method": "btree", "with": {} }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": { "news_articles_url_unique": { "name": "news_articles_url_unique", "nullsNotDistinct": false, "columns": ["url"] } },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.match_format": { "name": "match_format", "schema": "public", "values": ["1v1", "2v2", "ffa"] },
+    "public.match_status": { "name": "match_status", "schema": "public", "values": ["waiting", "active", "completed", "abandoned"] },
+    "public.player_role": { "name": "player_role", "schema": "public", "values": ["player", "spectator"] }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
