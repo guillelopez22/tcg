@@ -11,14 +11,26 @@ type MatchSummary = inferRouterOutputs<AppRouter>['match']['history']['items'][n
 const FORMAT_LABELS: Record<string, string> = {
   '1v1': '1v1',
   '2v2': '2v2',
-  'ffa': 'FFA',
+  ffa: 'FFA',
 };
 
 const FORMAT_BADGE_COLORS: Record<string, string> = {
   '1v1': 'bg-blue-900/30 text-blue-400 border-blue-700/40',
-  '2v2': 'bg-purple-900/30 text-purple-400 border-purple-700/40',
-  'ffa': 'bg-amber-900/30 text-amber-400 border-amber-700/40',
+  '2v2': 'bg-green-900/30 text-green-400 border-green-700/40',
+  ffa: 'bg-amber-900/30 text-amber-400 border-amber-700/40',
 };
+
+function formatDuration(startedAt: string | Date | null, endedAt: string | Date | null): string | null {
+  if (!startedAt || !endedAt) return null;
+  const start = new Date(startedAt);
+  const end = new Date(endedAt);
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs <= 0) return null;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
 
 function RelativeDate({ date }: { date: Date | string | null }) {
   if (!date) return null;
@@ -32,58 +44,88 @@ function RelativeDate({ date }: { date: Date | string | null }) {
   return <>{d.toLocaleDateString()}</>;
 }
 
+// History endpoint only returns matches where current user is a player.
+// isWinner is set per-player on the MatchSummary from the server.
+function WinIndicator({ match }: { match: MatchSummary }) {
+  if (match.status === 'active' || match.status === 'waiting') {
+    return <span className="text-zinc-500 text-xs" aria-label="In progress">Live</span>;
+  }
+  // Check if any player with isWinner=true exists (the current user might be that player)
+  const hasWinner = match.players.some((p) => p.isWinner);
+  if (!hasWinner && match.status !== 'abandoned') {
+    return <span className="text-zinc-400 text-xs" aria-label="Draw">Draw</span>;
+  }
+  return null;
+}
+
 function MatchHistoryItem({ match }: { match: MatchSummary }) {
   const playerNames = match.players.map((p) => p.displayName).join(' vs ');
   const winner = match.players.find((p) => p.isWinner);
   const isConcession = match.status === 'abandoned';
+  const duration = formatDuration(match.startedAt, match.endedAt);
 
   return (
-    <div className="lg-card p-4 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`lg-badge border text-xs font-medium ${FORMAT_BADGE_COLORS[match.format] ?? 'bg-zinc-800/50 text-zinc-300 border-zinc-700'}`}>
-            {FORMAT_LABELS[match.format] ?? match.format}
-          </span>
-          {isConcession && (
-            <span className="lg-badge bg-red-900/30 text-red-400 border-red-700/40 border text-xs">
-              Concession
+    <Link href={`/match/${match.id}`} className="block">
+      <div className="lg-card p-4 space-y-2 hover:border-zinc-600 transition-colors cursor-pointer">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`lg-badge border text-xs font-medium ${FORMAT_BADGE_COLORS[match.format] ?? 'bg-zinc-800/50 text-zinc-300 border-zinc-700'}`}
+            >
+              {FORMAT_LABELS[match.format] ?? match.format}
             </span>
-          )}
-          {winner && (
-            <span className="lg-badge bg-green-900/30 text-green-400 border-green-700/40 border text-xs">
-              {winner.displayName} won
+            {isConcession && (
+              <span className="lg-badge bg-red-900/30 text-red-400 border-red-700/40 border text-xs">
+                Concession
+              </span>
+            )}
+            {winner && !isConcession && (
+              <span className="lg-badge bg-green-900/30 text-green-400 border-green-700/40 border text-xs">
+                {winner.displayName} won
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <WinIndicator match={match} />
+            <span className="text-zinc-500 text-xs">
+              <RelativeDate date={match.endedAt ?? match.startedAt} />
             </span>
+          </div>
+        </div>
+
+        <div className="text-sm text-white">{playerNames}</div>
+
+        <div className="flex items-center gap-3 text-xs text-zinc-500">
+          {duration && <span>{duration}</span>}
+          {match.players.some((p) => p.finalScore !== null) && (
+            <div className="flex gap-2">
+              {match.players.map((p, i) => (
+                <span key={i} className={p.isWinner ? 'text-green-400 font-medium' : 'text-zinc-400'}>
+                  {p.displayName}: {p.finalScore ?? 0}
+                </span>
+              ))}
+            </div>
           )}
         </div>
-        <span className="text-zinc-500 text-xs shrink-0">
-          <RelativeDate date={match.endedAt ?? match.startedAt} />
-        </span>
       </div>
-
-      <div className="text-sm text-white">{playerNames}</div>
-
-      {match.players.some((p) => p.finalScore !== null) && (
-        <div className="flex gap-2 text-xs text-zinc-400">
-          {match.players.map((p, i) => (
-            <span key={i} className={p.isWinner ? 'text-green-400 font-medium' : ''}>
-              {p.displayName}: {p.finalScore ?? 0}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
+    </Link>
   );
 }
 
 export default function MatchPage() {
   const { user } = useAuth();
 
-  const { data: historyData, isLoading } = trpc.match.history.useQuery(
-    { limit: 20 },
-    { enabled: !!user },
-  );
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    trpc.match.history.useInfiniteQuery(
+      { limit: 20 },
+      {
+        enabled: !!user,
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+        initialCursor: undefined,
+      },
+    );
 
-  const matches = historyData?.items ?? [];
+  const matches = data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <div className="space-y-6">
@@ -133,6 +175,16 @@ export default function MatchPage() {
             {matches.map((match) => (
               <MatchHistoryItem key={match.id} match={match} />
             ))}
+
+            {hasNextPage && (
+              <button
+                onClick={() => void fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="lg-btn-secondary w-full py-2 text-sm"
+              >
+                {isFetchingNextPage ? 'Loading...' : 'Load More'}
+              </button>
+            )}
           </div>
         )}
       </div>
