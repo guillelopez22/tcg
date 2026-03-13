@@ -93,7 +93,7 @@ Plans:
   3. Opponent can join a synced session by scanning a QR code without creating an account, and both screens show the same score in real time
   4. Authenticated users can view their match history after a session ends
   5. The news section displays Riftbound community updates and announcements
-**Plans:** 5/5 plans complete
+**Plans:** 7 plans (5 complete + 2 gap closure)
 
 Plans:
 - [ ] 03-01-PLAN.md — DB schema + shared Zod schemas + constants + TDD scoring engine
@@ -101,6 +101,8 @@ Plans:
 - [ ] 03-03-PLAN.md — Match setup wizard UI + QR join page + nav integration
 - [ ] 03-04-PLAN.md — Match gameplay board UI (battlefields, scoring, turns, celebration)
 - [ ] 03-05-PLAN.md — Match history detail + news feed + i18n + verification checkpoint
+- [ ] 03-06-PLAN.md — (GAP) Icon fix, deck import zone correction, news sync startup
+- [ ] 03-07-PLAN.md — (GAP) Match wizard deck selection + guest champion unit flow
 
 ### Phase 4: Tournament Manager
 **Goal**: A tournament organizer can register players, generate correct Swiss pairings with bye handling, and run the full tournament offline — with state that survives a browser crash and syncs to the server when connectivity returns
@@ -137,6 +139,6 @@ Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
 | 1.1 Collection UX Polish | 3/3 | Complete |  |
 | 1.2 Smart Deck Builder | 0/4 | Not started | - |
 | 2. Deck Builder Enhancements | 2/3 | In Progress|  |
-| 3. Points Tracker | 5/5 | Complete   | 2026-03-13 |
+| 3. Points Tracker | 5/7 | Gap closure | 2026-03-13 |
 | 4. Tournament Manager | 0/? | Not started | - |
 | 5. WhatsApp Marketplace | 0/? | Not started | - |
