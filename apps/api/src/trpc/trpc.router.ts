@@ -10,6 +10,8 @@ import { PriceSyncRouter } from '../modules/price-sync/price-sync.router';
 import { ScannerRouter } from '../modules/scanner/scanner.router';
 import { DeckRecommendationsRouter } from '../modules/deck-recommendations/deck-recommendations.router';
 import { DeckSyncRouter } from '../modules/deck-sync/deck-sync.router';
+import { MatchRouter } from '../modules/match/match.router';
+import { NewsRouter } from '../modules/news/news.router';
 
 @Injectable()
 export class TrpcRouter {
@@ -25,6 +27,8 @@ export class TrpcRouter {
     private readonly scannerRouter: ScannerRouter,
     private readonly deckRecommendationsRouter: DeckRecommendationsRouter,
     private readonly deckSyncRouter: DeckSyncRouter,
+    private readonly matchRouter: MatchRouter,
+    private readonly newsRouter: NewsRouter,
   ) {}
 
   buildRouter() {
@@ -43,6 +47,8 @@ export class TrpcRouter {
       scanner: this.scannerRouter.buildRouter(),
       deckRecommendations: this.deckRecommendationsRouter.buildRouter(),
       deckSync: this.deckSyncRouter.buildRouter(),
+      match: this.matchRouter.buildRouter(),
+      news: this.newsRouter.buildRouter(),
     });
   }
 }

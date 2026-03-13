@@ -231,7 +231,7 @@ const PHASE_CYCLE: Record<string, MatchPhaseInput> = {
  * Advance to the next ABCD phase. Wraps D -> A.
  */
 export function advancePhase(current: MatchPhaseInput): MatchPhaseInput {
-  return PHASE_CYCLE[current];
+  return PHASE_CYCLE[current] ?? 'A';
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +253,7 @@ export function advanceTurn(state: MatchState): MatchState {
   return {
     ...state,
     turnNumber: state.turnNumber + 1,
-    activePlayerId: playerIds[nextIdx],
+    activePlayerId: playerIds[nextIdx] as string,
     phase: 'A',
     conqueredThisTurn: [],
   };
