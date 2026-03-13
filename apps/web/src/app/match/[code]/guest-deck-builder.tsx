@@ -10,7 +10,9 @@ import {
   MAX_SIGNATURE_COPIES,
   MAIN_DECK_SIZE,
   RUNE_DECK_SIZE,
+  LEGEND_COUNT,
   CHAMPION_COUNT,
+  BATTLEFIELD_COUNT,
   SIDEBOARD_SIZE,
   SIGNATURE_TYPES,
   getZoneForCardType,
@@ -57,18 +59,28 @@ interface GuestDeckBuilderProps {
 const ZONE_LABELS: Record<DeckZone, string> = {
   main: 'Main',
   rune: 'Runes',
+  legend: 'Legend',
   champion: 'Champion',
+  battlefield: 'Battlefield',
   sideboard: 'Sideboard',
 };
 
 const ZONE_LIMITS: Record<DeckZone, number> = {
-  main: MAIN_DECK_SIZE,
+  main: MAIN_DECK_SIZE - LEGEND_COUNT - CHAMPION_COUNT,
   rune: RUNE_DECK_SIZE,
+  legend: LEGEND_COUNT,
   champion: CHAMPION_COUNT,
+  battlefield: BATTLEFIELD_COUNT,
   sideboard: SIDEBOARD_SIZE,
 };
 
 const STORAGE_KEY_PREFIX = 'lagrieta_temp_deck_';
+
+// ---------------------------------------------------------------------------
+// Step types — 3 steps: legend pick, champion unit pick, free-form build
+// ---------------------------------------------------------------------------
+
+type BuilderStep = 'legend' | 'champion' | 'cards';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -147,19 +159,26 @@ function isSignatureType(cardType: string | null): boolean {
 // ---------------------------------------------------------------------------
 
 export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderProps) {
-  const [step, setStep] = useState<'champion' | 'cards'>('champion');
+  const [step, setStep] = useState<BuilderStep>('legend');
   const [activeZone, setActiveZone] = useState<DeckZone>('main');
   const [entries, setEntries] = useState<TempDeckEntry[]>([]);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+
+  // Reset search when transitioning between steps
+  useEffect(() => {
+    setSearch('');
+  }, [step]);
 
   // Restore from sessionStorage on mount
   useEffect(() => {
     const saved = loadTempDeck(matchCode);
     if (saved && saved.entries.length > 0) {
       setEntries(saved.entries);
+      const hasLegend = saved.entries.some((e) => e.zone === 'legend');
       const hasChampion = saved.entries.some((e) => e.zone === 'champion');
-      if (hasChampion) setStep('cards');
+      if (hasLegend && hasChampion) setStep('cards');
+      else if (hasLegend) setStep('champion');
     }
   }, [matchCode]);
 
@@ -171,11 +190,19 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
     saveTempDeck(matchCode, entries, battlefieldIds);
   }, [entries, matchCode]);
 
-  // Card search query
+  // Auto-advance steps when a required card is added
+  useEffect(() => {
+    const hasLegend = entries.some((e) => e.zone === 'legend');
+    const hasChampion = entries.some((e) => e.zone === 'champion');
+    if (step === 'legend' && hasLegend) setStep('champion');
+    if (step === 'champion' && hasChampion) setStep('cards');
+  }, [entries, step]);
+
+  // Card search query — filter by card type depending on current step
   const { data: cardData, isLoading: cardsLoading } = trpc.card.list.useQuery(
     {
       search: debouncedSearch || undefined,
-      cardType: step === 'champion' ? 'Legend' : undefined,
+      cardType: step === 'legend' ? 'Legend' : step === 'champion' ? 'Champion Unit' : undefined,
       limit: 24,
     },
     { staleTime: 60_000 },
@@ -277,29 +304,54 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
   }
 
   // ---------------------------------------------------------------
-  // Champion selection step
+  // Shared card grid renderer for legend and champion steps
   // ---------------------------------------------------------------
 
-  if (step === 'champion') {
-    const championEntry = entries.find((e) => e.zone === 'champion');
+  function renderPickerStep({
+    title,
+    subtitle,
+    searchPlaceholder,
+    selectedZone,
+    onReplace,
+    onBack,
+  }: {
+    title: string;
+    subtitle: string;
+    searchPlaceholder: string;
+    selectedZone: 'legend' | 'champion';
+    onReplace: () => void;
+    onBack?: () => void;
+  }) {
+    const selectedEntry = entries.find((e) => e.zone === selectedZone);
 
     return (
       <div className="space-y-4">
-        <div className="text-center space-y-1">
-          <h2 className="text-lg font-bold text-white">Choose your Champion</h2>
-          <p className="text-sm lg-text-secondary">
-            Every deck is built around a Legend card. Pick yours first.
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <h2 className="text-lg font-bold text-white">{title}</h2>
+            <p className="text-sm lg-text-secondary">{subtitle}</p>
+          </div>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="text-xs text-zinc-500 hover:text-white transition-colors flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+          )}
         </div>
 
-        {/* Currently selected champion */}
-        {championEntry && (
+        {/* Currently selected card */}
+        {selectedEntry && (
           <div className="lg-card p-3 flex items-center gap-3">
-            {championEntry.card.imageSmall && (
+            {selectedEntry.card.imageSmall && (
               <div className="relative w-10 h-14 rounded overflow-hidden flex-shrink-0">
                 <Image
-                  src={championEntry.card.imageSmall}
-                  alt={championEntry.card.name}
+                  src={selectedEntry.card.imageSmall}
+                  alt={selectedEntry.card.name}
                   fill
                   className="object-cover"
                   sizes="40px"
@@ -308,14 +360,14 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">
-                {championEntry.card.name}
+                {selectedEntry.card.name}
               </p>
-              <p className="text-xs text-zinc-500">Selected champion</p>
+              <p className="text-xs text-zinc-500">
+                {selectedZone === 'legend' ? 'Selected legend' : 'Selected champion unit'}
+              </p>
             </div>
             <button
-              onClick={() => {
-                setEntries((prev) => prev.filter((e) => e.zone !== 'champion'));
-              }}
+              onClick={onReplace}
               className="text-zinc-500 hover:text-red-400 transition-colors text-xs"
             >
               Change
@@ -326,13 +378,13 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
         {/* Search */}
         <input
           type="text"
-          placeholder="Search legends..."
+          placeholder={searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full bg-surface-elevated border border-surface-border rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-rift-500"
         />
 
-        {/* Legend cards grid */}
+        {/* Card grid */}
         {cardsLoading ? (
           <div className="grid grid-cols-3 gap-2">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -343,14 +395,14 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
           <div className="grid grid-cols-3 gap-2">
             {cards.map((card) => {
               const isSelected = entries.some(
-                (e) => e.cardId === card.id && e.zone === 'champion',
+                (e) => e.cardId === card.id && e.zone === selectedZone,
               );
               return (
                 <button
                   key={card.id}
                   onClick={() => {
-                    // Replace existing champion
-                    setEntries((prev) => prev.filter((e) => e.zone !== 'champion'));
+                    // Replace existing selection
+                    setEntries((prev) => prev.filter((e) => e.zone !== selectedZone));
                     addCard(card);
                   }}
                   className={`relative aspect-[2/3] rounded-lg overflow-hidden border-2 transition-all ${
@@ -394,12 +446,64 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
             })}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------
+  // Legend selection step
+  // ---------------------------------------------------------------
+
+  if (step === 'legend') {
+    const legendEntry = entries.find((e) => e.zone === 'legend');
+
+    return (
+      <div className="space-y-4">
+        {renderPickerStep({
+          title: 'Choose your Legend',
+          subtitle: 'Every deck is built around a Legend card. Pick yours first.',
+          searchPlaceholder: 'Search legends...',
+          selectedZone: 'legend',
+          onReplace: () => {
+            setEntries((prev) => prev.filter((e) => e.zone !== 'legend'));
+          },
+        })}
 
         <button
-          onClick={() => {
-            setStep('cards');
-            setSearch('');
-          }}
+          onClick={() => setStep('champion')}
+          disabled={!legendEntry}
+          className="lg-btn-primary w-full py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Continue to Champion Unit
+        </button>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------
+  // Champion Unit selection step
+  // ---------------------------------------------------------------
+
+  if (step === 'champion') {
+    const championEntry = entries.find((e) => e.zone === 'champion');
+
+    return (
+      <div className="space-y-4">
+        {renderPickerStep({
+          title: 'Choose your Champion Unit',
+          subtitle: 'Pick the Champion Unit that leads your forces.',
+          searchPlaceholder: 'Search champion units...',
+          selectedZone: 'champion',
+          onReplace: () => {
+            setEntries((prev) => prev.filter((e) => e.zone !== 'champion'));
+          },
+          onBack: () => {
+            setStep('legend');
+          },
+        })}
+
+        <button
+          onClick={() => setStep('cards')}
           disabled={!championEntry}
           className="lg-btn-primary w-full py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -422,10 +526,7 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-white">Build Your Deck</h2>
         <button
-          onClick={() => {
-            setStep('champion');
-            setSearch('');
-          }}
+          onClick={() => setStep('champion')}
           className="text-xs text-zinc-500 hover:text-white transition-colors"
         >
           Change champion
