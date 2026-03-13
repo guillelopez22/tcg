@@ -39,9 +39,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **PTS-03**: User can create a FFA match session (3-4 players, 3 battlefields, first to 8 points)
 - [x] **PTS-04**: User can track battlefield control (who controls each battlefield)
 - [x] **PTS-05**: System automatically scores +1 on conquest and +1 per controlled battlefield at turn start
-- [ ] **PTS-06**: Opponent can join a synced session by scanning a QR code without needing an account
-- [ ] **PTS-07**: Both players see real-time score updates on their screens
-- [ ] **PTS-08**: Authenticated users can view their match history
+- [x] **PTS-06**: Opponent can join a synced session by scanning a QR code without needing an account
+- [x] **PTS-07**: Both players see real-time score updates on their screens
+- [x] **PTS-08**: Authenticated users can view their match history
 
 ### Tournament Manager
 
@@ -67,7 +67,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Platform
 
 - [x] **PLAT-01**: App supports English and Spanish with language toggle
-- [ ] **PLAT-02**: News section displaying Riftbound community updates and announcements
+- [x] **PLAT-02**: News section displaying Riftbound community updates and announcements
 - [x] **PLAT-03**: Camera scanning works on both desktop (webcam) and mobile browsers (getUserMedia)
 
 ## v2 Requirements
@@ -130,9 +130,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PTS-03 | Phase 3 | Complete |
 | PTS-04 | Phase 3 | Complete |
 | PTS-05 | Phase 3 | Complete |
-| PTS-06 | Phase 3 | Pending |
-| PTS-07 | Phase 3 | Pending |
-| PTS-08 | Phase 3 | Pending |
+| PTS-06 | Phase 3 | Complete |
+| PTS-07 | Phase 3 | Complete |
+| PTS-08 | Phase 3 | Complete |
 | TOUR-01 | Phase 4 | Pending |
 | TOUR-02 | Phase 4 | Pending |
 | TOUR-03 | Phase 4 | Pending |
@@ -149,7 +149,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WHAP-06 | Phase 5 | Pending |
 | WHAP-07 | Phase 5 | Pending |
 | PLAT-01 | Phase 1 | Complete |
-| PLAT-02 | Phase 3 | Pending |
+| PLAT-02 | Phase 3 | Complete |
 | PLAT-03 | Phase 1 | Complete |
 
 **Coverage:**

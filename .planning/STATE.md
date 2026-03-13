@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-03-PLAN.md — Phase 03 Plan 03 match setup flow UI complete
-last_updated: "2026-03-13T03:20:56.130Z"
+stopped_at: Completed 03-04-PLAN.md — Phase 03 Plan 04 match gameplay board complete
+last_updated: "2026-03-13T03:31:20.646Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 ---
@@ -98,6 +98,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03 P01 | 18 | 2 tasks | 16 files |
 | Phase 03 P02 | 13 | 2 tasks | 16 files |
 | Phase 03 P03 | 10 | 2 tasks | 12 files |
+| Phase 03-points-tracker P04 | 15 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,10 @@ Recent decisions affecting current work:
 - [Phase 03]: Socket.IO singleton in match-socket.ts: getMatchSocket(code) reconnects/reuses to prevent duplicate connections on React re-renders
 - [Phase 03]: Card flip reveal uses CSS rotateY(180deg) with transformStyle preserve-3d — no external animation library
 - [Phase 03]: Public /match/[code] route outside (dashboard) group — no auth guard, accessible without login
+- [Phase 03-04]: match-socket.ts extended with state:full/state:patch/player:disconnected server events and all client gameplay events — useMatchSocket can use fully typed socket.emit() without casts
+- [Phase 03-04]: useMatchSocket separates fullState (MatchWithPlayers session metadata) from matchState (MatchState scoring engine) — state:full sets both, state:patch only updates matchState
+- [Phase 03-04]: isPaused inferred from last log entry event field — MatchState has no explicit isPaused boolean, pause appends 'paused' to log
+- [Phase 03-04]: MatchEndOverlay imports canvas-confetti dynamically to avoid SSR bundle inclusion, gracefully skips if import fails
 
 ### Roadmap Evolution
 
@@ -179,6 +184,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T03:20:56.126Z
-Stopped at: Completed 03-03-PLAN.md — Phase 03 Plan 03 match setup flow UI complete
+Last session: 2026-03-13T03:31:20.641Z
+Stopped at: Completed 03-04-PLAN.md — Phase 03 Plan 04 match gameplay board complete
 Resume file: None
