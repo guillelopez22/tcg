@@ -65,7 +65,7 @@ function MatchHistoryItem({ match }: { match: MatchSummary }) {
   const duration = formatDuration(match.startedAt, match.endedAt);
 
   return (
-    <Link href={`/match/${match.id}`} className="block">
+    <Link href={`/match/history/${match.id}`} className="block">
       <div className="lg-card p-4 space-y-2 hover:border-zinc-600 transition-colors cursor-pointer">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
