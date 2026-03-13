@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { MatchQRCode } from '@/components/match-qr-code';
-import { getMatchSocket, disconnectMatchSocket } from '@/lib/match-socket';
+import { getMatchSocket } from '@/lib/match-socket';
 import { BattlefieldSelection } from '@/app/match/[code]/battlefield-selection';
 import {
   WIN_TARGET_1V1,
@@ -63,10 +64,11 @@ function playerCountForFormat(format: MatchFormatInput): number {
 }
 
 // ---------------------------------------------------------------------------
-// Step types
+// Step types — 7 steps total
+// 1=format, 2=mode, 3=playerNames, 4=firstPlayer, 5=deckSelection, 6=QR/share, 7=battlefieldSelection
 // ---------------------------------------------------------------------------
 
-type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -81,6 +83,20 @@ export default function NewMatchPage() {
   const [mode, setMode] = useState<MatchModeInput>('synced');
   const [playerNames, setPlayerNames] = useState<string[]>(['', '']);
   const [firstPlayerIndex, setFirstPlayerIndex] = useState(0);
+
+  // Deck selection state
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [battlefieldCards, setBattlefieldCards] = useState<
+    { cardId: string; name: string; imageSmall: string | null }[]
+  >([]);
+
+  // Pre-fill Player 1 name from user profile once auth loads
+  useEffect(() => {
+    const name = user?.displayName || user?.username || '';
+    if (name && !playerNames[0]) {
+      setPlayerNames((prev) => [name, ...prev.slice(1)]);
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   const [matchCode, setMatchCode] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -93,12 +109,38 @@ export default function NewMatchPage() {
       setMatchCode(data.code);
       setSessionId(data.sessionId);
       if (mode === 'local') {
-        setStep(6);
+        setStep(7);
       } else {
-        setStep(5);
+        setStep(6);
       }
     },
   });
+
+  // Fetch user decks when on deck selection step (step 5)
+  const { data: userDecks } = trpc.deck.list.useQuery(
+    { limit: 50 },
+    { enabled: step >= 5 },
+  );
+
+  // Fetch selected deck details to extract battlefield cards
+  const { data: selectedDeck } = trpc.deck.getById.useQuery(
+    { id: selectedDeckId! },
+    { enabled: !!selectedDeckId },
+  );
+
+  // When selected deck data arrives, extract battlefield zone cards
+  useEffect(() => {
+    if (selectedDeck?.cards) {
+      const bfCards = selectedDeck.cards
+        .filter((c) => c.zone === 'battlefield')
+        .map((c) => ({
+          cardId: c.cardId,
+          name: c.card.name,
+          imageSmall: c.card.imageSmall,
+        }));
+      setBattlefieldCards(bfCards);
+    }
+  }, [selectedDeck]);
 
   // ---------------------------------------------------------------
   // Navigation helpers
@@ -109,13 +151,14 @@ export default function NewMatchPage() {
   }
 
   function goNext() {
-    if (step < 6) setStep((s) => (s + 1) as WizardStep);
+    if (step < 7) setStep((s) => (s + 1) as WizardStep);
   }
 
   function handleFormatSelect(f: MatchFormatInput) {
     setFormat(f);
     const count = playerCountForFormat(f);
-    setPlayerNames(Array.from({ length: count }, (_, i) => (i === 0 ? user?.displayName ?? '' : '')));
+    const profileName = user?.displayName || user?.username || '';
+    setPlayerNames(Array.from({ length: count }, (_, i) => (i === 0 ? profileName : '')));
   }
 
   function handleModeSelect(m: MatchModeInput) {
@@ -141,29 +184,18 @@ export default function NewMatchPage() {
   }
 
   // ---------------------------------------------------------------
-  // Socket + battlefield cards for step 6
+  // Socket + battlefield cards for step 7
   // ---------------------------------------------------------------
 
   const socket =
-    step === 6 && matchCode ? getMatchSocket(matchCode) : null;
-
-  // For local match, we use an empty battlefield card array (deck builder not available for auth users in wizard)
-  // Authenticated users would use their deck's battlefield cards — for now we surface an empty array
-  // and the BattlefieldSelection component handles the no-cards case gracefully
-  const battlefieldCards: ReturnType<typeof Array.prototype.map>[] = [];
-
-  // ---------------------------------------------------------------
-  // Cleanup on unmount
-  // ---------------------------------------------------------------
-
-  // We intentionally don't disconnect here — the match page handles the socket lifecycle
+    step === 7 && matchCode ? getMatchSocket(matchCode) : null;
 
   // ---------------------------------------------------------------
   // Render helpers
   // ---------------------------------------------------------------
 
   function renderProgressDots() {
-    const totalSteps = 5;
+    const totalSteps = 6;
     const current = Math.min(step - 1, totalSteps - 1);
     return (
       <div className="flex items-center justify-center gap-1.5 mb-6">
@@ -408,13 +440,115 @@ export default function NewMatchPage() {
           <button onClick={goBack} className="lg-btn-secondary flex-1 py-2.5">
             Back
           </button>
-          <button
-            onClick={handleCreateMatch}
-            disabled={createMatch.isPending}
-            className="lg-btn-primary flex-1 py-2.5 disabled:opacity-50"
-          >
-            {createMatch.isPending ? 'Creating...' : 'Create Match'}
+          <button onClick={goNext} className="lg-btn-primary flex-1 py-2.5">
+            Next
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Step 5: Deck selection
+  if (step === 5) {
+    const decks = userDecks?.items ?? [];
+    const hasDecks = decks.length > 0;
+
+    function handleDeckSelect(deckId: string) {
+      setSelectedDeckId(deckId);
+      handleCreateMatch();
+    }
+
+    function handleSkip() {
+      setSelectedDeckId(null);
+      setBattlefieldCards([]);
+      handleCreateMatch();
+    }
+
+    return (
+      <div className="space-y-6 max-w-md mx-auto">
+        <div className="flex items-center gap-3">
+          <button onClick={goBack} className="text-zinc-500 hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-white">New Match</h1>
+        </div>
+
+        {renderProgressDots()}
+
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold text-white">Select Your Deck</h2>
+            <p className="text-sm text-zinc-400 mt-1">
+              Choose a deck to use your battlefield cards during selection.
+            </p>
+          </div>
+
+          {!hasDecks && (
+            <div className="lg-card p-4 text-center space-y-3">
+              <p className="text-sm text-zinc-400">
+                No decks found. Create a deck first or skip to play without battlefield cards.
+              </p>
+              <button onClick={handleSkip} className="lg-btn-secondary px-6 py-2">
+                Skip (no deck)
+              </button>
+            </div>
+          )}
+
+          {hasDecks && (
+            <div className="space-y-2">
+              {decks.map((deck) => {
+                const isSelected = selectedDeckId === deck.id;
+                return (
+                  <button
+                    key={deck.id}
+                    onClick={() => handleDeckSelect(deck.id)}
+                    className={`w-full lg-card p-4 text-left transition-all border-2 ${
+                      isSelected
+                        ? 'border-rift-500 bg-rift-900/20'
+                        : 'border-surface-border hover:border-surface-hover'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {deck.coverCard?.imageSmall ? (
+                        <div className="relative w-8 h-11 rounded overflow-hidden flex-shrink-0">
+                          <Image
+                            src={deck.coverCard.imageSmall}
+                            alt={deck.name}
+                            fill
+                            className="object-cover"
+                            sizes="32px"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-11 rounded bg-surface-elevated flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{deck.name}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5 capitalize">{deck.domain ?? deck.status}</p>
+                      </div>
+                      {isSelected && (
+                        <svg className="w-5 h-5 text-rift-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {hasDecks && (
+            <button
+              onClick={handleSkip}
+              disabled={createMatch.isPending}
+              className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition-colors py-2 disabled:opacity-50"
+            >
+              Skip (play without a deck)
+            </button>
+          )}
         </div>
 
         {createMatch.error && (
@@ -424,8 +558,17 @@ export default function NewMatchPage() {
     );
   }
 
-  // Step 5: Share / wait (synced mode only)
-  if (step === 5 && matchCode) {
+  // Step 6: Share / wait (synced mode only) — match already created in step 5
+  if (step === 6) {
+    if (!matchCode) {
+      // Still creating — show loading
+      return (
+        <div className="space-y-6 max-w-md mx-auto text-center py-16">
+          <p className="lg-text-secondary">Creating match...</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6 max-w-md mx-auto">
         <div className="flex items-center gap-3">
@@ -445,7 +588,7 @@ export default function NewMatchPage() {
         </div>
 
         <button
-          onClick={() => setStep(6)}
+          onClick={() => setStep(7)}
           className="lg-btn-secondary w-full py-2.5"
         >
           Proceed to Battlefield Selection
@@ -454,8 +597,8 @@ export default function NewMatchPage() {
     );
   }
 
-  // Step 6: Battlefield selection
-  if (step === 6 && matchCode && socket) {
+  // Step 7: Battlefield selection
+  if (step === 7 && matchCode && socket) {
     const resolvedNames = playerNames.map((n, i) => n.trim() || `Player ${i + 1}`);
     const bfCount = FORMAT_INFO[format].battlefieldCount;
 

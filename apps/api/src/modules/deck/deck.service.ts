@@ -97,7 +97,7 @@ export type BuildabilityResult = {
 export type ResolvedDeckCardEntry = {
   cardId: string;
   quantity: number;
-  zone: 'main' | 'rune' | 'legend' | 'champion' | 'battlefield';
+  zone: 'main' | 'rune' | 'legend' | 'champion' | 'battlefield' | 'sideboard';
 };
 
 export type ImportResult = {
