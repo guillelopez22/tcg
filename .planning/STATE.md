@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-01-PLAN.md — Phase 03 Plan 01 match foundation complete
-last_updated: "2026-03-13T02:51:43.132Z"
+stopped_at: Completed 03-02-PLAN.md — Phase 03 Plan 02 match service + news module complete
+last_updated: "2026-03-13T03:08:14.086Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 20
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 ---
@@ -96,6 +96,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02 P02 | 6 | 3 tasks | 6 files |
 | Phase 02 P03 | 2 | 2 tasks | 2 files |
 | Phase 03 P01 | 18 | 2 tasks | 16 files |
+| Phase 03 P02 | 13 | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -152,6 +153,9 @@ Recent decisions affecting current work:
 - [Phase 03]: matchFormatEnum/matchStatusEnum/playerRoleEnum co-located with their tables (not in global enums.ts) — keeps match module self-contained
 - [Phase 03]: validateWinCondition takes conqueredAllThisTurn bool from caller rather than re-deriving — simpler contract, avoids coupling to state history
 - [Phase 03]: Pure scoring engine in match-scoring.ts with no I/O — enables isomorphic use and straightforward TDD
+- [Phase 03]: MatchSummary type includes both id and sessionId — buildPaginatedResult requires T extends { id: string } for cursor pagination
+- [Phase 03]: vi.mock('@la-grieta/db') required in tests for drizzle column stubs — column objects not available without real DB in vitest context
+- [Phase 03]: @nestjs/websockets pinned to ^10.0.0 matching @nestjs/common version — v11 would cause peer dependency mismatch
 
 ### Roadmap Evolution
 
@@ -171,6 +175,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T02:51:43.127Z
-Stopped at: Completed 03-01-PLAN.md — Phase 03 Plan 01 match foundation complete
+Last session: 2026-03-13T03:08:14.082Z
+Stopped at: Completed 03-02-PLAN.md — Phase 03 Plan 02 match service + news module complete
 Resume file: None
