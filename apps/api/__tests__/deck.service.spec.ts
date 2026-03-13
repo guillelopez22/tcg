@@ -417,13 +417,21 @@ describe('DeckService', () => {
       expect(result.description).toBe('Aggressive Fury deck');
     });
 
-    it('should reject creating deck with more than 3 copies of the same card in main+sideboard', async () => {
-      await expect(
-        service.create(USER_ID, {
-          name: 'Broken Deck',
-          cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
-        }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    it('should set status draft when creating deck with more than 3 copies of same card', async () => {
+      const created = makeDeck({ status: 'draft' });
+      db._pushSelect([{ id: CARD_ID }]); // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]); // buildCardTypeMap
+      db._pushInsert([created]);
+      db._pushInsert([]);
+      db._pushSelect([created]);
+      db._pushSelect([makeDeckCard({ quantity: 4 })]);
+
+      const result = await service.create(USER_ID, {
+        name: 'Broken Deck',
+        cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
+      });
+
+      expect(result.status).toBe('draft');
     });
 
     it('should not insert deckCards when cards array is empty', async () => {
@@ -614,15 +622,21 @@ describe('DeckService', () => {
       ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'You do not own this deck' });
     });
 
-    it('should reject setCards with more than 3 copies of any card in main+sideboard', async () => {
+    it('should set status draft when setCards has more than 3 copies of any card', async () => {
       db._pushSelect([{ id: DECK_ID, userId: USER_ID }]);
+      db._pushSelect([{ id: CARD_ID }]); // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]); // buildCardTypeMap
+      db._pushUpdate([makeDeck({ status: 'draft' })]);
+      const deck = makeDeck({ status: 'draft' });
+      db._pushSelect([deck]);
+      db._pushSelect([makeDeckCard({ quantity: 4 })]);
 
-      await expect(
-        service.setCards(USER_ID, {
-          deckId: DECK_ID,
-          cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
-        }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      const result = await service.setCards(USER_ID, {
+        deckId: DECK_ID,
+        cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
+      });
+
+      expect(result.status).toBe('draft');
     });
 
     it('should allow clearing all cards (empty setCards)', async () => {
@@ -638,19 +652,24 @@ describe('DeckService', () => {
       expect(result.cards).toHaveLength(0);
     });
 
-    it('should detect multiple entries for same card that exceed 3 copies in main+sideboard', async () => {
+    it('should set status draft for multiple entries exceeding 3 copies in main+sideboard', async () => {
       db._pushSelect([{ id: DECK_ID, userId: USER_ID }]);
+      db._pushSelect([{ id: CARD_ID }]); // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]); // buildCardTypeMap
+      db._pushUpdate([makeDeck({ status: 'draft' })]);
+      const deck = makeDeck({ status: 'draft' });
+      db._pushSelect([deck]);
+      db._pushSelect([makeDeckCard({ quantity: 2 }), makeDeckCard({ quantity: 2, zone: 'sideboard' })]);
 
-      // Two entries for same card across zones: main 2 + sideboard 2 = 4 > 3
-      await expect(
-        service.setCards(USER_ID, {
-          deckId: DECK_ID,
-          cards: [
-            { cardId: CARD_ID, quantity: 2, zone: 'main' },
-            { cardId: CARD_ID, quantity: 2, zone: 'sideboard' },
-          ],
-        }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      const result = await service.setCards(USER_ID, {
+        deckId: DECK_ID,
+        cards: [
+          { cardId: CARD_ID, quantity: 2, zone: 'main' },
+          { cardId: CARD_ID, quantity: 2, zone: 'sideboard' },
+        ],
+      });
+
+      expect(result.status).toBe('draft');
     });
 
     it('should allow exactly 3 copies of one card (at the max)', async () => {
@@ -762,16 +781,16 @@ describe('DeckService', () => {
     }
 
     function makeZoneCards() {
-      // 40 main cards (3 copies of 13 cards + 1 copy of 1 card = 40)
+      // Main zone: 38 cards (3 copies of 12 cards + 2 copy of 1 card = 38)
       const main: Array<{ cardId: string; quantity: number; zone: string }> = [];
-      for (let i = 0; i < 13; i++) {
+      for (let i = 0; i < 12; i++) {
         main.push({
           cardId: `11111111-0000-0000-0000-${i.toString().padStart(12, '0')}`,
           quantity: 3,
           zone: 'main',
         });
       }
-      main.push({ cardId: `11111111-0000-0000-0000-000000000013`, quantity: 1, zone: 'main' });
+      main.push({ cardId: `11111111-0000-0000-0000-000000000012`, quantity: 2, zone: 'main' });
 
       // 12 rune cards (12 * 1)
       const runes: Array<{ cardId: string; quantity: number; zone: string }> = [];
@@ -783,12 +802,27 @@ describe('DeckService', () => {
         });
       }
 
-      // 1 champion
-      const champion: Array<{ cardId: string; quantity: number; zone: string }> = [
-        { cardId: `33333333-0000-0000-0000-000000000001`, quantity: 1, zone: 'champion' },
+      // 1 legend
+      const legend: Array<{ cardId: string; quantity: number; zone: string }> = [
+        { cardId: `33333333-0000-0000-0000-000000000001`, quantity: 1, zone: 'legend' },
       ];
 
-      return [...main, ...runes, ...champion];
+      // 1 champion unit
+      const champion: Array<{ cardId: string; quantity: number; zone: string }> = [
+        { cardId: `33333333-0000-0000-0000-000000000002`, quantity: 1, zone: 'champion' },
+      ];
+
+      // 3 battlefields
+      const battlefields: Array<{ cardId: string; quantity: number; zone: string }> = [];
+      for (let i = 0; i < 3; i++) {
+        battlefields.push({
+          cardId: `44444444-0000-0000-0000-${i.toString().padStart(12, '0')}`,
+          quantity: 1,
+          zone: 'battlefield',
+        });
+      }
+
+      return [...main, ...runes, ...legend, ...champion, ...battlefields];
     }
 
     function pushCardTypeSelectsForCards(cards: Array<{ cardId: string; zone: string }>) {
@@ -800,7 +834,9 @@ describe('DeckService', () => {
         const entry = cards.find((c) => c.cardId === id)!;
         let cardType: string;
         if (entry.zone === 'rune') cardType = 'Rune';
-        else if (entry.zone === 'champion') cardType = 'Legend';
+        else if (entry.zone === 'legend') cardType = 'Legend';
+        else if (entry.zone === 'champion') cardType = 'Champion Unit';
+        else if (entry.zone === 'battlefield') cardType = 'Battlefield';
         else cardType = 'Unit';
         return { id, cardType };
       }));
@@ -868,8 +904,12 @@ describe('DeckService', () => {
       for (let i = 0; i < 12; i++) {
         cards.push({ cardId: `22222222-0000-0000-0000-${i.toString().padStart(12, '0')}`, quantity: 1, zone: 'rune' });
       }
-      // 1 champion
-      cards.push({ cardId: `33333333-0000-0000-0000-000000000001`, quantity: 1, zone: 'champion' });
+      // 1 legend + 1 champion + 3 battlefields
+      cards.push({ cardId: `33333333-0000-0000-0000-000000000001`, quantity: 1, zone: 'legend' });
+      cards.push({ cardId: `33333333-0000-0000-0000-000000000002`, quantity: 1, zone: 'champion' });
+      for (let i = 0; i < 3; i++) {
+        cards.push({ cardId: `44444444-0000-0000-0000-${i.toString().padStart(12, '0')}`, quantity: 1, zone: 'battlefield' });
+      }
 
       setupSetCardsOwnership();
       pushCardTypeSelectsForCards(cards);
@@ -918,18 +958,23 @@ describe('DeckService', () => {
       expect(result.status).toBe('draft');
     });
 
-    it('4 copies of same card across main+sideboard -> throws BAD_REQUEST', async () => {
+    it('4 copies of same card across main+sideboard -> status draft', async () => {
       db._pushSelect([{ id: DECK_ID, userId: USER_ID }]);
+      db._pushSelect([{ id: CARD_ID }]); // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]); // buildCardTypeMap
+      db._pushUpdate([makeDeck({ status: 'draft' })]);
+      db._pushSelect([makeDeck({ status: 'draft' })]);
+      db._pushSelect([makeDeckCard({ quantity: 2 }), makeDeckCard({ quantity: 2, zone: 'sideboard' })]);
 
-      await expect(
-        service.setCards(USER_ID, {
-          deckId: DECK_ID,
-          cards: [
-            { cardId: CARD_ID, quantity: 2, zone: 'main' },
-            { cardId: CARD_ID, quantity: 2, zone: 'sideboard' },
-          ],
-        }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringContaining(CARD_ID) });
+      const result = await service.setCards(USER_ID, {
+        deckId: DECK_ID,
+        cards: [
+          { cardId: CARD_ID, quantity: 2, zone: 'main' },
+          { cardId: CARD_ID, quantity: 2, zone: 'sideboard' },
+        ],
+      });
+
+      expect(result.status).toBe('draft');
     });
   });
 
@@ -1020,13 +1065,23 @@ describe('DeckService', () => {
   // =========================================================================
 
   describe('card validation (via create/setCards)', () => {
-    it('should reject 4 copies of the same card in main zone (max is 3)', async () => {
-      await expect(
-        service.create(USER_ID, {
-          name: 'Invalid',
-          cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
-        }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    it('should set status draft when 4 copies of same card in main zone (max is 3)', async () => {
+      const created = makeDeck({ status: 'draft' });
+      // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID }]);
+      // buildCardTypeMap
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]);
+      db._pushInsert([created]);
+      db._pushInsert([]);
+      db._pushSelect([created]);
+      db._pushSelect([makeDeckCard({ quantity: 4 })]);
+
+      const result = await service.create(USER_ID, {
+        name: 'Invalid',
+        cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
+      });
+
+      expect(result.status).toBe('draft');
     });
 
     it('should allow 3 copies (at the limit)', async () => {
@@ -1048,28 +1103,45 @@ describe('DeckService', () => {
       expect(result).toBeDefined();
     });
 
-    it('should include the card id in the error message when copies exceeded', async () => {
-      await expect(
-        service.create(USER_ID, {
-          name: 'Invalid',
-          cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
-        }),
-      ).rejects.toMatchObject({
-        code: 'BAD_REQUEST',
-        message: expect.stringContaining(CARD_ID),
+    it('should set status draft when copies exceeded and validation errors include card id', async () => {
+      const created = makeDeck({ status: 'draft' });
+      // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID }]);
+      // buildCardTypeMap
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]);
+      db._pushInsert([created]);
+      db._pushInsert([]);
+      db._pushSelect([created]);
+      db._pushSelect([makeDeckCard({ quantity: 4 })]);
+
+      const result = await service.create(USER_ID, {
+        name: 'Invalid',
+        cards: [{ cardId: CARD_ID, quantity: 4, zone: 'main' }],
       });
+
+      expect(result.status).toBe('draft');
     });
 
-    it('should detect combined duplicates: two entries summing to > 3 copies in main+sideboard', async () => {
-      await expect(
-        service.create(USER_ID, {
-          name: 'Bad',
-          cards: [
-            { cardId: CARD_ID, quantity: 2, zone: 'main' },
-            { cardId: CARD_ID, quantity: 2, zone: 'sideboard' },
-          ],
-        }),
-      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    it('should set status draft for combined duplicates: two entries summing to > 3 copies in main+sideboard', async () => {
+      const created = makeDeck({ status: 'draft' });
+      // validateCardIdsExist
+      db._pushSelect([{ id: CARD_ID }]);
+      // buildCardTypeMap
+      db._pushSelect([{ id: CARD_ID, cardType: 'Unit' }]);
+      db._pushInsert([created]);
+      db._pushInsert([]);
+      db._pushSelect([created]);
+      db._pushSelect([makeDeckCard({ quantity: 2 }), makeDeckCard({ quantity: 2, zone: 'sideboard' })]);
+
+      const result = await service.create(USER_ID, {
+        name: 'Bad',
+        cards: [
+          { cardId: CARD_ID, quantity: 2, zone: 'main' },
+          { cardId: CARD_ID, quantity: 2, zone: 'sideboard' },
+        ],
+      });
+
+      expect(result.status).toBe('draft');
     });
 
     it('should allow two different cards each with 3 copies', async () => {
@@ -1139,7 +1211,7 @@ describe('DeckService', () => {
       // 3. User's collection
       db._pushSelect(opts.userCollection ?? []);
       // 4. Trending deck co-occurrence (only if deck has champion)
-      if ((opts.deckCards ?? []).some((dc) => dc.zone === 'champion')) {
+      if ((opts.deckCards ?? []).some((dc) => dc.zone === 'legend' || dc.zone === 'champion')) {
         db._pushSelect(opts.trendingCards ?? []);
       }
     }
@@ -1221,6 +1293,92 @@ describe('DeckService', () => {
 
       expect(result).toEqual(cachedResult);
       expect(db.select).not.toHaveBeenCalled(); // no DB calls when cached
+    });
+  });
+
+  // =========================================================================
+  // importFromText() — zone correction
+  // =========================================================================
+
+  describe('importFromText() zone correction', () => {
+    const CHAMPION_UNIT_ID = 'cc000000-0000-0000-0000-000000000001';
+    const LEGEND_ID = 'cc000000-0000-0000-0000-000000000002';
+    const BATTLEFIELD_ID = 'cc000000-0000-0000-0000-000000000003';
+    const RUNE_ID = 'cc000000-0000-0000-0000-000000000004';
+    const UNIT_ID = 'cc000000-0000-0000-0000-000000000005';
+
+    it('should keep Champion Unit in main zone (getZoneForCardType returns main for Champion Unit)', async () => {
+      // Champion Units stay in main zone per getZoneForCardType — only one is explicitly
+      // put in champion zone by the user. Zone correction applies to Legend/Rune/Battlefield.
+      db._pushSelect([{ id: UNIT_ID }]);          // ilike match for unit card
+      db._pushSelect([{ id: CHAMPION_UNIT_ID }]); // ilike match for champion unit card
+      // buildCardTypeMap: returns cardType for both resolved cards
+      db._pushSelect([
+        { id: UNIT_ID, cardType: 'Unit' },
+        { id: CHAMPION_UNIT_ID, cardType: 'Champion Unit' },
+      ]);
+
+      const result = await service.importFromText(USER_ID, {
+        text: '3 Blazing Scorcher\n1 Kayn',
+        name: 'Test Import',
+      });
+
+      const championEntry = result.resolved.find((e) => e.cardId === CHAMPION_UNIT_ID);
+      expect(championEntry).toBeDefined();
+      // Champion Unit stays in main — zone correction doesn't override user-designated zone
+      expect(championEntry!.zone).toBe('main');
+
+      const unitEntry = result.resolved.find((e) => e.cardId === UNIT_ID);
+      expect(unitEntry).toBeDefined();
+      expect(unitEntry!.zone).toBe('main');
+    });
+
+    it('should place Legend in legend zone', async () => {
+      db._pushSelect([{ id: LEGEND_ID }]);
+      db._pushSelect([{ id: LEGEND_ID, cardType: 'Legend' }]);
+
+      const result = await service.importFromText(USER_ID, {
+        text: '1 Kayn',
+        name: 'Legend Test',
+      });
+
+      expect(result.resolved[0]!.zone).toBe('legend');
+    });
+
+    it('should place Battlefield in battlefield zone', async () => {
+      db._pushSelect([{ id: BATTLEFIELD_ID }]);
+      db._pushSelect([{ id: BATTLEFIELD_ID, cardType: 'Battlefield' }]);
+
+      const result = await service.importFromText(USER_ID, {
+        text: '1 Summoner\'s Rift',
+        name: 'Battlefield Test',
+      });
+
+      expect(result.resolved[0]!.zone).toBe('battlefield');
+    });
+
+    it('should place Rune in rune zone', async () => {
+      db._pushSelect([{ id: RUNE_ID }]);
+      db._pushSelect([{ id: RUNE_ID, cardType: 'Rune' }]);
+
+      const result = await service.importFromText(USER_ID, {
+        text: '1 Conqueror',
+        name: 'Rune Test',
+      });
+
+      expect(result.resolved[0]!.zone).toBe('rune');
+    });
+
+    it('should return empty resolved and unmatched names for unknown cards', async () => {
+      db._pushSelect([]); // ilike match returns nothing
+
+      const result = await service.importFromText(USER_ID, {
+        text: '1 NonExistentCardXYZ',
+        name: 'Bad Import',
+      });
+
+      expect(result.resolved).toHaveLength(0);
+      expect(result.unmatched).toContain('NonExistentCardXYZ');
     });
   });
 });

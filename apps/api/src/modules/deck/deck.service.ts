@@ -97,7 +97,7 @@ export type BuildabilityResult = {
 export type ResolvedDeckCardEntry = {
   cardId: string;
   quantity: number;
-  zone: 'main' | 'rune' | 'champion';
+  zone: 'main' | 'rune' | 'legend' | 'champion' | 'battlefield';
 };
 
 export type ImportResult = {
@@ -175,7 +175,10 @@ export class DeckService {
         })
         .from(deckCards)
         .innerJoin(cards, and(eq(deckCards.cardId, cards.id), eq(cards.cardType, 'Legend')))
-        .where(inArray(deckCards.deckId, missingCoverIds));
+        .where(and(
+          inArray(deckCards.deckId, missingCoverIds),
+          sql`${deckCards.zone} IN ('legend', 'champion')`,
+        ));
 
       const legendMap = new Map(legendRows.map((r) => [r.deckId, r]));
 
@@ -250,17 +253,22 @@ export class DeckService {
     }
 
     // Compute status from format validation if cards provided
+    // Correct zones for fixed-zone card types before validation
     let status: string = 'draft';
     let autoCoverCardId: string | null = null;
     let autoDomain: string | null = null;
+    let correctedCreateCards: Array<{ cardId: string; quantity: number; zone: string }> | undefined;
     if (input.cards && input.cards.length > 0) {
       const cardTypeMap = await this.buildCardTypeMap(input.cards.map((c) => c.cardId));
-      const entries = input.cards.map((c) => ({
-        cardId: c.cardId,
-        quantity: c.quantity,
-        zone: c.zone ?? 'main',
-      }));
-      const errors = validateDeckFormat(entries, cardTypeMap);
+      correctedCreateCards = input.cards.map((c) => {
+        const derivedZone = getZoneForCardType(cardTypeMap.get(c.cardId) ?? null);
+        return {
+          cardId: c.cardId,
+          quantity: c.quantity,
+          zone: derivedZone !== 'main' ? derivedZone : (c.zone ?? 'main'),
+        };
+      });
+      const errors = validateDeckFormat(correctedCreateCards, cardTypeMap);
       status = errors.length === 0 ? 'complete' : 'draft';
 
       // Auto-detect coverCardId and domain from Legend card if not provided
@@ -297,14 +305,14 @@ export class DeckService {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create deck' });
     }
 
-    if (input.cards && input.cards.length > 0) {
+    if (correctedCreateCards && correctedCreateCards.length > 0) {
       try {
         await this.db.insert(deckCards).values(
-          input.cards.map((c) => ({
+          correctedCreateCards.map((c) => ({
             deckId: created.id,
             cardId: c.cardId,
             quantity: c.quantity,
-            zone: c.zone ?? 'main',
+            zone: c.zone,
           })),
         );
       } catch (err) {
@@ -406,15 +414,25 @@ export class DeckService {
     }
 
     // Compute status from validateDeckFormat
+    // Also correct zones: fixed-zone card types (Legend, Champion Unit, Rune, Battlefield)
+    // must always be stored in their canonical zone regardless of what the client sends.
     let status: string = 'draft';
-    if (input.cards.length > 0) {
-      const cardTypeMap = await this.buildCardTypeMap(input.cards.map((c) => c.cardId));
-      const entries = input.cards.map((c) => ({
-        cardId: c.cardId,
-        quantity: c.quantity,
-        zone: c.zone ?? 'main',
-      }));
-      const errors = validateDeckFormat(entries, cardTypeMap);
+    let correctedCards = input.cards.map((c) => ({
+      cardId: c.cardId,
+      quantity: c.quantity,
+      zone: c.zone ?? 'main',
+    }));
+
+    if (correctedCards.length > 0) {
+      const cardTypeMap = await this.buildCardTypeMap(correctedCards.map((c) => c.cardId));
+      correctedCards = correctedCards.map((c) => {
+        const derivedZone = getZoneForCardType(cardTypeMap.get(c.cardId) ?? null);
+        return {
+          ...c,
+          zone: derivedZone !== 'main' ? derivedZone : c.zone,
+        };
+      });
+      const errors = validateDeckFormat(correctedCards, cardTypeMap);
       status = errors.length === 0 ? 'complete' : 'draft';
     }
 
@@ -422,13 +440,13 @@ export class DeckService {
       await this.db.transaction(async (tx) => {
         await tx.delete(deckCards).where(eq(deckCards.deckId, input.deckId));
 
-        if (input.cards.length > 0) {
+        if (correctedCards.length > 0) {
           await tx.insert(deckCards).values(
-            input.cards.map((c) => ({
+            correctedCards.map((c) => ({
               deckId: input.deckId,
               cardId: c.cardId,
               quantity: c.quantity,
-              zone: c.zone ?? 'main',
+              zone: c.zone,
             })),
           );
         }
@@ -470,7 +488,7 @@ export class DeckService {
         sql`${decks.id} IN (
           SELECT dc.deck_id FROM deck_cards dc
           INNER JOIN cards c ON dc.card_id = c.id
-          WHERE dc.zone = 'champion'
+          WHERE (dc.zone = 'legend' OR dc.zone = 'champion')
           AND c.clean_name ILIKE ${`%${escapedName}%`}
         )`,
       );
@@ -602,9 +620,10 @@ export class DeckService {
       .innerJoin(cards, eq(deckCards.cardId, cards.id))
       .where(eq(deckCards.deckId, input.deckId));
 
-    // Derive allowed domains from the champion's dual-domain (e.g. "Fury;Chaos" → ["Fury","Chaos"])
+    // Derive allowed domains from the legend's dual-domain (e.g. "Fury;Chaos" → ["Fury","Chaos"])
+    const legendEntry = existingDeckCards.find((dc) => dc.zone === 'legend');
     const championEntry = existingDeckCards.find((dc) => dc.zone === 'champion');
-    const championDomain = championEntry?.card_domain ?? null; // e.g. "Fury;Chaos"
+    const championDomain = legendEntry?.card_domain ?? championEntry?.card_domain ?? null;
     const allowedDomains = championDomain ? championDomain.split(';') : [];
 
     // Compute energy curve of existing deck (for gap analysis)
@@ -672,7 +691,8 @@ export class DeckService {
 
     // Load trending decks sharing the same champion for co-occurrence scoring
     const coOccurrenceCardIds = new Set<string>();
-    if (championEntry) {
+    const trendingLookupEntry = legendEntry ?? championEntry;
+    if (trendingLookupEntry) {
       const trendingDeckRows = await this.db
         .select({ cardId: deckCards.cardId })
         .from(deckCards)
@@ -680,9 +700,9 @@ export class DeckService {
         .where(
           and(
             eq(decks.isPublic, true),
-            // Find decks that also contain this champion
+            // Find decks that also contain this legend/champion
             sql`${deckCards.deckId} IN (
-              SELECT deck_id FROM deck_cards WHERE card_id = ${championEntry.cardId} AND zone = 'champion'
+              SELECT deck_id FROM deck_cards WHERE card_id = ${trendingLookupEntry.cardId} AND (zone = 'legend' OR zone = 'champion')
             )`,
           ),
         );
@@ -878,6 +898,21 @@ export class DeckService {
       }
     }
 
+    // Apply zone correction: Champion Units, Legends, Battlefields, and Runes
+    // must always be stored in their canonical zone regardless of what the parser infers.
+    // The parser defaults these to 'main', which inflates the main count.
+    if (resolved.length > 0) {
+      const cardTypeMap = await this.buildCardTypeMap(resolved.map((c) => c.cardId));
+      for (let i = 0; i < resolved.length; i++) {
+        const entry = resolved[i]!;
+        const derivedZone = getZoneForCardType(cardTypeMap.get(entry.cardId) ?? null);
+        resolved[i] = {
+          ...entry,
+          zone: derivedZone !== 'main' ? derivedZone : entry.zone,
+        };
+      }
+    }
+
     return {
       resolved,
       unmatched,
@@ -919,15 +954,19 @@ export class DeckService {
   private getCardTypesForZone(zone: string): string[] {
     switch (zone) {
       case 'main':
-        return ['Unit', 'Champion Unit', 'Spell', 'Gear', 'Signature Unit', 'Signature Spell', 'Signature Gear'];
+        return ['Unit', 'Spell', 'Gear', 'Signature Unit', 'Signature Spell', 'Signature Gear'];
       case 'rune':
         return ['Rune'];
-      case 'champion':
+      case 'legend':
         return ['Legend'];
+      case 'champion':
+        return ['Champion Unit'];
+      case 'battlefield':
+        return ['Battlefield'];
       case 'sideboard':
-        return ['Unit', 'Champion Unit', 'Spell', 'Gear'];
+        return ['Unit', 'Spell', 'Gear'];
       default:
-        return ['Unit', 'Champion Unit', 'Spell', 'Gear'];
+        return ['Unit', 'Spell', 'Gear'];
     }
   }
 
