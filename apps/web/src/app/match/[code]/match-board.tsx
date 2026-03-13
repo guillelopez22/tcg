@@ -3,16 +3,20 @@
 /**
  * MatchBoard — full-screen match gameplay view.
  *
- * Shows battlefield zones, score displays, ABCD phase tracker, and
- * turn controls. All state flows through useMatchSocket (Socket.IO).
- * Hides dashboard bottom nav for full-screen immersion.
+ * Integrates: battlefield zones, score displays, ABCD phase tracker,
+ * turn controls, undo, pause, concession, turn log, win overlay.
+ * All state flows through useMatchSocket (Socket.IO).
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { useMatchSocket } from '@/hooks/use-match-socket';
 import { BattlefieldZone } from './battlefield-zone';
 import { ScoreDisplay } from './score-display';
+import { TurnControls } from './turn-controls';
+import { TurnLog } from './turn-log';
+import { MatchEndOverlay } from './match-end-overlay';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,6 +55,11 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
     undoAction,
   } = useMatchSocket(code);
 
+  // Track which battlefields should show +1 flash (when Beginning phase scores)
+  const [flashingBattlefields, setFlashingBattlefields] = useState<Set<number>>(new Set());
+  const prevPhaseRef = useRef<string | null>(null);
+  const prevScoresRef = useRef<Record<string, number>>({});
+
   // Hide dashboard bottom nav while match board is active
   useEffect(() => {
     const nav = document.querySelector('.lg-mobile-nav') as HTMLElement | null;
@@ -64,7 +73,46 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
     };
   }, []);
 
-  // Derive player color map from players (live) or fullState.players (initial)
+  // Detect phase transition to 'B' → flash controlled battlefields with +1
+  useEffect(() => {
+    if (!matchState) return;
+    const prevPhase = prevPhaseRef.current;
+    prevPhaseRef.current = matchState.phase;
+
+    if (matchState.phase === 'B' && prevPhase === 'A') {
+      // Find all battlefields controlled by a player (not uncontrolled/contested)
+      const controlled = matchState.battlefields
+        .map((bf, i) => ({ index: i, control: bf.control }))
+        .filter((bf) => bf.control !== 'uncontrolled' && bf.control !== 'contested')
+        .map((bf) => bf.index);
+
+      if (controlled.length > 0) {
+        setFlashingBattlefields(new Set(controlled));
+        setTimeout(() => setFlashingBattlefields(new Set()), 1200);
+      }
+    }
+  }, [matchState]);
+
+  // Detect 8th point rule block — score did NOT increase despite conquest attempt
+  useEffect(() => {
+    if (!matchState) return;
+    const currentScores: Record<string, number> = {};
+    for (const p of matchState.players) {
+      currentScores[p.playerId] = p.score;
+    }
+
+    // Check last log entry for 8th point rule violation
+    const lastLog = matchState.log[matchState.log.length - 1];
+    if (lastLog?.event?.includes('8th point rule')) {
+      toast.warning('Cannot win without holding a battlefield!', {
+        description: '8th point rule: final point must come from holding a battlefield',
+      });
+    }
+
+    prevScoresRef.current = currentScores;
+  }, [matchState]);
+
+  // Derive player color map
   const playerColorMap: Record<string, string> = {};
   if (players.length > 0) {
     for (const p of players) {
@@ -93,24 +141,18 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
   const activePlayerId = matchState?.activePlayerId ?? '';
   const phase = matchState?.phase ?? 'A';
   const turnNumber = matchState?.turnNumber ?? 1;
+  const turnHistory = matchState?.log ?? [];
 
-  // Determine if paused — last log entry is "paused" and no subsequent "unpaused"
-  const lastLog = matchState?.log?.[matchState.log.length - 1];
+  // Pause detection: last log entry is 'paused' (no explicit isPaused field in MatchState)
+  const lastLog = turnHistory[turnHistory.length - 1];
   const isPaused = lastLog?.event === 'paused';
 
-  // Check if match ended
+  // Match ended
   const isMatchEnded = !!matchEndedPayload || fullState?.status === 'completed';
 
-  // Split players: me at bottom, opponents at top
+  // Player layout: my score at bottom, opponent at top
   const myPlayer = players.find((p) => p.playerId === playerId);
   const otherPlayers = players.filter((p) => p.playerId !== playerId);
-
-  const phaseLabels: Record<string, string> = {
-    A: 'Awaken',
-    B: 'Beginning',
-    C: 'Channel',
-    D: 'Draw',
-  };
 
   return (
     <div className="fixed inset-0 bg-surface flex flex-col overflow-hidden z-30">
@@ -137,33 +179,17 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
         </div>
       )}
 
-      {/* Match ended overlay */}
+      {/* Match end overlay */}
       {isMatchEnded && matchEndedPayload && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
-          <div className="lg-card p-6 text-center space-y-4 mx-4 w-full max-w-sm">
-            <p className="text-2xl font-bold text-white">
-              {matchEndedPayload.isConcession
-                ? `${matchEndedPayload.winnerName ?? 'Opponent'} wins by concession`
-                : matchEndedPayload.winnerId
-                ? `${matchEndedPayload.winnerName ?? 'Player'} Wins!`
-                : 'Match Drawn'}
-            </p>
-            <div className="space-y-1">
-              {matchEndedPayload.finalScores.map((s) => (
-                <div key={s.playerId} className="flex justify-between gap-8 text-sm">
-                  <span className="text-zinc-300">{s.displayName}</span>
-                  <span className="text-white font-bold">{s.score}</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={handleExit} className="lg-btn-secondary w-full">
-              End Session
-            </button>
-          </div>
-        </div>
+        <MatchEndOverlay
+          winnerId={matchEndedPayload.winnerId}
+          winnerName={matchEndedPayload.winnerName}
+          isConcession={matchEndedPayload.isConcession}
+          finalScores={matchEndedPayload.finalScores}
+        />
       )}
 
-      {/* ── Top bar: exit + opponent scores + match code ── */}
+      {/* ── Top bar: exit + opponent scores ── */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-surface-border bg-surface-card/60 shrink-0">
         <button
           onClick={handleExit}
@@ -200,29 +226,30 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
 
       {/* ── ABCD Phase indicator ── */}
       <div className="flex items-center justify-center gap-1.5 py-2 bg-surface-card/40 border-b border-surface-border/50 shrink-0">
-        {(['A', 'B', 'C', 'D'] as const).map((ph) => (
-          <button
-            key={ph}
-            onClick={() => {
-              if (!isSpectator && ph === phase) {
-                advancePhase(playerId);
-              }
-            }}
-            disabled={isSpectator || ph !== phase}
-            title={phaseLabels[ph]}
-            className={`
-              w-8 h-8 rounded-full text-xs font-bold transition-all
-              ${ph === phase
-                ? 'bg-rift-600 text-white shadow-lg scale-110'
-                : 'bg-surface-elevated text-zinc-500 opacity-40'
-              }
-              ${ph === phase && !isSpectator ? 'cursor-pointer hover:bg-rift-500 active:scale-100' : 'cursor-default'}
-            `}
-          >
-            {ph}
-          </button>
-        ))}
-        <span className="ml-1 text-xs text-zinc-500">{phaseLabels[phase]}</span>
+        {(['A', 'B', 'C', 'D'] as const).map((ph) => {
+          const phaseLabels: Record<string, string> = {
+            A: 'Awaken', B: 'Beginning', C: 'Channel', D: 'Draw',
+          };
+          return (
+            <button
+              key={ph}
+              disabled
+              title={phaseLabels[ph]}
+              className={`
+                w-8 h-8 rounded-full text-xs font-bold transition-all cursor-default
+                ${ph === phase
+                  ? 'bg-rift-600 text-white shadow-lg scale-110'
+                  : 'bg-surface-elevated text-zinc-500 opacity-40'
+                }
+              `}
+            >
+              {ph}
+            </button>
+          );
+        })}
+        <span className="ml-1 text-xs text-zinc-500">
+          {phase === 'A' ? 'Awaken' : phase === 'B' ? 'Beginning' : phase === 'C' ? 'Channel' : 'Draw'}
+        </span>
         {turnNumber === 1 && phase === 'C' && (
           <span className="ml-1 text-[10px] bg-rift-900/50 text-rift-400 px-2 py-0.5 rounded border border-rift-700/40">
             Draw 3 runes
@@ -230,19 +257,15 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
         )}
       </div>
 
-      {/* ── Battlefield zones (portrait: stacked, landscape: side-by-side) ── */}
-      <div
-        className="flex-1 flex p-3 gap-3 min-h-0"
-        style={{
-          flexDirection: 'column',
-        }}
-      >
+      {/* ── Battlefield zones ── */}
+      <div className="flex-1 p-3 min-h-0">
         <style>{`
+          .match-bf-grid { display: flex; flex-direction: column; height: 100%; gap: 12px; }
           @media (orientation: landscape) {
-            .match-bf-grid { flex-direction: row !important; }
+            .match-bf-grid { flex-direction: row; }
           }
         `}</style>
-        <div className="match-bf-grid flex-1 flex flex-col gap-3 min-h-0">
+        <div className="match-bf-grid">
           {battlefields.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
               <div className="lg-spinner-sm mr-2" />
@@ -259,17 +282,18 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
                 cardName={(bf as { cardName?: string | null }).cardName}
                 onTap={handleTapBattlefield}
                 disabled={isSpectator}
+                showScoreFlash={flashingBattlefields.has(i)}
               />
             ))
           )}
         </div>
       </div>
 
-      {/* ── Bottom bar: my score + turn controls ── */}
-      <div className="border-t border-surface-border bg-surface-card/60 px-3 py-2 space-y-2 shrink-0">
+      {/* ── Bottom bar: my score + controls + turn log ── */}
+      <div className="border-t border-surface-border bg-surface-card/60 shrink-0">
         {/* My score */}
         {myPlayer && (
-          <div className="flex justify-center">
+          <div className="flex justify-center px-3 pt-2">
             <ScoreDisplay
               playerName={`${myPlayer.displayName} (You)`}
               score={myPlayer.score}
@@ -280,69 +304,29 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
           </div>
         )}
 
-        {/* Turn action buttons — only for non-spectators */}
+        {/* Turn controls (only for players, not spectators) */}
         {!isSpectator && (
-          <div className="flex items-center gap-2">
-            {/* Undo */}
-            <button
-              onClick={undoAction}
-              title="Undo last action"
-              className="p-2 rounded-lg border border-surface-border text-zinc-400 hover:text-white hover:border-rift-500 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-              </svg>
-            </button>
-
-            {/* Advance Phase / End Turn */}
-            {phase === 'D' ? (
-              <button
-                onClick={advanceTurn}
-                className="flex-1 lg-btn-primary py-2 text-sm"
-              >
-                End Turn
-              </button>
-            ) : (
-              <button
-                onClick={() => advancePhase(playerId)}
-                className="flex-1 lg-btn-secondary py-2 text-sm"
-              >
-                {phase} → {phase === 'A' ? 'B' : phase === 'B' ? 'C' : 'D'}
-                <span className="ml-1 text-zinc-400">({phaseLabels[phase === 'A' ? 'B' : phase === 'B' ? 'C' : phase === 'C' ? 'D' : 'A']})</span>
-              </button>
-            )}
-
-            {/* Pause */}
-            <button
-              onClick={pauseMatch}
-              title="Pause match"
-              className="p-2 rounded-lg border border-surface-border text-zinc-400 hover:text-white hover:border-yellow-500 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-
-            {/* Concede */}
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined' && window.confirm('Are you sure? This will end the match as a concession.')) {
-                  endMatch(null, 'concession');
-                }
-              }}
-              title="Concede match"
-              className="p-2 rounded-lg border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-              </svg>
-            </button>
+          <div className="px-3 py-2">
+            <TurnControls
+              phase={phase}
+              activePlayerId={activePlayerId}
+              myPlayerId={playerId}
+              turnNumber={turnNumber}
+              onAdvancePhase={() => advancePhase(playerId)}
+              onAdvanceTurn={advanceTurn}
+              onPause={pauseMatch}
+              onEndMatch={endMatch}
+              onUndo={undoAction}
+            />
           </div>
         )}
 
         {isSpectator && (
-          <p className="text-center text-xs text-zinc-500">Spectating — read only</p>
+          <p className="text-center text-xs text-zinc-500 py-2">Spectating — read only</p>
         )}
+
+        {/* Turn log (collapsible) */}
+        <TurnLog turnHistory={turnHistory} />
       </div>
     </div>
   );
