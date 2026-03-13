@@ -4,6 +4,9 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { drawHand, type HandCard } from '@la-grieta/shared';
 
+// Card types that should never appear in an opening hand draw
+const EXCLUDED_CARD_TYPES = new Set(['Rune', 'Legend', 'Battlefield']);
+
 interface HandSimulatorProps {
   cards: Array<{
     cardId: string;
@@ -11,6 +14,7 @@ interface HandSimulatorProps {
     name: string;
     imageSmall: string | null;
     zone: string;
+    cardType: string | null;
   }>;
 }
 
@@ -19,7 +23,9 @@ export function HandSimulator({ cards }: HandSimulatorProps) {
   const [mulliganMode, setMulliganMode] = useState(false);
   const [selectedForMulligan, setSelectedForMulligan] = useState<Set<number>>(new Set());
 
-  const mainCards = cards.filter((c) => c.zone === 'main');
+  const mainCards = cards.filter(
+    (c) => c.zone === 'main' && !EXCLUDED_CARD_TYPES.has(c.cardType ?? ''),
+  );
 
   function handleDrawHand() {
     const drawn = drawHand(mainCards, 4);

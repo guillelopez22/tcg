@@ -8,7 +8,7 @@
 export interface ParsedDeckEntry {
   quantity: number;
   cardName: string;
-  zone: 'main' | 'rune' | 'champion';
+  zone: 'main' | 'rune' | 'legend' | 'champion' | 'battlefield';
 }
 
 export interface ParseResult {
@@ -23,15 +23,17 @@ const QTY_PREFIX_RE = /^(\d+)x?\s+(.+)$/i;
 const QTY_SUFFIX_RE = /^(.+?)\s+x?(\d+)$/i;
 
 // Zone header patterns — lines that set the current zone context
-// Supports singular and plural forms: "Champion:", "Champions:", "Rune:", "Runes:", "Main Deck:", etc.
-const ZONE_HEADER_RE = /^(champions?|legends?|runes?|mains?(?:\s+decks?)?|sideboards?)[:\s]*$/i;
+// Supports singular and plural forms: "Champion:", "Champions:", "Legend:", "Rune:", "Runes:", "Battlefield:", "Main Deck:", etc.
+const ZONE_HEADER_RE = /^(champions?(?:\s+units?)?|legends?|runes?|battlefields?|mains?(?:\s+decks?)?|sideboards?)[:\s]*$/i;
 
-function detectZone(line: string): 'main' | 'rune' | 'champion' | null {
+function detectZone(line: string): 'main' | 'rune' | 'legend' | 'champion' | 'battlefield' | null {
   const m = ZONE_HEADER_RE.exec(line.trim());
   if (!m) return null;
   const token = m[1]!.toLowerCase().replace(/\s+/g, '').replace(/s$/, ''); // normalize plurals
-  if (token === 'champion' || token === 'legend') return 'champion';
+  if (token === 'legend') return 'legend';
+  if (token === 'champion' || token === 'championunit') return 'champion';
   if (token === 'rune') return 'rune';
+  if (token === 'battlefield') return 'battlefield';
   if (token === 'main' || token === 'maindeck' || token === 'sideboard') return 'main';
   return null;
 }
@@ -65,7 +67,7 @@ export function autoDetectAndParse(text: string): ParseResult {
   const entries: ParsedDeckEntry[] = [];
   const unmatched: string[] = [];
 
-  let currentZone: 'main' | 'rune' | 'champion' = 'main';
+  let currentZone: 'main' | 'rune' | 'legend' | 'champion' | 'battlefield' = 'main';
 
   const lines = text.split(/\r?\n/);
 

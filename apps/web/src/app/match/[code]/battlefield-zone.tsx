@@ -1,23 +1,41 @@
 'use client';
 
 /**
- * BattlefieldZone — tappable battlefield card with card art background,
- * control state color ring, and haptic feedback on tap.
+ * BattlefieldZone — tappable battlefield card with:
+ *   - Card art background
+ *   - Control state (uncontrolled / held by player / contested / showdown)
+ *   - Contextual action labels (Conquer / Showdown / Holding)
+ *   - Haptic feedback + flash animation on tap
+ *   - Unit deployment slots (my units bottom, opponent units top)
  */
 
 import { useState } from 'react';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type BattlefieldAction = 'conquer' | 'showdown' | 'holding' | 'contested' | 'none';
 
 interface BattlefieldZoneProps {
   index: number;
   control: string; // 'uncontrolled' | 'contested' | playerId
   playerColors: Record<string, string>;
+  /** Who is the current (tapping) player */
+  myPlayerId: string;
   cardArt?: string | null;
   cardName?: string | null;
-  onTap: (index: number) => void;
+  onTap: (index: number, action: BattlefieldAction) => void;
   disabled?: boolean;
   /** Flash "+1" when score triggers */
   showScoreFlash?: boolean;
+  /** Last action that occurred — shown briefly as feedback */
+  lastAction?: BattlefieldAction | null;
 }
+
+// ---------------------------------------------------------------------------
+// Style maps
+// ---------------------------------------------------------------------------
 
 const CONTROL_STYLES: Record<string, string> = {
   uncontrolled: 'border-zinc-600',
@@ -38,62 +56,104 @@ const COLOR_OVERLAY: Record<string, string> = {
   yellow: 'bg-yellow-900/30',
 };
 
+const ACTION_FEEDBACK: Record<BattlefieldAction, { label: string; color: string }> = {
+  conquer: { label: 'Conquered!', color: 'text-green-400' },
+  showdown: { label: 'Showdown!', color: 'text-red-400' },
+  holding: { label: 'Holding', color: 'text-blue-300' },
+  contested: { label: 'Contested', color: 'text-yellow-400' },
+  none: { label: '', color: '' },
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function BattlefieldZone({
   index,
   control,
   playerColors,
+  myPlayerId,
   cardArt,
   cardName,
   onTap,
   disabled = false,
   showScoreFlash = false,
+  lastAction,
 }: BattlefieldZoneProps) {
-  const [isFlashing, setIsFlashing] = useState(false);
+  const [feedbackAction, setFeedbackAction] = useState<BattlefieldAction | null>(null);
 
   const playerColor = playerColors[control];
+  const isMyControl = control === myPlayerId;
+  const isUncontrolled = control === 'uncontrolled';
+  const isContested = control === 'contested';
+  const isOpponentControl = !isMyControl && !isUncontrolled && !isContested;
+
+  // Determine what tapping would do
+  let tapAction: BattlefieldAction = 'none';
+  let tapLabel = '';
+  if (isUncontrolled) {
+    tapAction = 'conquer';
+    tapLabel = 'Tap to Conquer';
+  } else if (isMyControl) {
+    tapAction = 'holding';
+    tapLabel = 'You hold this';
+  } else if (isOpponentControl) {
+    tapAction = 'showdown';
+    tapLabel = 'Tap for Showdown';
+  } else if (isContested) {
+    tapAction = 'contested';
+    tapLabel = 'Showdown in progress';
+  }
 
   const borderClass =
-    control === 'uncontrolled'
+    isUncontrolled
       ? CONTROL_STYLES.uncontrolled
-      : control === 'contested'
+      : isContested
         ? CONTROL_STYLES.contested
         : (COLOR_BORDER[playerColor ?? ''] ?? 'border-rift-500');
 
   const overlayClass =
-    control !== 'uncontrolled' && control !== 'contested' && playerColor
+    !isUncontrolled && !isContested && playerColor
       ? (COLOR_OVERLAY[playerColor] ?? 'bg-rift-900/30')
       : '';
 
+  // Show the last action from parent OR our local feedback
+  const displayAction = lastAction ?? feedbackAction;
+
   function handleTap() {
     if (disabled) return;
+    if (tapAction === 'holding') return; // Already mine — no-op
 
-    // Haptic feedback on tap
+    // Haptic feedback
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(50);
+      navigator.vibrate(tapAction === 'showdown' ? [50, 30, 50] : 50);
     }
 
-    // Flash animation
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 150);
+    // Show feedback briefly
+    setFeedbackAction(tapAction);
+    setTimeout(() => setFeedbackAction(null), 1200);
 
-    onTap(index);
+    onTap(index, tapAction);
   }
+
+  const canTap = !disabled && tapAction !== 'holding' && tapAction !== 'none';
 
   return (
     <button
       onClick={handleTap}
-      disabled={disabled}
+      disabled={!canTap}
       className={`
-        relative flex-1 min-h-32 rounded-xl border-2 overflow-hidden
-        transition-all duration-150 active:scale-[0.97]
+        relative w-full h-full rounded-xl border-2 overflow-hidden
+        transition-all duration-150
         ${borderClass}
-        ${disabled ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:opacity-90'}
-        ${isFlashing ? 'brightness-125' : ''}
+        ${canTap ? 'cursor-pointer hover:opacity-90 active:scale-[0.97]' : 'cursor-default'}
+        ${!canTap && disabled ? 'opacity-60' : ''}
       `}
-      aria-label={`Battlefield ${index + 1}: ${control === 'uncontrolled' ? 'Uncontrolled' : control === 'contested' ? 'Contested' : 'Controlled'}`}
+      aria-label={`Battlefield ${index + 1}: ${tapLabel}`}
     >
       {/* Card art background */}
       {cardArt ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={cardArt}
           alt={cardName ?? `Battlefield ${index + 1}`}
@@ -110,7 +170,7 @@ export function BattlefieldZone({
       )}
 
       {/* Contested striped overlay */}
-      {control === 'contested' && (
+      {isContested && (
         <div
           className="absolute inset-0 opacity-20"
           style={{
@@ -120,23 +180,61 @@ export function BattlefieldZone({
         />
       )}
 
+      {/* Showdown pulse when contested */}
+      {isContested && (
+        <div className="absolute inset-0 border-2 border-red-500/40 rounded-xl animate-pulse" />
+      )}
+
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center h-full p-3 gap-1">
-        <span className="text-xs font-bold text-white/80 uppercase tracking-wider drop-shadow">
+      <div className="relative z-10 flex flex-col items-center justify-between h-full p-2">
+        {/* Top: BF label */}
+        <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider drop-shadow">
           BF {index + 1}
         </span>
+
+        {/* Center: card name */}
         {cardName && (
-          <span className="text-xs text-white/70 text-center drop-shadow line-clamp-2 max-w-[120px]">
+          <span className="text-[10px] text-white/70 text-center drop-shadow line-clamp-2 max-w-[100px] leading-tight">
             {cardName}
           </span>
         )}
-        {control === 'uncontrolled' && (
-          <span className="text-[10px] text-zinc-400">Tap to claim</span>
-        )}
-        {control === 'contested' && (
-          <span className="text-[10px] text-yellow-400">Contested</span>
-        )}
+
+        {/* Bottom: action hint */}
+        <div className="flex flex-col items-center gap-0.5">
+          {isUncontrolled && (
+            <span className="text-[9px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
+              Conquer
+            </span>
+          )}
+          {isMyControl && (
+            <span className="text-[9px] text-green-400 bg-black/40 px-1.5 py-0.5 rounded flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+              Holding
+            </span>
+          )}
+          {isOpponentControl && (
+            <span className="text-[9px] text-red-300 bg-black/40 px-1.5 py-0.5 rounded">
+              Showdown
+            </span>
+          )}
+          {isContested && (
+            <span className="text-[9px] text-yellow-400 bg-black/40 px-1.5 py-0.5 rounded animate-pulse">
+              Contested
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Action feedback overlay */}
+      {displayAction && displayAction !== 'none' && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1.5 animate-bounce-in">
+            <span className={`text-sm font-bold drop-shadow ${ACTION_FEEDBACK[displayAction].color}`}>
+              {ACTION_FEEDBACK[displayAction].label}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Score flash animation */}
       {showScoreFlash && (

@@ -15,7 +15,9 @@ import {
   MAX_SIGNATURE_COPIES,
   MAIN_DECK_SIZE,
   RUNE_DECK_SIZE,
+  LEGEND_COUNT,
   CHAMPION_COUNT,
+  BATTLEFIELD_COUNT,
   SIDEBOARD_SIZE,
   SIGNATURE_TYPES,
   getZoneForCardType,
@@ -35,14 +37,19 @@ const FALLBACK_RARITY = { text: 'text-zinc-400', bg: 'bg-zinc-800/50', border: '
 const ZONE_LABELS: Record<DeckZone, string> = {
   main: 'Main',
   rune: 'Runes',
+  legend: 'Legend',
   champion: 'Champion',
+  battlefield: 'Battlefield',
   sideboard: 'Sideboard',
 };
 
+/** Per-zone limits. Main zone holds up to 40 cards (legend/champion/runes/battlefields are separate zones) */
 const ZONE_LIMITS: Record<DeckZone, number> = {
   main: MAIN_DECK_SIZE,
   rune: RUNE_DECK_SIZE,
+  legend: LEGEND_COUNT,
   champion: CHAMPION_COUNT,
+  battlefield: BATTLEFIELD_COUNT,
   sideboard: SIDEBOARD_SIZE,
 };
 
@@ -140,20 +147,28 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
   const [addedCardId, setAddedCardId] = useState<string | null>(null);
 
   // Build initial entries from initialCards
+  // Always derive zone from cardType for types with a fixed zone (Legend, Champion Unit,
+  // Rune, Battlefield) — older data may have everything stored as 'main'.
   const [entries, setEntries] = useState<DeckEntry[]>(() =>
-    initialCards.map((dc): DeckEntry => ({
-      cardId: dc.cardId,
-      quantity: dc.quantity,
-      zone: ((dc as DeckCard & { zone?: string }).zone ?? getZoneForCardType(dc.card.cardType)) as DeckZone,
-      card: {
-        id: dc.card.id,
-        name: dc.card.name,
-        rarity: dc.card.rarity,
-        cardType: dc.card.cardType,
-        domain: dc.card.domain,
-        imageSmall: dc.card.imageSmall,
-      },
-    }))
+    initialCards.map((dc): DeckEntry => {
+      const derivedZone = getZoneForCardType(dc.card.cardType);
+      const storedZone = (dc as DeckCard & { zone?: string }).zone as DeckZone | undefined;
+      // Trust cardType-derived zone for fixed-zone types; use stored zone only for main/sideboard
+      const zone = derivedZone !== 'main' ? derivedZone : (storedZone ?? 'main');
+      return {
+        cardId: dc.cardId,
+        quantity: dc.quantity,
+        zone,
+        card: {
+          id: dc.card.id,
+          name: dc.card.name,
+          rarity: dc.card.rarity,
+          cardType: dc.card.cardType,
+          domain: dc.card.domain,
+          imageSmall: dc.card.imageSmall,
+        },
+      };
+    })
   );
 
   // Search filters
@@ -169,7 +184,9 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
 
   const zoneCardTypeFilter = useMemo((): string | undefined => {
     if (activeZone === 'rune') return 'Rune';
-    if (activeZone === 'champion') return 'Legend';
+    if (activeZone === 'legend') return 'Legend';
+    if (activeZone === 'champion') return 'Champion Unit';
+    if (activeZone === 'battlefield') return 'Battlefield';
     return undefined; // main + sideboard: handled by exclusion below
   }, [activeZone]);
 
@@ -205,10 +222,12 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
   // All cards from search, with client-side exclusion for main/sideboard zones
   const searchCards = useMemo(() => {
     const all = searchData?.pages.flatMap((page) => page.items) ?? [];
+    // Exclude tokens from all zones — tokens are generated in-game, not deck-buildable
+    const noTokens = all.filter((c) => c.cardType && !c.cardType.includes('Token'));
     if (activeZone === 'main' || activeZone === 'sideboard') {
-      return all.filter((c) => c.cardType !== 'Legend' && c.cardType !== 'Rune');
+      return noTokens.filter((c) => c.cardType !== 'Legend' && c.cardType !== 'Champion Unit' && c.cardType !== 'Rune' && c.cardType !== 'Battlefield');
     }
-    return all;
+    return noTokens;
   }, [searchData, activeZone]);
 
   // Load user collection for ownership badges (all cards, up to 200)
@@ -287,7 +306,7 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
   // --------------------------------------------------
 
   const zoneCounts = useMemo((): Record<DeckZone, number> => {
-    const counts: Record<DeckZone, number> = { main: 0, rune: 0, champion: 0, sideboard: 0 };
+    const counts: Record<DeckZone, number> = { main: 0, rune: 0, legend: 0, champion: 0, battlefield: 0, sideboard: 0 };
     for (const entry of entries) {
       counts[entry.zone] = (counts[entry.zone] ?? 0) + entry.quantity;
     }
@@ -434,11 +453,19 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
   }
 
   function addCard(card: CardItem) {
-    addCardToZone(card, activeZone);
+    // If user is on a specific zone tab, honour that for Champion Units
+    // (Champion Units can go in either main or champion zone)
+    if (activeZone === 'champion' && card.cardType === 'Champion Unit') {
+      addCardToZone(card, 'champion');
+    } else {
+      const targetZone = getZoneForCardType(card.cardType);
+      addCardToZone(card, targetZone);
+    }
   }
 
   function addSuggestion(suggested: { cardId: string; card: { id: string; name: string; rarity: string; cardType: string | null; domain: string | null; imageSmall: string | null } }) {
-    addCardToZone(suggested.card, activeZone);
+    const targetZone = getZoneForCardType(suggested.card.cardType);
+    addCardToZone(suggested.card, targetZone);
   }
 
   function increment(cardId: string, zone: DeckZone) {
@@ -661,7 +688,9 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
                 <div className="text-xs text-zinc-500 flex items-center">
                   Zone: <span className="text-zinc-300 ml-1 font-medium">{ZONE_LABELS[activeZone]}</span>
                   {activeZone === 'rune' && <span className="ml-1 text-zinc-600">(runes only)</span>}
-                  {activeZone === 'champion' && <span className="ml-1 text-zinc-600">(legends only)</span>}
+                  {activeZone === 'legend' && <span className="ml-1 text-zinc-600">(legends only)</span>}
+                  {activeZone === 'champion' && <span className="ml-1 text-zinc-600">(champion units only)</span>}
+                  {activeZone === 'battlefield' && <span className="ml-1 text-zinc-600">(battlefields only)</span>}
                 </div>
               </div>
 

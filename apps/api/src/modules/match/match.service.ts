@@ -43,6 +43,9 @@ export type MatchSummary = {
     isWinner: boolean;
   }>;
   winnerId: string | null;
+  winnerName: string | null;
+  isConcession: boolean;
+  finalScores: Array<{ playerId: string; displayName: string; score: number }>;
   startedAt: Date | null;
   endedAt: Date | null;
   durationMs: number | null;
@@ -64,8 +67,12 @@ export class MatchService {
   ): Promise<{ code: string; sessionId: string }> {
     const code = nanoidAlphabet();
 
-    const playerIds = input.playerNames.map((_, i) => `guest-${i}-${Date.now()}`);
-    const state = createInitialState(input.format, playerIds, input.firstPlayerId);
+    const ts = Date.now();
+    const playerIds = input.playerNames.map((_, i) => `guest-${i}-${ts}`);
+    // Map firstPlayerId (e.g. "player-0") to the actual generated guest ID
+    const firstIdx = parseInt(input.firstPlayerId.replace('player-', ''), 10) || 0;
+    const resolvedFirstPlayerId = playerIds[firstIdx] ?? playerIds[0]!;
+    const state = createInitialState(input.format, playerIds, resolvedFirstPlayerId, {}, input.playerNames);
 
     const [session] = await this.db
       .insert(matchSessions)
@@ -335,6 +342,11 @@ export class MatchService {
         ? updated.endedAt.getTime() - updated.startedAt.getTime()
         : null;
 
+    // Find winner display name
+    const winnerPlayer = winnerId
+      ? match.players.find((p) => p.id === winnerId || p.userId === winnerId)
+      : null;
+
     return {
       id: updated.id,
       sessionId: updated.id,
@@ -348,6 +360,18 @@ export class MatchService {
         isWinner: p.isWinner,
       })),
       winnerId: updated.winnerId,
+      winnerName: winnerPlayer?.displayName ?? null,
+      isConcession: _reason === 'concession',
+      finalScores: match.players.map((p) => {
+        const scoreEntry = state.players?.find(
+          (sp) => sp.playerId === p.id || sp.displayName === p.displayName,
+        );
+        return {
+          playerId: p.id,
+          displayName: p.displayName,
+          score: scoreEntry?.score ?? p.finalScore ?? 0,
+        };
+      }),
       startedAt: updated.startedAt,
       endedAt: updated.endedAt,
       durationMs,
@@ -382,6 +406,62 @@ export class MatchService {
     const allSubmitted = playerMembers.every((p) => p.id in pending);
 
     return { allSubmitted };
+  }
+
+  /**
+   * Set battlefields directly for local mode — no per-player pending flow.
+   * Takes an ordered array of card IDs (one per battlefield slot),
+   * looks up card data, and populates the match state.
+   */
+  async setLocalBattlefields(
+    code: string,
+    cardIds: string[],
+  ): Promise<MatchState> {
+    const match = await this.getFullState(code);
+    const state = match.state as unknown as MatchState;
+
+    // Look up card data from DB
+    let cardDataMap = new Map<string, { name: string; imageSmall: string | null }>();
+    if (cardIds.length > 0) {
+      const cardRows = await this.db
+        .select({ id: cards.id, name: cards.name, imageSmall: cards.imageSmall })
+        .from(cards)
+        .where(
+          cardIds.length === 1
+            ? eq(cards.id, cardIds[0]!)
+            : inArray(cards.id, cardIds),
+        );
+      cardDataMap = new Map(cardRows.map((r) => [r.id, { name: r.name, imageSmall: r.imageSmall }]));
+    }
+
+    // Assign each card to a battlefield in order
+    const updatedBattlefields = state.battlefields.map((bf, i) => {
+      const cardId = cardIds[i];
+      if (!cardId) return bf;
+      const cardData = cardDataMap.get(cardId);
+      return {
+        ...bf,
+        cardId,
+        cardName: cardData?.name ?? null,
+        cardArt: cardData?.imageSmall ?? null,
+      };
+    });
+
+    const newState: MatchState = {
+      ...state,
+      battlefields: updatedBattlefields,
+    };
+
+    await this.db
+      .update(matchSessions)
+      .set({
+        state: newState as unknown as Record<string, unknown>,
+        status: 'active',
+        startedAt: match.status === 'waiting' ? new Date() : match.startedAt,
+      })
+      .where(eq(matchSessions.code, code));
+
+    return newState;
   }
 
   async revealBattlefields(code: string): Promise<MatchState & { pendingBattlefieldSelections?: Record<string, string[]> }> {
@@ -488,6 +568,9 @@ export class MatchService {
           status: row.status,
           players: [],
           winnerId: row.winnerId,
+          winnerName: null,
+          isConcession: false,
+          finalScores: [],
           startedAt: row.startedAt,
           endedAt: row.endedAt,
           durationMs:

@@ -316,6 +316,7 @@ export function DeckDetail({ id }: DeckDetailProps) {
                 name: c.card.name,
                 imageSmall: c.card.imageSmall ?? null,
                 zone: c.zone,
+                cardType: c.card.cardType,
               }))}
             />
           )}

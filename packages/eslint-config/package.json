@@ -1,0 +1,26 @@
+{
+  "name": "@la-grieta/eslint-config",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared ESLint + Prettier configuration for La Grieta monorepo",
+  "exports": {
+    "./base": "./base.js",
+    "./nestjs": "./nestjs.js",
+    "./next": "./next.js",
+    "./.prettierrc": "./.prettierrc.js"
+  },
+  "scripts": {
+    "lint": "echo 'No linting for config package'"
+  },
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-import": "^2.29.0"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.0.0",
+    "prettier": ">=3.0.0",
+    "typescript": ">=5.0.0"
+  }
+}

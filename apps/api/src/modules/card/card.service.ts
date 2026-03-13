@@ -294,9 +294,9 @@ export class CardService {
     return result;
   }
 
-  async getLegends(): Promise<Array<{ id: string; name: string; cleanName: string; domain: string | null; imageSmall: string | null }>> {
+  async getLegends(): Promise<Array<{ id: string; name: string; cleanName: string; domain: string | null; imageSmall: string | null; description: string | null }>> {
     const cached = await this.redis.get('cache:card_legends');
-    if (cached) return JSON.parse(cached) as Array<{ id: string; name: string; cleanName: string; domain: string | null; imageSmall: string | null }>;
+    if (cached) return JSON.parse(cached) as Array<{ id: string; name: string; cleanName: string; domain: string | null; imageSmall: string | null; description: string | null }>;
 
     const rows = await this.db
       .select({
@@ -305,6 +305,7 @@ export class CardService {
         cleanName: cards.cleanName,
         domain: cards.domain,
         imageSmall: cards.imageSmall,
+        description: cards.description,
       })
       .from(cards)
       .where(and(eq(cards.cardType, 'Legend'), eq(cards.isProduct, false)))

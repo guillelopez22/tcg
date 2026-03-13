@@ -33,19 +33,21 @@ import type {
  * @param playerIds - ordered list of player UUIDs (index 0 = first color assigned)
  * @param firstPlayerId - which player goes first
  * @param overrides - optional field overrides for testing
+ * @param playerNames - optional display names (defaults to playerIds)
  */
 export function createInitialState(
   format: MatchFormatInput,
   playerIds: string[],
   firstPlayerId: string,
   overrides: Partial<MatchState> = {},
+  playerNames?: string[],
 ): MatchState {
   const winTarget = getWinTarget(format);
   const bfCount = getBattlefieldCount(format);
 
   const players = playerIds.map((id, i) => ({
     playerId: id,
-    displayName: id,
+    displayName: playerNames?.[i] ?? id,
     score: 0,
     color: PLAYER_COLORS[i % PLAYER_COLORS.length] as PlayerColor,
     teamId: null,

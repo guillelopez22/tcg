@@ -23,8 +23,8 @@ export const deckCreateSchema = z.object({
   description: z.string().max(1000).optional(),
   isPublic: z.boolean().default(false),
   coverCardId: z.string().uuid().optional(),
-  // 40 main + 12 runes + 1 champion + 8 sideboard = 61 max entries
-  cards: z.array(deckCardEntrySchema).max(61).optional(),
+  // 40 main deck + 12 runes + 3 battlefields + 8 sideboard = 63 max entries
+  cards: z.array(deckCardEntrySchema).max(63).optional(),
 });
 
 export const deckUpdateSchema = z.object({
@@ -41,8 +41,8 @@ export const deckDeleteSchema = z.object({
 
 export const deckSetCardsSchema = z.object({
   deckId: z.string().uuid(),
-  // 40 main + 12 runes + 1 champion + 8 sideboard = 61 max entries
-  cards: z.array(deckCardEntrySchema).max(61),
+  // 40 main deck + 12 runes + 3 battlefields + 8 sideboard = 63 max entries
+  cards: z.array(deckCardEntrySchema).max(63),
 });
 
 export const deckBrowseSchema = z.object({

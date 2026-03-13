@@ -3,7 +3,9 @@ import {
   MAX_SIGNATURE_COPIES,
   MAIN_DECK_SIZE,
   RUNE_DECK_SIZE,
+  LEGEND_COUNT,
   CHAMPION_COUNT,
+  BATTLEFIELD_COUNT,
   SIDEBOARD_SIZE,
   SIGNATURE_TYPES,
 } from '../constants/card.constants';
@@ -32,14 +34,15 @@ export function validateDeckFormat(
   const zoneTotals: Record<string, number> = {
     main: 0,
     rune: 0,
+    legend: 0,
     champion: 0,
+    battlefield: 0,
     sideboard: 0,
   };
 
   // Aggregate quantities per cardId (for copy-limit checking)
   // Rune zone is excluded from the 3-copy limit check (runes can repeat)
   const mainSideboardCopies: Map<string, number> = new Map();
-  const allCopies: Map<string, number> = new Map();
 
   for (const entry of entries) {
     const zone = entry.zone ?? 'main';
@@ -52,28 +55,36 @@ export function validateDeckFormat(
         (mainSideboardCopies.get(entry.cardId) ?? 0) + entry.quantity,
       );
     }
-
-    allCopies.set(
-      entry.cardId,
-      (allCopies.get(entry.cardId) ?? 0) + entry.quantity,
-    );
   }
 
-  // Zone size checks
-  if (zoneTotals['main'] !== MAIN_DECK_SIZE) {
-    errors.push(`Main: ${zoneTotals['main']}/${MAIN_DECK_SIZE}`);
+  // Main deck = main + sideboard cards only.
+  // Legend, Champion, Runes, and Battlefields are all separate zones.
+  // We accept 40 (no sideboard) or 48 (40 + 8 sideboard).
+  const mainPool = (zoneTotals['main'] ?? 0) + (zoneTotals['sideboard'] ?? 0);
+  const mainWithoutSideboard = MAIN_DECK_SIZE;
+  const mainWithSideboard = MAIN_DECK_SIZE + SIDEBOARD_SIZE;
+  if (mainPool !== mainWithoutSideboard && mainPool !== mainWithSideboard) {
+    errors.push(`Main deck: ${mainPool}/${mainWithoutSideboard} (or ${mainWithSideboard} with sideboard)`);
   }
 
-  if (zoneTotals['rune'] !== RUNE_DECK_SIZE) {
-    errors.push(`Runes: ${zoneTotals['rune']}/${RUNE_DECK_SIZE}`);
+  // Legend: exactly 1
+  if (zoneTotals['legend'] !== LEGEND_COUNT) {
+    errors.push(`Need 1 legend`);
   }
 
+  // Champion: exactly 1
   if (zoneTotals['champion'] !== CHAMPION_COUNT) {
     errors.push(`Need 1 champion`);
   }
 
-  if (zoneTotals['sideboard'] !== 0 && zoneTotals['sideboard'] !== SIDEBOARD_SIZE) {
-    errors.push(`Sideboard: ${zoneTotals['sideboard']} (must be 0 or ${SIDEBOARD_SIZE})`);
+  // Runes: exactly 12
+  if (zoneTotals['rune'] !== RUNE_DECK_SIZE) {
+    errors.push(`Runes: ${zoneTotals['rune']}/${RUNE_DECK_SIZE}`);
+  }
+
+  // Battlefields: exactly 3
+  if (zoneTotals['battlefield'] !== BATTLEFIELD_COUNT) {
+    errors.push(`Battlefields: ${zoneTotals['battlefield']}/${BATTLEFIELD_COUNT}`);
   }
 
   // Copy-limit checks (main + sideboard only)
@@ -82,8 +93,7 @@ export function validateDeckFormat(
     const isSignature = cardType !== null && (SIGNATURE_TYPES as readonly string[]).includes(cardType);
 
     if (isSignature && total > MAX_SIGNATURE_COPIES) {
-      const cardName = cardId; // Caller can enrich errors if needed
-      errors.push(`Signature card limit: 1 copy (cardId: ${cardName})`);
+      errors.push(`Signature card limit: 1 copy (cardId: ${cardId})`);
     } else if (!isSignature && total > MAX_COPIES_PER_CARD) {
       errors.push(`Too many copies of cardId: ${cardId} (${total}/${MAX_COPIES_PER_CARD})`);
     }

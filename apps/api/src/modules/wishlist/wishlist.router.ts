@@ -23,6 +23,10 @@ export class WishlistRouter {
         .input(wishlistToggleSchema)
         .mutation(({ ctx, input }) => this.wishlistService.toggle(ctx.userId, input)),
 
+      addIfMissing: proc
+        .input(wishlistToggleSchema)
+        .mutation(({ ctx, input }) => this.wishlistService.addIfMissing(ctx.userId, input)),
+
       update: proc
         .input(wishlistUpdateSchema)
         .mutation(({ ctx, input }) => this.wishlistService.update(ctx.userId, input)),

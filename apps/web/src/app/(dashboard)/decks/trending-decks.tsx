@@ -4,16 +4,18 @@
 // Rendering: fully client-side — data is user-context-aware (import, wishlist actions).
 
 import { useState, useCallback } from 'react';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
+import type { DeckZone } from '@la-grieta/shared';
 
 const DOMAIN_COLORS: Record<string, string> = {
   Fury: 'text-red-400 bg-red-400/10 border-red-400/30',
-  Calm: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
-  Mind: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
-  Body: 'text-green-400 bg-green-400/10 border-green-400/30',
-  Chaos: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
+  Calm: 'text-green-400 bg-green-400/10 border-green-400/30',
+  Mind: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
+  Body: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
+  Chaos: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
   Order: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
 };
 const FALLBACK_DOMAIN = 'text-zinc-400 bg-zinc-400/10 border-zinc-400/30';
@@ -49,6 +51,10 @@ function TrendingDeckSkeleton() {
   );
 }
 
+function isNonLatinScript(text: string): boolean {
+  return /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/.test(text);
+}
+
 interface TrendingDeckCardProps {
   deck: {
     id: string;
@@ -56,6 +62,7 @@ interface TrendingDeckCardProps {
     domain: string | null;
     description: string | null;
     coverCardId: string | null;
+    coverCard?: { id: string; name: string | null; cleanName: string | null; imageSmall: string | null } | null;
     user: { username: string; displayName: string | null };
   };
   displayName: string;
@@ -80,7 +87,7 @@ function TrendingDeckCard({ deck, displayName }: TrendingDeckCardProps) {
     },
   });
 
-  const toggleWishlist = trpc.wishlist.toggle.useMutation();
+  const addIfMissing = trpc.wishlist.addIfMissing.useMutation();
 
   async function handleImport() {
     if (!user) { toast.error('Sign in to import decks'); return; }
@@ -100,8 +107,9 @@ function TrendingDeckCard({ deck, displayName }: TrendingDeckCardProps) {
     createDeck.mutate({
       name: displayName,
       description: deck.description ?? undefined,
+      coverCardId: deck.coverCardId ?? undefined,
       isPublic: false,
-      cards: deckDetail.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity })),
+      cards: deckDetail.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity, zone: c.zone as DeckZone })),
     });
   }
 
@@ -129,7 +137,7 @@ function TrendingDeckCard({ deck, displayName }: TrendingDeckCardProps) {
     let addedCount = 0;
     for (const card of deckDetail.cards) {
       try {
-        await toggleWishlist.mutateAsync({ cardId: card.cardId, type: 'want' });
+        await addIfMissing.mutateAsync({ cardId: card.cardId, type: 'want' });
         addedCount++;
       } catch {
         // Continue for remaining cards even if one fails
@@ -150,15 +158,29 @@ function TrendingDeckCard({ deck, displayName }: TrendingDeckCardProps) {
 
   const creatorLabel = deck.user.displayName ?? deck.user.username;
 
+  // Use legend name for non-Latin deck names
+  const cleanedName = deck.name.replace(/^\[RD\]\s*/, '');
+  const isNonLatin = isNonLatinScript(cleanedName);
+  const legendLabel = deck.coverCard?.name?.split(' - ')[0] ?? null;
+  const finalDisplayName = isNonLatin && legendLabel ? legendLabel : displayName;
+  const subtitle = isNonLatin ? cleanedName : null;
+
   return (
     <div className="lg-card overflow-hidden flex flex-col">
       <div className="p-3 flex gap-3">
-        <DeckPlaceholder domain={deck.domain} />
+        {deck.coverCard?.imageSmall ? (
+          <div className="w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 relative bg-surface-elevated">
+            <Image src={deck.coverCard.imageSmall} alt="" fill sizes="48px" className="object-cover" />
+          </div>
+        ) : (
+          <DeckPlaceholder domain={deck.domain} />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-1.5 mb-0.5">
-            <p className="text-sm font-semibold text-white leading-snug truncate">{displayName}</p>
+            <p className="text-sm font-semibold text-white leading-snug truncate">{finalDisplayName}</p>
             <DomainBadge domain={deck.domain} />
           </div>
+          {subtitle && <p className="text-[10px] text-zinc-500 truncate">{subtitle}</p>}
           <p className="lg-text-muted truncate">by {creatorLabel}</p>
         </div>
       </div>

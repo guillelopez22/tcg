@@ -14,20 +14,28 @@ describe('autoDetectAndParse', () => {
     expect(entry2?.quantity).toBe(2);
   });
 
-  it('assigns correct zones from zone headers (Champion:, Runes:, Main Deck:)', () => {
+  it('assigns correct zones from zone headers (Legend:, Champion:, Runes:, Battlefield:, Main Deck:)', () => {
     const text = [
-      'Champion:',
+      'Legend:',
       '1x Legend Card',
+      'Champion:',
+      '1x Champion Unit Card',
       'Runes:',
       '4x Rune Card',
+      'Battlefield:',
+      '1x Some Arena',
       'Main Deck:',
       '3x Unit Card',
     ].join('\n');
     const result = autoDetectAndParse(text);
-    const champion = result.entries.find((e) => e.cardName === 'Legend Card');
+    const legend = result.entries.find((e) => e.cardName === 'Legend Card');
+    expect(legend?.zone).toBe('legend');
+    const champion = result.entries.find((e) => e.cardName === 'Champion Unit Card');
     expect(champion?.zone).toBe('champion');
     const rune = result.entries.find((e) => e.cardName === 'Rune Card');
     expect(rune?.zone).toBe('rune');
+    const battlefield = result.entries.find((e) => e.cardName === 'Some Arena');
+    expect(battlefield?.zone).toBe('battlefield');
     const main = result.entries.find((e) => e.cardName === 'Unit Card');
     expect(main?.zone).toBe('main');
   });

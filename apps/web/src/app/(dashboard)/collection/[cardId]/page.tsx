@@ -3,7 +3,6 @@
 // Card detail page — shows large card art, card info, wantlist/tradelist toggles,
 // all user copies with inline editing, and "Add another copy" button.
 
-import { use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -14,7 +13,7 @@ import { DetailSkeleton } from '@/components/skeletons';
 import { CopyList } from './copy-list';
 
 interface PageProps {
-  params: Promise<{ cardId: string }>;
+  params: { cardId: string };
 }
 
 const RARITY_COLORS: Record<string, string> = {
@@ -28,7 +27,7 @@ const RARITY_COLORS: Record<string, string> = {
 };
 
 export default function CardDetailPage({ params }: PageProps) {
-  const { cardId } = use(params);
+  const { cardId } = params;
   const { user } = useAuth();
   const t = useTranslations('collection');
   const tWant = useTranslations('wantlist');
@@ -212,20 +211,32 @@ export default function CardDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Copies section */}
+      {/* Purchase history section */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="lg-section-title uppercase tracking-wider">
-            Copies ({copies.length})
-          </h2>
-          <button
-            onClick={() => addCopy.mutate({ cardId, variant: 'normal', condition: 'near_mint' })}
-            disabled={addCopy.isPending}
-            className="lg-btn-secondary text-sm px-3 py-1.5"
-          >
-            {addCopy.isPending ? tCommon('loading') : '+ Add another copy'}
-          </button>
+        <div className="rounded-xl border border-surface-border bg-surface-card/50 p-4 space-y-1">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">
+              Purchase History
+            </h2>
+            <span className="lg-badge bg-surface-elevated text-zinc-300">
+              {copies.length} {copies.length === 1 ? 'copy' : 'copies'} owned
+            </span>
+          </div>
+          <p className="text-sm text-zinc-500">
+            Each copy represents a physical card you own. Track condition, variant, price paid, and photos for every purchase.
+          </p>
         </div>
+
+        <button
+          onClick={() => addCopy.mutate({ cardId, variant: 'normal', condition: 'near_mint' })}
+          disabled={addCopy.isPending}
+          className="lg-btn-secondary w-full text-sm py-2.5 flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          {addCopy.isPending ? tCommon('loading') : 'Log a new purchase'}
+        </button>
 
         <CopyList
           copies={copies}

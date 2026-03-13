@@ -1,0 +1,11 @@
+{
+  "extends": "@la-grieta/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "declarationDir": "dist",
+    "declaration": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"]
+}

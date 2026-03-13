@@ -142,6 +142,10 @@ None beyond the auto-fixed socket type extension.
 - Phase 03 Plan 05 (match history detail view) can use `match.getById` tRPC procedure
 - `useMatchSocket` can be reused by any future match view component
 
+## Self-Check: PASSED
+
+All 7 created files verified on disk. Both task commits verified in git log (091132c, 2a074d2). TypeScript compilation passes cleanly.
+
 ---
 *Phase: 03-points-tracker*
 *Completed: 2026-03-13*

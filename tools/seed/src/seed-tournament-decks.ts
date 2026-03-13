@@ -3,7 +3,7 @@
  * Usage: pnpm tsx tools/seed/src/seed-tournament-decks.ts
  * Requires DATABASE_URL environment variable.
  *
- * Idempotent: skips any deck with the same name that already exists.
+ * Idempotent & update-capable: upserts decks by name, replaces deck cards on every run.
  * Uses a "La Grieta System" user for seeded decks. Creates the user if it doesn't exist.
  */
 import { readFileSync } from 'node:fs';
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { createDbClient } from '@la-grieta/db';
 import { users, decks, deckCards, cards } from '@la-grieta/db';
 import { eq, inArray } from 'drizzle-orm';
+import { getZoneForCardType } from '@la-grieta/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,14 +92,22 @@ async function main(): Promise<void> {
     ...new Set(tournamentDecks.flatMap((d) => d.cards.map((c) => c.externalId))),
   ];
 
-  // Step 3: Query DB for actual card UUIDs
+  // Step 3: Query DB for actual card UUIDs, card types, and clean names (for zone assignment)
   const cardRows = await db
-    .select({ id: cards.id, externalId: cards.externalId })
+    .select({ id: cards.id, externalId: cards.externalId, cardType: cards.cardType, cleanName: cards.cleanName })
     .from(cards)
     .where(inArray(cards.externalId, allExternalIds));
 
   const cardIdByExternalId = new Map<string, string>(
     cardRows.map((r) => [r.externalId, r.id]),
+  );
+
+  const cardTypeByExternalId = new Map<string, string>(
+    cardRows.map((r) => [r.externalId, r.cardType]),
+  );
+
+  const cardCleanNameByExternalId = new Map<string, string>(
+    cardRows.map((r) => [r.externalId, r.cleanName]),
   );
 
   const missing = allExternalIds.filter((eid) => !cardIdByExternalId.has(eid));
@@ -107,12 +116,14 @@ async function main(): Promise<void> {
     console.warn('Missing:', missing.slice(0, 5).join(', '), missing.length > 5 ? `...and ${missing.length - 5} more` : '');
   }
 
-  // Step 4: Seed each deck (idempotent)
-  let seeded = 0;
-  let skipped = 0;
+  // Step 4: Upsert each deck
+  let created = 0;
+  let updated = 0;
 
   for (const deckData of tournamentDecks) {
-    // Check if deck with this name already exists
+    const coverCardId = cardIdByExternalId.get(deckData.coverCardExternalId) ?? null;
+
+    // Check if deck with this name already exists for the system user
     const existing = await db
       .select({ id: decks.id })
       .from(decks)
@@ -120,51 +131,86 @@ async function main(): Promise<void> {
       .limit(1)
       .then((rows) => rows[0] ?? null);
 
+    let deckId: string;
+
     if (existing) {
-      console.log(`  Skipping (already exists): ${deckData.name}`);
-      skipped++;
-      continue;
-    }
+      // Update existing deck metadata
+      await db
+        .update(decks)
+        .set({
+          description: deckData.description,
+          isPublic: deckData.isPublic,
+          domain: deckData.domain,
+          coverCardId,
+        })
+        .where(eq(decks.id, existing.id));
 
-    // Resolve cover card ID
-    const coverCardId = cardIdByExternalId.get(deckData.coverCardExternalId) ?? null;
+      // Delete old deck cards and re-insert
+      await db.delete(deckCards).where(eq(deckCards.deckId, existing.id));
 
-    // Create deck
-    const [createdDeck] = await db
-      .insert(decks)
-      .values({
-        userId: systemUserId,
-        name: deckData.name,
-        description: deckData.description,
-        isPublic: deckData.isPublic,
-        domain: deckData.domain,
-        coverCardId,
-      })
-      .returning({ id: decks.id });
+      deckId = existing.id;
+      updated++;
+      console.log(`  Updated: ${deckData.name}`);
+    } else {
+      // Create new deck
+      const [createdDeck] = await db
+        .insert(decks)
+        .values({
+          userId: systemUserId,
+          name: deckData.name,
+          description: deckData.description,
+          isPublic: deckData.isPublic,
+          domain: deckData.domain,
+          coverCardId,
+        })
+        .returning({ id: decks.id });
 
-    if (!createdDeck) {
-      console.error(`  Failed to create deck: ${deckData.name}`);
-      continue;
+      if (!createdDeck) {
+        console.error(`  Failed to create deck: ${deckData.name}`);
+        continue;
+      }
+
+      deckId = createdDeck.id;
+      created++;
+      console.log(`  Created: ${deckData.name}`);
     }
 
     // Insert deck cards (skip cards not found in DB)
-    const deckCardValues = deckData.cards
-      .map((c) => {
-        const cardId = cardIdByExternalId.get(c.externalId);
-        if (!cardId) return null;
-        return { deckId: createdDeck.id, cardId, quantity: c.quantity };
-      })
-      .filter((v): v is { deckId: string; cardId: string; quantity: number } => v !== null);
+    // Champion Units default to 'main'. Only one copy of the designated champion
+    // (matching deckData.champion) goes to the 'champion' zone.
+    let championAssigned = false;
+    const deckCardValues: Array<{ deckId: string; cardId: string; quantity: number; zone: string }> = [];
+
+    for (const c of deckData.cards) {
+      const cardId = cardIdByExternalId.get(c.externalId);
+      if (!cardId) continue;
+      const cardType = cardTypeByExternalId.get(c.externalId) ?? null;
+      const cleanName = cardCleanNameByExternalId.get(c.externalId) ?? '';
+      let zone = getZoneForCardType(cardType);
+
+      // Designate the chosen champion: match by cleanName containing deckData.champion
+      if (!championAssigned && cardType === 'Champion Unit' && cleanName.toLowerCase().includes(deckData.champion.toLowerCase())) {
+        championAssigned = true;
+        // Put 1 copy in champion zone
+        deckCardValues.push({ deckId, cardId, quantity: 1, zone: 'champion' });
+        // Remaining copies (if any) go to main
+        if (c.quantity > 1) {
+          deckCardValues.push({ deckId, cardId, quantity: c.quantity - 1, zone: 'main' });
+        }
+        continue;
+      }
+
+      deckCardValues.push({ deckId, cardId, quantity: c.quantity, zone });
+    }
 
     if (deckCardValues.length > 0) {
       await db.insert(deckCards).values(deckCardValues);
     }
 
-    console.log(`  Seeded: ${deckData.name} (${deckCardValues.length} cards)`);
-    seeded++;
+    console.log(`    → ${deckCardValues.length} cards`);
   }
 
-  console.log(`\nDone! Seeded: ${seeded}, Skipped: ${skipped}`);
+  console.log(`\nDone! Created: ${created}, Updated: ${updated}`);
   process.exit(0);
 }
 

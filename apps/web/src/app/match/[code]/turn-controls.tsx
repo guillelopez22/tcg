@@ -20,6 +20,8 @@ interface TurnControlsProps {
   onEndMatch: (winnerId: string | null, reason: 'concession') => void;
   onUndo: () => void;
   disabled?: boolean;
+  /** In local mode both players share one device — never block controls */
+  localMode?: boolean;
 }
 
 const PHASE_LABELS: Record<MatchPhaseInput, string> = {
@@ -47,9 +49,10 @@ export function TurnControls({
   onEndMatch,
   onUndo,
   disabled = false,
+  localMode = false,
 }: TurnControlsProps) {
   const [showConcedeDialog, setShowConcedeDialog] = useState(false);
-  const isMyTurn = activePlayerId === myPlayerId;
+  const isMyTurn = localMode || activePlayerId === myPlayerId;
 
   function handleConcedeConfirm() {
     setShowConcedeDialog(false);

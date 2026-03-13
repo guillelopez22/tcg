@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import type {
   MatchSocket,
@@ -41,7 +41,7 @@ interface BattlefieldSelectionProps {
   code: string;
   playerId: string;
   battlefieldCards: CardData[];
-  /** Number of battlefield cards required (2 for 1v1, 3 for 2v2/FFA) */
+  /** Number of battlefield cards each player picks (always 1) */
   required: number;
   socket: MatchSocket;
   /** Called after the reveal animation completes */
@@ -50,6 +50,10 @@ interface BattlefieldSelectionProps {
   localMode?: boolean;
   /** All player names for local mode sequential display */
   localPlayerNames?: string[];
+  /** Per-player battlefield cards for local mode (each player sees only their own) */
+  localPlayerCards?: CardData[][];
+  /** Battlefield card IDs already used in previous matches of a series */
+  usedBattlefieldIds?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +61,7 @@ interface BattlefieldSelectionProps {
 // ---------------------------------------------------------------------------
 
 export function BattlefieldSelection({
-  code: _code,
+  code,
   playerId,
   battlefieldCards,
   required,
@@ -65,6 +69,8 @@ export function BattlefieldSelection({
   onRevealed,
   localMode = false,
   localPlayerNames = [],
+  localPlayerCards,
+  usedBattlefieldIds = [],
 }: BattlefieldSelectionProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
@@ -73,52 +79,87 @@ export function BattlefieldSelection({
   const [revealed, setRevealed] = useState(false);
   const [revealedState, setRevealedState] = useState<BattlefieldRevealPayload | null>(null);
   const [flipped, setFlipped] = useState<Set<string>>(new Set());
-  const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Store all active timeouts so we can clean them all up (not just the last one)
+  const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Stable ref for onRevealed so useEffect doesn't re-run on every render
+  const onRevealedRef = useRef(onRevealed);
+  onRevealedRef.current = onRevealed;
 
   const isSelectionComplete = selectedIds.length === required;
   const totalLocalPlayers = localMode ? Math.max(localPlayerNames.length, 1) : 1;
 
-  // ---------------------------------------------------------------
-  // Socket listeners
-  // ---------------------------------------------------------------
+  // In local mode, each player sees only their own battlefield cards
+  // Also exclude cards used in previous matches of a series
+  const usedSet = new Set(usedBattlefieldIds);
+  const availableCards = localMode && localPlayerCards
+    ? (localPlayerCards[localPlayerIndex] ?? []).filter((c) => !usedSet.has(c.id))
+    : battlefieldCards.filter((c) => !usedSet.has(c.id));
 
-  useEffect(() => {
-    function onSubmitted() {
-      // Server acknowledged our submission — UI already updated optimistically
-    }
+  // Helper: clear all pending timeouts
+  const clearAllTimeouts = useCallback(() => {
+    for (const id of timeoutIdsRef.current) clearTimeout(id);
+    timeoutIdsRef.current = [];
+  }, []);
 
-    function onReveal(payload: BattlefieldRevealPayload) {
+  // Helper: schedule a timeout and track it
+  const schedule = useCallback((fn: () => void, delay: number) => {
+    const id = setTimeout(fn, delay);
+    timeoutIdsRef.current.push(id);
+    return id;
+  }, []);
+
+  // Helper: run reveal animation (shared between local and socket paths)
+  const runRevealAnimation = useCallback(
+    (payload: BattlefieldRevealPayload) => {
       setRevealedState(payload);
       setRevealed(true);
 
-      // Staggered flip animation: flip each card 100ms apart
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+
+      // Staggered flip animation
       payload.battlefields.forEach((bf, bfIndex) => {
-        bf.cards.forEach((card, cardIndex) => {
+        bf.cards.forEach((_card, cardIndex) => {
           const delay = (bfIndex * bf.cards.length + cardIndex) * 120;
-          revealTimeoutRef.current = setTimeout(() => {
+          schedule(() => {
             setFlipped((prev) => new Set([...prev, `${bfIndex}-${cardIndex}`]));
           }, delay);
         });
       });
-
-      // Vibrate on reveal
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(100);
-      }
 
       // After all flips complete, transition to match board
       const totalCards = payload.battlefields.reduce(
         (sum, bf) => sum + bf.cards.length,
         0,
       );
-      const totalAnimationMs = totalCards * 120 + 600 + 400; // animation + buffer
+      const totalAnimationMs = totalCards * 120 + 600 + 400;
 
-      revealTimeoutRef.current = setTimeout(() => {
-        onRevealed({
+      schedule(() => {
+        onRevealedRef.current({
           battlefields: payload.battlefields,
           players: [],
         });
       }, totalAnimationMs);
+    },
+    [schedule],
+  );
+
+  // ---------------------------------------------------------------
+  // Socket listeners (synced mode only)
+  // ---------------------------------------------------------------
+
+  useEffect(() => {
+    // Local mode handles reveal directly — no socket listeners needed
+    if (localMode) return;
+
+    function onSubmitted() {
+      // Server acknowledged our submission — UI already updated optimistically
+    }
+
+    function onReveal(payload: BattlefieldRevealPayload) {
+      runRevealAnimation(payload);
     }
 
     socket.on('battlefield:submitted', onSubmitted);
@@ -127,9 +168,13 @@ export function BattlefieldSelection({
     return () => {
       socket.off('battlefield:submitted', onSubmitted);
       socket.off('battlefield:reveal', onReveal);
-      if (revealTimeoutRef.current) clearTimeout(revealTimeoutRef.current);
     };
-  }, [socket, onRevealed]);
+  }, [socket, localMode, runRevealAnimation]);
+
+  // Cleanup all timeouts on unmount
+  useEffect(() => {
+    return () => clearAllTimeouts();
+  }, [clearAllTimeouts]);
 
   // ---------------------------------------------------------------
   // Handlers
@@ -161,19 +206,19 @@ export function BattlefieldSelection({
       if (localPlayerIndex + 1 < totalLocalPlayers) {
         setLocalPlayerIndex((i) => i + 1);
       } else {
-        // All local players submitted — emit all selections and trigger reveal locally
-        // For local mode, we emit battlefield:submit for the host player
-        // and directly trigger the reveal animation since it's single device
-        socket.emit('battlefield:submit', { playerId, cardIds: nextSubmissions[0] ?? [] });
+        // All local players submitted — trigger reveal locally
         setSubmitted(true);
 
-        // Simulate reveal for local mode using the local submissions
+        // Build reveal payload from each player's card pool
+        const allCards = localPlayerCards
+          ? localPlayerCards.flat()
+          : battlefieldCards;
         const localRevealPayload: BattlefieldRevealPayload = {
           battlefields: nextSubmissions.map((cardIds, index) => ({
             index,
             playerId: `local-player-${index}`,
             cards: cardIds.map((cid) => {
-              const card = battlefieldCards.find((c) => c.id === cid);
+              const card = allCards.find((c) => c.id === cid);
               return {
                 cardId: cid,
                 cardName: card?.name ?? cid,
@@ -184,28 +229,11 @@ export function BattlefieldSelection({
           })),
         };
 
-        setRevealedState(localRevealPayload);
-        setRevealed(true);
+        // Send ALL selected card IDs to the server so match state is populated
+        const allSelectedCardIds = nextSubmissions.flat();
+        socket.emit('battlefield:set-local', { code, cardIds: allSelectedCardIds });
 
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(100);
-        }
-
-        // Staggered flip animation
-        localRevealPayload.battlefields.forEach((bf, bfIndex) => {
-          bf.cards.forEach((_card, cardIndex) => {
-            const delay = (bfIndex * bf.cards.length + cardIndex) * 120;
-            revealTimeoutRef.current = setTimeout(() => {
-              setFlipped((prev) => new Set([...prev, `${bfIndex}-${cardIndex}`]));
-            }, delay);
-          });
-        });
-
-        const totalCards = nextSubmissions.reduce((sum, ids) => sum + ids.length, 0);
-        const totalAnimationMs = totalCards * 120 + 600 + 400;
-        revealTimeoutRef.current = setTimeout(() => {
-          onRevealed({ battlefields: localRevealPayload.battlefields, players: [] });
-        }, totalAnimationMs);
+        runRevealAnimation(localRevealPayload);
       }
     } else {
       // Synced mode: emit to server
@@ -230,7 +258,9 @@ export function BattlefieldSelection({
           {revealedState.battlefields.map((bf, bfIndex) => (
             <div key={bfIndex} className="space-y-2">
               <p className="text-xs text-zinc-500 text-center">
-                Player {bfIndex + 1}
+                {localMode
+                  ? (localPlayerNames[bfIndex] ?? `Player ${bfIndex + 1}`)
+                  : `Player ${bfIndex + 1}`}
               </p>
               <div className="flex gap-2">
                 {bf.cards.map((card, cardIndex) => {
@@ -304,7 +334,7 @@ export function BattlefieldSelection({
   }
 
   // ---------------------------------------------------------------
-  // Waiting view (after submission, before reveal)
+  // Waiting view (synced mode only — after submission, before reveal)
   // ---------------------------------------------------------------
 
   if (submitted && !localMode) {
@@ -360,10 +390,12 @@ export function BattlefieldSelection({
           <p className="text-sm font-medium text-rift-400">{currentPlayerName}&apos;s turn</p>
         )}
         <h2 className="text-lg font-bold text-white">
-          Choose {required} Battlefield Card{required > 1 ? 's' : ''}
+          Choose Your Battlefield
         </h2>
         <p className="text-sm lg-text-secondary">
-          Your selection is secret until all players have chosen.
+          {localMode
+            ? 'Pick 1 battlefield card. Previously used battlefields are excluded.'
+            : 'Your selection is secret until all players have chosen.'}
         </p>
       </div>
 
@@ -385,16 +417,16 @@ export function BattlefieldSelection({
       </div>
 
       {/* Battlefield card grid */}
-      {battlefieldCards.length === 0 ? (
+      {availableCards.length === 0 ? (
         <div className="lg-card p-4 text-center">
-          <p className="text-sm lg-text-secondary">No battlefield cards available in this deck.</p>
+          <p className="text-sm lg-text-secondary">No battlefield cards available.</p>
           <p className="text-xs text-zinc-600 mt-1">
             Make sure your deck includes Battlefield cards.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {battlefieldCards.map((card) => {
+          {availableCards.map((card) => {
             const isSelected = selectedIds.includes(card.id);
             return (
               <button

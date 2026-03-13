@@ -1,46 +1,70 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateDeckFormat = void 0;
-const card_constants_1 = require("../constants/card.constants");
-function validateDeckFormat(entries, cardTypeMap) {
+import { MAX_COPIES_PER_CARD, MAX_SIGNATURE_COPIES, MAIN_DECK_SIZE, RUNE_DECK_SIZE, LEGEND_COUNT, CHAMPION_COUNT, BATTLEFIELD_COUNT, SIDEBOARD_SIZE, SIGNATURE_TYPES, } from '../constants/card.constants';
+/**
+ * Pure function — no Node or browser API dependencies.
+ * Usable by both the server (deck.service.ts) and client (deck-card-editor.tsx).
+ *
+ * @param entries   Flat list of deck card entries with zone info.
+ * @param cardTypeMap  Map from cardId to cardType string (or null for unknown).
+ * @returns Array of human-readable error strings. Empty array means the deck is valid.
+ */
+export function validateDeckFormat(entries, cardTypeMap) {
     const errors = [];
+    // Aggregate totals per zone
     const zoneTotals = {
         main: 0,
         rune: 0,
+        legend: 0,
         champion: 0,
+        battlefield: 0,
         sideboard: 0,
     };
+    // Aggregate quantities per cardId (for copy-limit checking)
+    // Rune zone is excluded from the 3-copy limit check (runes can repeat)
     const mainSideboardCopies = new Map();
-    const allCopies = new Map();
     for (const entry of entries) {
-        const zone = entry.zone || 'main';
-        zoneTotals[zone] = (zoneTotals[zone] || 0) + entry.quantity;
+        const zone = entry.zone ?? 'main';
+        zoneTotals[zone] = (zoneTotals[zone] ?? 0) + entry.quantity;
+        // Track copies across main + sideboard for the copy-limit rules
         if (zone === 'main' || zone === 'sideboard') {
-            mainSideboardCopies.set(entry.cardId, (mainSideboardCopies.get(entry.cardId) || 0) + entry.quantity);
+            mainSideboardCopies.set(entry.cardId, (mainSideboardCopies.get(entry.cardId) ?? 0) + entry.quantity);
         }
-        allCopies.set(entry.cardId, (allCopies.get(entry.cardId) || 0) + entry.quantity);
     }
-    if (zoneTotals['main'] !== card_constants_1.MAIN_DECK_SIZE) {
-        errors.push(`Main: ${zoneTotals['main']}/${card_constants_1.MAIN_DECK_SIZE}`);
+    // Main deck = legend + main + sideboard combined.
+    // Champion is a separate zone (1 card that starts on the battlefield).
+    // Sideboard cards live in the main zone until the user separates them,
+    // so we accept 40 (no sideboard) or 48 (40 + 8 sideboard).
+    const mainPool = (zoneTotals['legend'] ?? 0) + (zoneTotals['main'] ?? 0) + (zoneTotals['sideboard'] ?? 0);
+    const mainWithoutSideboard = MAIN_DECK_SIZE;
+    const mainWithSideboard = MAIN_DECK_SIZE + SIDEBOARD_SIZE;
+    if (mainPool !== mainWithoutSideboard && mainPool !== mainWithSideboard) {
+        errors.push(`Main deck: ${mainPool}/${mainWithoutSideboard} (or ${mainWithSideboard} with sideboard)`);
     }
-    if (zoneTotals['rune'] !== card_constants_1.RUNE_DECK_SIZE) {
-        errors.push(`Runes: ${zoneTotals['rune']}/${card_constants_1.RUNE_DECK_SIZE}`);
+    // Legend: exactly 1
+    if (zoneTotals['legend'] !== LEGEND_COUNT) {
+        errors.push(`Need 1 legend`);
     }
-    if (zoneTotals['champion'] !== card_constants_1.CHAMPION_COUNT) {
+    // Champion: exactly 1
+    if (zoneTotals['champion'] !== CHAMPION_COUNT) {
         errors.push(`Need 1 champion`);
     }
-    if (zoneTotals['sideboard'] !== 0 && zoneTotals['sideboard'] !== card_constants_1.SIDEBOARD_SIZE) {
-        errors.push(`Sideboard: ${zoneTotals['sideboard']} (must be 0 or ${card_constants_1.SIDEBOARD_SIZE})`);
+    // Runes: exactly 12
+    if (zoneTotals['rune'] !== RUNE_DECK_SIZE) {
+        errors.push(`Runes: ${zoneTotals['rune']}/${RUNE_DECK_SIZE}`);
     }
+    // Battlefields: exactly 3
+    if (zoneTotals['battlefield'] !== BATTLEFIELD_COUNT) {
+        errors.push(`Battlefields: ${zoneTotals['battlefield']}/${BATTLEFIELD_COUNT}`);
+    }
+    // Copy-limit checks (main + sideboard only)
     for (const [cardId, total] of mainSideboardCopies) {
-        const cardType = cardTypeMap.get(cardId) || null;
-        const isSignature = cardType !== null && card_constants_1.SIGNATURE_TYPES.includes(cardType);
-        if (isSignature && total > card_constants_1.MAX_SIGNATURE_COPIES) {
+        const cardType = cardTypeMap.get(cardId) ?? null;
+        const isSignature = cardType !== null && SIGNATURE_TYPES.includes(cardType);
+        if (isSignature && total > MAX_SIGNATURE_COPIES) {
             errors.push(`Signature card limit: 1 copy (cardId: ${cardId})`);
-        } else if (!isSignature && total > card_constants_1.MAX_COPIES_PER_CARD) {
-            errors.push(`Too many copies of cardId: ${cardId} (${total}/${card_constants_1.MAX_COPIES_PER_CARD})`);
+        }
+        else if (!isSignature && total > MAX_COPIES_PER_CARD) {
+            errors.push(`Too many copies of cardId: ${cardId} (${total}/${MAX_COPIES_PER_CARD})`);
         }
     }
     return errors;
 }
-exports.validateDeckFormat = validateDeckFormat;

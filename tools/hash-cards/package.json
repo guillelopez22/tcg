@@ -1,0 +1,16 @@
+{
+  "name": "@la-grieta/hash-cards",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/hash-cards.ts"
+  },
+  "dependencies": {
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@la-grieta/tsconfig": "workspace:*",
+    "tsx": "^4.19.0",
+    "@types/node": "^20.0.0"
+  }
+}

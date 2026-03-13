@@ -20,7 +20,7 @@ export default function PublicMatchPage({ params }: MatchPageProps) {
         <span className="text-xs text-zinc-500 font-mono">{code}</span>
       </header>
 
-      <main className="flex-1 flex flex-col lg-page-padding py-6 max-w-md mx-auto w-full">
+      <main className="flex-1 flex flex-col lg-page-padding py-6 max-w-5xl mx-auto w-full">
         <JoinForm code={code} />
       </main>
     </div>

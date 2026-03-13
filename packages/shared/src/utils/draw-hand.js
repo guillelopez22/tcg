@@ -1,12 +1,20 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.drawHand = void 0;
+/**
+ * drawHand — Pure utility for simulating an opening hand draw.
+ *
+ * CALLER CONTRACT: Only pass main-deck cards (zone === 'main').
+ * Filtering by zone is the caller's responsibility.
+ */
 /**
  * Draws a random opening hand from a pool of deck cards.
  *
- * CALLER CONTRACT: Only pass main-deck cards (zone === 'main').
+ * @param deckCards - Array of cards with cardId, quantity, name, and imageSmall.
+ *                   Each card is expanded by its quantity into individual pool entries.
+ *                   Should only contain main-deck cards.
+ * @param handSize  - Number of cards to draw (default 4). If the total pool is smaller
+ *                   than handSize, all pool entries are returned (shuffled).
+ * @returns         - Array of HandCard objects (no zone, no quantity).
  */
-function drawHand(deckCards, handSize = 4) {
+export function drawHand(deckCards, handSize = 4) {
     // Expand each card by its quantity into individual pool slots
     const pool = [];
     for (const card of deckCards) {
@@ -23,4 +31,3 @@ function drawHand(deckCards, handSize = 4) {
     }
     return pool.slice(0, Math.min(handSize, pool.length));
 }
-exports.drawHand = drawHand;

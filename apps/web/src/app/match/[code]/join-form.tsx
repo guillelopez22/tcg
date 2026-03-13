@@ -85,37 +85,13 @@ export function JoinForm({ code }: JoinFormProps) {
 
       // Establish Socket.IO connection
       const socket = getMatchSocket(code);
-
       socket.on('disconnect', () => setIsSocketDisconnected(true));
       socket.on('connect', () => setIsSocketDisconnected(false));
 
       if (role === 'spectator') {
-        // Spectators skip deck building and battlefield selection
         setJoinStep('active');
-      } else if (tempDeck) {
-        // Player already built deck — go to battlefield
-        const bfCards = tempDeck.entries
-          .filter((e) => e.card.cardType === 'Battlefield')
-          .map((e) => ({
-            id: e.card.id,
-            name: e.card.name,
-            cardType: e.card.cardType,
-            rarity: e.card.rarity,
-            domain: e.card.domain,
-            imageSmall: e.card.imageSmall,
-            imageLarge: null,
-            cleanName: e.card.name,
-            number: '',
-            code: '',
-            setId: '',
-            energyCost: null,
-            powerCost: null,
-            might: null,
-            description: null,
-            flavorText: null,
-            set: null,
-          })) as unknown as CardData[];
-        setBattlefieldCards(bfCards);
+      } else if (battlefieldCards.length > 0) {
+        // Player built a deck — go to battlefield selection (pick 1 from 3)
         setJoinStep('battlefield');
       } else {
         setJoinStep('active');
@@ -157,7 +133,9 @@ export function JoinForm({ code }: JoinFormProps) {
         set: null,
       })) as unknown as CardData[];
     setBattlefieldCards(bfCards);
-    setJoinStep('battlefield');
+    // Deck ready — now join the match (which triggers battlefield selection)
+    if (!displayName.trim()) return;
+    joinMatch.mutate({ code, displayName: displayName.trim(), role });
   }
 
   function handleRevealed(_state: MatchState) {
@@ -170,7 +148,7 @@ export function JoinForm({ code }: JoinFormProps) {
 
   if (joinStep === 'loading') {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 gap-3">
+      <div className="flex flex-col items-center justify-center flex-1 gap-3 max-w-md mx-auto w-full">
         <div className="w-8 h-8 border-2 border-rift-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-sm lg-text-secondary">Loading match...</p>
       </div>
@@ -179,7 +157,7 @@ export function JoinForm({ code }: JoinFormProps) {
 
   if (joinStep === 'not-found') {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 text-center gap-4">
+      <div className="flex flex-col items-center justify-center flex-1 text-center gap-4 max-w-md mx-auto w-full">
         <div className="w-12 h-12 rounded-full bg-red-900/30 border border-red-700/40 flex items-center justify-center">
           <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -201,7 +179,7 @@ export function JoinForm({ code }: JoinFormProps) {
   if (joinStep === 'completed') {
     const summary = matchData as MatchStateOutput & { players?: Array<{ displayName: string; score?: number; isWinner?: boolean }> };
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-md mx-auto w-full">
         <div className="text-center space-y-1">
           <h1 className="text-xl font-bold text-white">Match Completed</h1>
           <p className="text-sm text-zinc-400">This match has ended</p>
@@ -241,10 +219,9 @@ export function JoinForm({ code }: JoinFormProps) {
 
   if (joinStep === 'battlefield' && playerId) {
     const socket = getMatchSocket(code);
-    const bfCount = (matchData as { format?: string })?.format === '1v1' ? 2 : 3;
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 max-w-md mx-auto w-full">
         {/* Reconnecting banner */}
         {isSocketDisconnected && (
           <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg px-4 py-2 text-sm text-yellow-400 flex items-center gap-2">
@@ -256,7 +233,7 @@ export function JoinForm({ code }: JoinFormProps) {
           code={code}
           playerId={playerId}
           battlefieldCards={battlefieldCards}
-          required={bfCount}
+          required={1}
           socket={socket}
           onRevealed={handleRevealed}
         />
@@ -276,7 +253,7 @@ export function JoinForm({ code }: JoinFormProps) {
 
   // join-form step
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-md mx-auto w-full">
       <div>
         <h1 className="text-xl font-bold text-white">Join Match</h1>
         <p className="text-sm text-zinc-400 mt-1">Code: <span className="font-mono text-white">{code}</span></p>
@@ -346,17 +323,6 @@ export function JoinForm({ code }: JoinFormProps) {
           ? 'Continue to Deck Builder'
           : 'Join as Spectator'}
       </button>
-
-      {/* When returning from deck builder, show join button */}
-      {joinStep === 'join-form' && tempDeck && role === 'player' && (
-        <button
-          onClick={handleJoinSubmit}
-          disabled={!displayName.trim() || joinMatch.isPending}
-          className="lg-btn-secondary w-full py-2.5 text-sm"
-        >
-          {joinMatch.isPending ? 'Joining...' : 'Join with built deck'}
-        </button>
-      )}
 
       {joinMatch.error && (
         <p className="text-sm text-red-400 text-center">{joinMatch.error.message}</p>

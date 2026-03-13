@@ -1,0 +1,32 @@
+{
+  "extends": "@la-grieta/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@api/*": [
+        "../api/src/*"
+      ],
+      "@la-grieta/db": [
+        "../../packages/db/src/index.ts"
+      ],
+      "@la-grieta/shared": [
+        "../../packages/shared/src/index.ts"
+      ]
+    },
+    "isolatedModules": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

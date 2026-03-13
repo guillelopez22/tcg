@@ -147,7 +147,7 @@ export function ImportDeckModal({ isOpen, onClose }: ImportDeckModalProps) {
       cards: shareCodePreview.resolved.map((c) => ({
         cardId: c.cardId,
         quantity: c.quantity,
-        zone: (c.zone as 'main' | 'rune' | 'champion' | 'sideboard') ?? 'main',
+        zone: (c.zone as 'main' | 'rune' | 'legend' | 'champion' | 'battlefield' | 'sideboard') ?? 'main',
       })),
     });
   }
@@ -159,7 +159,7 @@ export function ImportDeckModal({ isOpen, onClose }: ImportDeckModalProps) {
       cards: pastePreview.resolved.map((c) => ({
         cardId: c.cardId,
         quantity: c.quantity,
-        zone: (c.zone as 'main' | 'rune' | 'champion' | 'sideboard') ?? 'main',
+        zone: (c.zone as 'main' | 'rune' | 'legend' | 'champion' | 'battlefield' | 'sideboard') ?? 'main',
       })),
     });
   }
@@ -171,7 +171,7 @@ export function ImportDeckModal({ isOpen, onClose }: ImportDeckModalProps) {
       cards: urlPreview.resolved.map((c) => ({
         cardId: c.cardId,
         quantity: c.quantity,
-        zone: (c.zone as 'main' | 'rune' | 'champion' | 'sideboard') ?? 'main',
+        zone: (c.zone as 'main' | 'rune' | 'legend' | 'champion' | 'battlefield' | 'sideboard') ?? 'main',
       })),
     });
   }

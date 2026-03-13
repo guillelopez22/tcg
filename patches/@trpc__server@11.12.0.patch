@@ -1,0 +1,26 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 37b163ae4e014adf42911c3703e65ce5d6c73b0a..330448b3a87cdd9871fbb83240ffd68bbb17dc7e 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -6,6 +6,7 @@ const require_initTRPC = require('./initTRPC-_LnoxDdS.cjs');
+ exports.StandardSchemaV1Error = require_initTRPC.StandardSchemaV1Error;
+ exports.TRPCError = require_tracked.TRPCError;
+ exports.callTRPCProcedure = require_tracked.callProcedure;
++exports.createCallerFactory = require_tracked.createCallerFactory;
+ exports.createTRPCFlatProxy = require_getErrorShape.createFlatProxy;
+ exports.createTRPCRecursiveProxy = require_getErrorShape.createRecursiveProxy;
+ exports.experimental_lazy = require_tracked.lazy;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 51d4d0eed7bfbebe7c3bb3d6d72e3317b1102f52..c628d674efed7d0f74b4ef0ff63c8deb0ae423f0 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1,6 +1,6 @@
+ import { createFlatProxy, createRecursiveProxy, getErrorShape } from "./getErrorShape-vC8mUXJD.mjs";
+ import "./codes-DagpWZLc.mjs";
+-import { TRPCError, callProcedure, getTRPCErrorFromUnknown, isTrackedEnvelope, lazy, sse, tracked, transformTRPCResponse } from "./tracked-Bjtgv3wJ.mjs";
++import { TRPCError, callProcedure, createCallerFactory, getTRPCErrorFromUnknown, isTrackedEnvelope, lazy, sse, tracked, transformTRPCResponse } from "./tracked-Bjtgv3wJ.mjs";
+ import { StandardSchemaV1Error, experimental_standaloneMiddleware, initTRPC } from "./initTRPC-RoZMIBeA.mjs";
+ 
+-export { StandardSchemaV1Error, TRPCError, callProcedure as callTRPCProcedure, createFlatProxy as createTRPCFlatProxy, createRecursiveProxy as createTRPCRecursiveProxy, lazy as experimental_lazy, experimental_standaloneMiddleware, experimental_standaloneMiddleware as experimental_trpcMiddleware, getErrorShape, getTRPCErrorFromUnknown, getErrorShape as getTRPCErrorShape, initTRPC, isTrackedEnvelope, lazy, sse, tracked, transformTRPCResponse };
+\ No newline at end of file
++export { StandardSchemaV1Error, TRPCError, callProcedure as callTRPCProcedure, createCallerFactory, createFlatProxy as createTRPCFlatProxy, createRecursiveProxy as createTRPCRecursiveProxy, lazy as experimental_lazy, experimental_standaloneMiddleware, experimental_standaloneMiddleware as experimental_trpcMiddleware, getErrorShape, getTRPCErrorFromUnknown, getErrorShape as getTRPCErrorShape, initTRPC, isTrackedEnvelope, lazy, sse, tracked, transformTRPCResponse };

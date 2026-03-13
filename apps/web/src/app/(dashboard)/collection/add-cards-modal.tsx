@@ -32,8 +32,10 @@ export function AddCardsModal({ isOpen, onClose, onSuccess }: AddCardsModalProps
   const [selected, setSelected] = useState<Map<string, { card: CardResult; count: number }>>(new Map());
   const [allCards, setAllCards] = useState<CardResult[]>([]);
   const [results, setResults] = useState<CardResult[]>([]);
+  const [visibleCount, setVisibleCount] = useState(30);
   const fuseRef = useRef<Fuse<CardResult> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Fetch all cards once for local fuzzy search
   const { data: cardsPage1 } = trpc.card.list.useQuery(
@@ -86,28 +88,45 @@ export function AddCardsModal({ isOpen, onClose, onSuccess }: AddCardsModalProps
       threshold: 0.3,
       includeScore: false,
     });
-    // Show first 30 cards by default
-    setResults(cards.slice(0, 30));
+    setVisibleCount(30);
   }, [cardsPage1, cardsPage2, cardsPage3, cardsPage4, cardsPage5, cardsPage6]);
 
   useEffect(() => {
     if (!search.trim()) {
-      setResults(allCards.slice(0, 30));
+      setResults(allCards.slice(0, visibleCount));
     } else if (fuseRef.current) {
       const fuseResults = fuseRef.current.search(search);
       setResults(fuseResults.map((r) => r.item));
     }
-  }, [search, allCards]);
+  }, [search, allCards, visibleCount]);
 
-  // Focus input when modal opens
+  // IntersectionObserver: load 30 more when sentinel enters viewport
+  useEffect(() => {
+    if (search.trim() || visibleCount >= allCards.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) setVisibleCount((c) => c + 30); },
+      { rootMargin: '200px' },
+    );
+    const el = loadMoreRef.current;
+    if (el) observer.observe(el);
+    return () => { if (el) observer.unobserve(el); };
+  }, [search, visibleCount, allCards.length]);
+
+  // Focus input when modal opens; reset state on close
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
     } else {
       setSearch('');
       setSelected(new Map());
+      setVisibleCount(30);
     }
   }, [isOpen]);
+
+  // Reset visibleCount whenever the user starts/clears a search query
+  useEffect(() => {
+    setVisibleCount(30);
+  }, [search]);
 
   const handleCardTap = useCallback((card: CardResult) => {
     setSelected((prev) => {
@@ -117,6 +136,19 @@ export function AddCardsModal({ isOpen, onClose, onSuccess }: AddCardsModalProps
         next.set(card.id, { card, count: existing.count + 1 });
       } else {
         next.set(card.id, { card, count: 1 });
+      }
+      return next;
+    });
+  }, []);
+
+  const handleDecrement = useCallback((cardId: string) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(cardId);
+      if (existing && existing.count > 1) {
+        next.set(cardId, { ...existing, count: existing.count - 1 });
+      } else {
+        next.delete(cardId);
       }
       return next;
     });
@@ -176,6 +208,44 @@ export function AddCardsModal({ isOpen, onClose, onSuccess }: AddCardsModalProps
           />
         </div>
 
+        {/* Selected cards summary strip */}
+        {selected.size > 0 && (
+          <div className="px-4 pb-1 flex-shrink-0">
+            <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
+              {Array.from(selected.values()).map(({ card, count }) => (
+                <div key={card.id} className="relative flex-shrink-0 w-10">
+                  <div className="aspect-[2/3] rounded overflow-hidden bg-surface-elevated border border-rift-500">
+                    {card.imageSmall ? (
+                      <Image src={card.imageSmall} alt={card.name} fill sizes="40px" className="object-cover" unoptimized />
+                    ) : null}
+                    {!card.imageSmall && (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-[8px] text-zinc-500">{card.name.slice(0, 4)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rift-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {count}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setSelected((prev) => {
+                        const next = new Map(prev);
+                        next.delete(card.id);
+                        return next;
+                      });
+                    }}
+                    className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] flex items-center justify-center leading-none touch-manipulation"
+                    aria-label={`Remove ${card.name} from selection`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Card grid */}
         <div className="overflow-y-auto flex-1 px-4 pb-2">
           {results.length === 0 ? (
@@ -201,19 +271,49 @@ export function AddCardsModal({ isOpen, onClose, onSuccess }: AddCardsModalProps
                           fill
                           sizes="100px"
                           className="object-cover"
+                          unoptimized
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.style.display = 'none';
+                            const fallback = target.parentElement?.querySelector('[data-fallback]') as HTMLElement | null;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-xs text-zinc-600 text-center px-1">{card.name}</span>
-                        </div>
-                      )}
+                      ) : null}
+                      <div data-fallback className={`w-full h-full items-center justify-center absolute inset-0 ${card.imageSmall ? 'hidden' : 'flex'}`}>
+                        <span className="text-[10px] text-zinc-500 text-center px-1 leading-tight">{card.name}</span>
+                      </div>
                     </div>
                     {sel && (
-                      <span className="lg-badge-count">{sel.count}</span>
+                      <>
+                        <span className="lg-badge-count">{sel.count}</span>
+                        <div className="absolute bottom-0 inset-x-0 flex items-center justify-between px-1 py-1 bg-black/70">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDecrement(card.id); }}
+                            className="w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center text-sm font-bold touch-manipulation"
+                            aria-label={`Remove one ${card.name}`}
+                          >
+                            −
+                          </button>
+                          <span className="text-white font-bold text-xs">{sel.count}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCardTap(card); }}
+                            className="w-6 h-6 rounded-full bg-rift-600/90 text-white flex items-center justify-center text-sm font-bold touch-manipulation"
+                            aria-label={`Add one more ${card.name}`}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </>
                     )}
                   </button>
                 );
               })}
+            </div>
+          )}
+          {!search.trim() && visibleCount < allCards.length && (
+            <div ref={loadMoreRef} className="flex justify-center py-4">
+              <div className="lg-spinner-sm" />
             </div>
           )}
         </div>

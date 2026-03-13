@@ -67,6 +67,20 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage('battlefield:set-local')
+  async handleBattlefieldSetLocal(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { code: string; cardIds: string[] },
+  ): Promise<void> {
+    try {
+      const newState = await this.matchService.setLocalBattlefields(data.code, data.cardIds);
+      this.server.to(data.code).emit('state:patch', newState);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      client.emit('error', { message });
+    }
+  }
+
   @SubscribeMessage('battlefield:submit')
   async handleBattlefieldSubmit(
     @ConnectedSocket() client: Socket,

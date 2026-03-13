@@ -39,23 +39,42 @@ interface CopyListProps {
   onCopiesChanged: () => void;
 }
 
+const CONDITION_COLORS: Record<string, string> = {
+  near_mint: 'text-green-400 bg-green-900/20',
+  lightly_played: 'text-lime-400 bg-lime-900/20',
+  moderately_played: 'text-yellow-400 bg-yellow-900/20',
+  heavily_played: 'text-orange-400 bg-orange-900/20',
+  damaged: 'text-red-400 bg-red-900/20',
+};
+
 export function CopyList({ copies, onCopiesChanged }: CopyListProps) {
   const t = useTranslations('collection');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (copies.length === 0) {
-    return <p className="lg-text-secondary text-center py-4">{t('noCopies')}</p>;
+    return (
+      <div className="text-center py-8 space-y-2">
+        <svg className="w-10 h-10 mx-auto text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+            d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+        <p className="lg-text-secondary">{t('noCopies')}</p>
+        <p className="text-xs text-zinc-600">Tap "Log a new purchase" above to start tracking</p>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-2">
-      {copies.map((copy) => {
+      {copies.map((copy, index) => {
         const isExpanded = expandedId === copy.id;
+        const copyNumber = copies.length - index;
         const date = new Date(copy.createdAt as string).toLocaleDateString(undefined, {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
         });
+        const conditionColor = CONDITION_COLORS[copy.condition] ?? 'text-zinc-400 bg-zinc-800/50';
 
         return (
           <div key={copy.id} className="rounded-xl border border-surface-border overflow-hidden">
@@ -65,9 +84,9 @@ export function CopyList({ copies, onCopiesChanged }: CopyListProps) {
               className="w-full flex items-center gap-3 px-3 py-3 hover:bg-surface-elevated transition-colors"
               aria-expanded={isExpanded}
             >
-              {/* Photo thumbnail */}
+              {/* Copy number or photo */}
               {copy.photoUrl ? (
-                <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-surface-border">
                   <Image
                     src={copy.photoUrl}
                     alt="Card photo"
@@ -77,18 +96,15 @@ export function CopyList({ copies, onCopiesChanged }: CopyListProps) {
                   />
                 </div>
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+                <div className="w-10 h-10 rounded-lg bg-surface-elevated border border-surface-border flex flex-col items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-zinc-300">#{copyNumber}</span>
                 </div>
               )}
 
               {/* Copy info */}
               <div className="flex-1 text-left min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="lg-badge bg-surface-elevated text-zinc-300">
+                  <span className={`lg-badge ${conditionColor}`}>
                     {CONDITION_LABELS[copy.condition] ?? copy.condition}
                   </span>
                   {copy.variant !== 'normal' && (
@@ -96,11 +112,13 @@ export function CopyList({ copies, onCopiesChanged }: CopyListProps) {
                       {VARIANT_LABELS[copy.variant] ?? copy.variant}
                     </span>
                   )}
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="lg-text-muted text-xs">{date}</span>
                   {copy.purchasePrice && (
-                    <span className="lg-text-muted">${copy.purchasePrice}</span>
+                    <span className="text-xs font-medium text-zinc-300">${copy.purchasePrice}</span>
                   )}
                 </div>
-                <p className="lg-text-muted mt-0.5">Added {date}</p>
               </div>
 
               {/* Expand indicator */}

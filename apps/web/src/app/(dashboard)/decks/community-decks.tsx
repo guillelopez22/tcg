@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/lib/auth-context';
 import { ListSkeleton } from '@/components/skeletons';
-import { CARD_DOMAINS } from '@la-grieta/shared';
+import { CARD_DOMAINS, type DeckZone } from '@la-grieta/shared';
 
 const DOMAIN_COLORS: Record<string, string> = {
   Fury: 'text-red-400 bg-red-400/10 border-red-400/30',
@@ -77,6 +79,100 @@ function useDebounce<T>(value: T, delay: number): T {
   }, [value, delay]);
 
   return debounced;
+}
+
+interface CommunityDeckProps {
+  deck: {
+    id: string;
+    name: string;
+    domain: string | null;
+    status: string | null;
+    tier: string | null;
+    coverCardId: string | null;
+    coverCard?: { id: string; name: string | null; cleanName: string | null; imageSmall: string | null } | null;
+    user: { username: string; displayName: string | null };
+  };
+}
+
+function CommunityDeckCard({ deck }: CommunityDeckProps) {
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const [importState, setImportState] = useState<'idle' | 'fetching' | 'creating'>('idle');
+
+  const createDeck = trpc.deck.create.useMutation({
+    onSuccess() {
+      void utils.deck.list.invalidate();
+      setImportState('idle');
+      toast.success(`Imported "${deck.name}" to your decks`);
+    },
+    onError(err) {
+      setImportState('idle');
+      toast.error(`Import failed: ${err.message}`);
+    },
+  });
+
+  async function handleImport(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) { toast.error('Sign in to import decks'); return; }
+    if (importState !== 'idle') return;
+
+    setImportState('fetching');
+    let deckDetail: Awaited<ReturnType<typeof utils.deck.getById.fetch>>;
+    try {
+      deckDetail = await utils.deck.getById.fetch({ id: deck.id });
+    } catch {
+      setImportState('idle');
+      toast.error('Could not load deck details');
+      return;
+    }
+
+    setImportState('creating');
+    createDeck.mutate({
+      name: deck.name,
+      description: undefined,
+      coverCardId: deck.coverCardId ?? undefined,
+      isPublic: false,
+      cards: deckDetail.cards.map((c) => ({ cardId: c.cardId, quantity: c.quantity, zone: c.zone as DeckZone })),
+    });
+  }
+
+  const creatorLabel = deck.user.displayName ?? deck.user.username;
+  const importBusy = importState !== 'idle';
+
+  return (
+    <div className="lg-card overflow-hidden flex flex-col hover:border-rift-600/50 transition-colors">
+      <Link href={`/decks/${deck.id}`} className="flex flex-1">
+        <div className="w-16 flex-shrink-0 bg-surface-elevated flex items-center justify-center relative overflow-hidden">
+          {deck.coverCard?.imageSmall ? (
+            <Image src={deck.coverCard.imageSmall} alt="" fill sizes="64px" className="object-cover" />
+          ) : (
+            <IconDecks className="w-6 h-6 text-zinc-700" />
+          )}
+        </div>
+        <div className="flex-1 px-3 py-2 min-w-0">
+          <div className="flex items-start gap-2 justify-between mb-0.5">
+            <p className="text-sm font-medium text-white truncate">{deck.name}</p>
+            <DeckStatusBadge status={deck.status} />
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+            <DomainBadge domain={deck.domain} />
+            <TierBadge tier={deck.tier} />
+          </div>
+          <p className="lg-text-muted text-xs truncate">by {creatorLabel}</p>
+        </div>
+      </Link>
+      <div className="px-3 pb-2">
+        <button
+          onClick={(e) => void handleImport(e)}
+          disabled={importBusy}
+          className="w-full py-1.5 text-xs font-medium rounded-lg border border-rift-700/60 text-rift-300 hover:bg-rift-900/30 transition-colors disabled:opacity-50"
+        >
+          {importState === 'fetching' ? 'Loading...' : importState === 'creating' ? 'Importing...' : 'Import to My Decks'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function CommunityDecks() {
@@ -193,41 +289,9 @@ export function CommunityDecks() {
       {/* Deck grid */}
       {decks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {decks.map((deck) => {
-            const creatorLabel = deck.user.displayName ?? deck.user.username;
-            return (
-              <Link
-                key={deck.id}
-                href={`/decks/${deck.id}`}
-                className="lg-card overflow-hidden flex hover:border-rift-600/50 transition-colors"
-              >
-                <div className="w-16 flex-shrink-0 bg-surface-elevated flex items-center justify-center relative overflow-hidden">
-                  {deck.coverCard?.imageSmall ? (
-                    <Image
-                      src={deck.coverCard.imageSmall}
-                      alt=""
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <IconDecks className="w-6 h-6 text-zinc-700" />
-                  )}
-                </div>
-                <div className="flex-1 px-3 py-2 min-w-0">
-                  <div className="flex items-start gap-2 justify-between mb-0.5">
-                    <p className="text-sm font-medium text-white truncate">{deck.name}</p>
-                    <DeckStatusBadge status={deck.status} />
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <DomainBadge domain={deck.domain} />
-                    <TierBadge tier={deck.tier} />
-                  </div>
-                  <p className="lg-text-muted text-xs truncate">by {creatorLabel}</p>
-                </div>
-              </Link>
-            );
-          })}
+          {decks.map((deck) => (
+            <CommunityDeckCard key={deck.id} deck={deck} />
+          ))}
         </div>
       )}
 

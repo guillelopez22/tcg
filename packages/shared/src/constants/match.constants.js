@@ -1,0 +1,14 @@
+export const WIN_TARGET_1V1 = 8;
+export const WIN_TARGET_2V2 = 11;
+export const WIN_TARGET_FFA = 8;
+export const BATTLEFIELDS_1V1 = 2;
+export const BATTLEFIELDS_2V2 = 3;
+export const BATTLEFIELDS_FFA = 3;
+export const MATCH_PHASES = ['A', 'B', 'C', 'D'];
+export const PLAYER_COLORS = ['blue', 'red', 'green', 'yellow'];
+export const MATCH_FORMATS = ['1v1', '2v2', 'ffa'];
+export const MATCH_STATUSES = ['waiting', 'active', 'completed', 'abandoned'];
+export const PLAYER_ROLES = ['player', 'spectator'];
+export const MATCH_MODES = ['local', 'synced'];
+export const UNCONTROLLED = 'uncontrolled';
+export const CONTESTED = 'contested';

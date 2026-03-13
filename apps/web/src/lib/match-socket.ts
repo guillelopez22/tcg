@@ -100,6 +100,8 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   /** Submit battlefield card IDs (setup phase) */
   'battlefield:submit': (payload: BattlefieldSubmitPayload) => void;
+  /** Set battlefields directly for local mode (single submission, all cards) */
+  'battlefield:set-local': (payload: { code: string; cardIds: string[] }) => void;
   /** Tap a battlefield to cycle its control */
   'battlefield:tap': (payload: { code: string; battlefieldIndex: number; playerId: string }) => void;
   /** Advance current phase (A->B->C->D->A) */

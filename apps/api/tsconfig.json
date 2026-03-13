@@ -1,0 +1,13 @@
+{
+  "extends": "@la-grieta/tsconfig/nestjs.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "paths": {
+      "@la-grieta/db": ["../../packages/db/src/index.ts"],
+      "@la-grieta/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "__tests__"]
+}

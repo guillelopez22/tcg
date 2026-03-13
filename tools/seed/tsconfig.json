@@ -1,0 +1,13 @@
+{
+  "extends": "@la-grieta/tsconfig/base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist",
+    "paths": {
+      "@la-grieta/db": ["../../packages/db/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "__tests__/**/*"]
+}

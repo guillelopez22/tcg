@@ -83,6 +83,39 @@ export class WishlistService {
     return { added: true };
   }
 
+  async addIfMissing(
+    userId: string,
+    input: WishlistToggleInput,
+  ): Promise<{ added: boolean }> {
+    // Check if entry already exists
+    const [existing] = await this.db
+      .select({ id: wishlists.id })
+      .from(wishlists)
+      .where(
+        and(
+          eq(wishlists.userId, userId),
+          eq(wishlists.cardId, input.cardId),
+          eq(wishlists.type, input.type),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      return { added: false };
+    }
+
+    await this.db
+      .insert(wishlists)
+      .values({
+        userId,
+        cardId: input.cardId,
+        type: input.type,
+      })
+      .returning();
+
+    return { added: true };
+  }
+
   async update(
     userId: string,
     input: WishlistUpdateInput,

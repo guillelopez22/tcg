@@ -1,0 +1,258 @@
+---
+phase: 03-points-tracker
+verified: 2026-03-13T13:30:00Z
+status: human_needed
+score: 21/21 must-haves verified
+re_verification: true
+  previous_status: human_needed
+  previous_score: 16/16
+  gaps_closed:
+    - "Deck selection step in match wizard providing real battlefield cards"
+    - "Guest deck builder Champion Unit zone assignment and validation"
+    - "Match board play mat layout with vertical score trackers and per-player zones"
+  gaps_remaining: []
+  regressions: []
+human_verification:
+  - test: "Full end-to-end match flow — create, join as guest, build temp deck, select battlefields, play to win"
+    expected: "Match wizard -> deck selection (step 5) -> QR code shown -> guest joins and builds deck (legend + champion unit via build step + 40 main + 12 runes + 2+ battlefield cards) -> both players see secret battlefield selection -> simultaneous card flip reveal -> match board shows both scores at 0/8 -> tapping a battlefield updates control on both screens -> advancing to B phase awards +1 for controlled battlefield -> reaching 7 points and attempting to win without holding a battlefield shows the 8th point rule toast -> winning legitimately triggers confetti + victory chime overlay on both screens"
+    why_human: "Requires two browser sessions and real Socket.IO round-trips. CSS flip animation timing, haptic vibrate, AudioContext chime, and toast appearance cannot be verified programmatically."
+  - test: "Dashboard home news feed"
+    expected: "After server restart, riftbound.gg articles appear in the NewsFeed on the dashboard home page. Each card shows thumbnail, title, source badge, relative date, and excerpt. Tapping opens the external link."
+    why_human: "News scraper hits a live external URL (https://riftbound.gg/blog) and requires a running server. Cheerio parsing correctness and visual layout cannot be verified without a browser."
+  - test: "Match history and detail view"
+    expected: "After completing a match, the authenticated user sees it in the history list with format badge, opponent names, final score, duration, and win/loss indicator. Tapping the item opens the detail view at /match/history/[uuid] with full turn log timeline, scoring breakdown (conquest vs holding points), and battlefield names."
+    why_human: "Requires a completed match in the database and an authenticated session."
+  - test: "IconMatch SVG renders visibly in dashboard nav"
+    expected: "The Match tab in the bottom navigation shows a visible crossed-swords icon (two lines with a circle). The icon appears identical to other tab icons in brightness and stroke weight."
+    why_human: "SVG child element stroke inheritance depends on browser rendering — explicit stroke= attributes have been added but visual appearance requires manual inspection."
+  - test: "Guest deck builder Champion Unit flow (no separate step, but assignment works)"
+    expected: "Opening /match/[code] as a guest, entering a name as Player, shows the Legend picker first. Selecting a Legend then clicking 'Continue to Build Deck' enters the build step. Adding a Champion Unit card from the main tab assigns it to the champion zone (visible in the deck panel with 'Champion' badge). Deck validation shows the champion zone requirement satisfied. Adding a second Champion Unit adds it to the main deck (not champion zone). Ready button enables only when deck is complete."
+    why_human: "Multi-step interactive UI flow. Requires browser interaction and real Champion Unit cards from the database to verify zone assignment and validation UI."
+  - test: "Deck selection step in match wizard populates battlefield cards"
+    expected: "In the match wizard at step 5 (deck selection), authenticated user sees their decks listed. Selecting a deck with battlefield zone cards triggers trpc.deck.getById, extracts battlefield cards, and auto-advances (local mode: to step 6 if BF cards exist; synced mode: creates match and moves to step 6/QR). Proceeding to battlefield selection (step 7 synced / step 6 local) shows the actual battlefield cards from the selected deck rather than an empty grid."
+    why_human: "Requires authenticated user with at least one deck containing battlefield zone cards. Card extraction via useEffect after trpc.deck.getById response requires runtime verification."
+  - test: "Match board play mat layout visual verification"
+    expected: "Opening a match board shows the symmetric play mat: opponent board (name, rune row, legend/champion/base slots) at top, vertical score trackers on left and right flanking the battlefield center, my base zone (legend/champion + draggable card slots) below, channeled runes row, hand row at bottom. Gold/navy color scheme (dark navy bg, gold borders). All zones visible without horizontal scrolling on 375px-wide screen."
+    why_human: "Visual layout and responsive behavior require a browser. Zone pixel sizing (CARD.base=92px, CARD.hand=108px) and vertical proportion balance cannot be verified from code alone."
+---
+
+# Phase 03: Points Tracker Verification Report
+
+**Phase Goal:** Points tracker with match sessions, scoring engine, match setup wizard, gameplay board, match history, and news feed
+**Verified:** 2026-03-13T13:30:00Z
+**Status:** human_needed
+**Re-verification:** Yes — after Plan 07 gap closure (deck selection step, champion unit detection, play mat layout)
+
+All automated checks pass. 21/21 must-haves verified (16 from initial verification + 5 new from Plan 07). 7 items require human testing due to real-time, visual, and multi-device behavior.
+
+---
+
+## Goal Achievement
+
+### Observable Truths
+
+| # | Truth | Status | Evidence |
+|---|-------|--------|---------|
+| 1 | Match scoring engine applies +1 on conquest and +1 per controlled BF at Beginning phase | VERIFIED | `scoreConquest` and `scoreBeginningPhase` exported from `match-scoring.ts`; `match.service.ts` calls both on correct events |
+| 2 | 8th point rule enforced: final winning point must come from holding or conquering ALL BFs | VERIFIED | `validateWinCondition` in `match-scoring.ts`; `match-board.tsx` fires sonner toast on `8th point rule` log event |
+| 3 | 1v1 sessions use 2 battlefields / win target 8; 2v2 uses 3 / target 11; FFA uses 3 / target 8 | VERIFIED | `WIN_TARGET_1V1=8`, `WIN_TARGET_2V2=11`, `WIN_TARGET_FFA=8`, `BATTLEFIELDS_*` constants; `createInitialState` consumes them |
+| 4 | Battlefield tap cycles Uncontrolled -> Player1 -> Player2 -> Contested -> Uncontrolled | VERIFIED | `cycleBattlefieldControl` exported from `match-scoring.ts`; called in `match.service.ts` applyBattlefieldTap |
+| 5 | Match can be created via tRPC returning a 6-char join code | VERIFIED | `match.create` optionalAuthProcedure; `match.service.ts` generates nanoid code |
+| 6 | Guest can join a match by code without authentication | VERIFIED | `match.join` uses `optionalAuthProcedure`; public `/match/[code]/page.tsx` outside (dashboard) auth group |
+| 7 | Socket.IO gateway broadcasts state changes to all clients in a match room | VERIFIED | `match.gateway.ts` handles all 7 events; broadcasts `state:patch` to room |
+| 8 | Battlefield selections held secretly per-player until all submit, then revealed simultaneously | VERIFIED | `submitBattlefieldSelection` stores to `pendingBattlefieldSelections`; `revealBattlefields` broadcasts when all players submit |
+| 9 | User can navigate to Match tab from bottom nav | VERIFIED | `dashboard-nav.tsx` has `{ href: '/match', label: 'Match', icon: IconMatch }` with explicit `stroke="currentColor"` on SVG child elements |
+| 10 | User can start a new match via setup wizard | VERIFIED | `match/new/page.tsx` (969 lines): 9-step wizard (WizardStep 1-9) with format, mode, names, first player, deck selection, P1 BF pick, P2 deck build, P2 BF pick, match board |
+| 11 | Guest can build a full temporary deck stored in sessionStorage | VERIFIED | `guest-deck-builder.tsx` (756 lines): 2-step flow (legend -> build), sessionStorage under `lagrieta_temp_deck_{code}`, Champion Unit correctly assigned to champion zone |
+| 12 | Full match gameplay board with ABCD phase tracker, scoring, and win celebration | VERIFIED | `match-board.tsx` (848 lines): uses `useMatchSocket` hook, vertical score trackers, opponent board, base zone, rune row, hand row, drag-drop context |
+| 13 | Authenticated users can view their match history | VERIFIED | `match/page.tsx`: `trpc.match.history.useInfiniteQuery` with infinite scroll; links to `/match/history/${match.id}` |
+| 14 | Match detail view shows turn log, battlefield names, scoring breakdown | VERIFIED | `match/history/[id]/page.tsx`: `trpc.match.getById.useQuery`, turn log timeline, scoring breakdown |
+| 15 | Dashboard home page shows news feed | VERIFIED | `(dashboard)/page.tsx` imports and renders `<NewsFeed />`; `news-feed.tsx` calls `trpc.news.getLatest.useQuery` |
+| 16 | News cron fetches and upserts articles on schedule | VERIFIED | `news.service.ts` has `@Cron('0 */4 * * *')` syncCron, `onModuleInit` startup sync, `onConflictDoUpdate` dedup; `triggerSync` manual endpoint |
+| 17 | Authenticated users can select a deck during match setup to provide battlefield cards | VERIFIED | `match/new/page.tsx` step 5: `trpc.deck.list.useQuery` at line 215, `trpc.deck.getById.useQuery` at line 221; `battlefieldCards` state wired to `BattlefieldSelection` at step 7 |
+| 18 | Guest deck builder validation counts champion zone correctly | VERIFIED | `addCard` assigns `zone='champion'` for first Champion Unit (lines 452-454); `validation.hasChampion = !!championEntry` (line 436); `mainOk = mainCount === MAIN_DECK_SIZE && hasChampion` (line 437) |
+| 19 | Both players can reach battlefield selection with actual battlefield cards | VERIFIED | Synced mode: deck selection (step 5) → match create → QR (step 6) → battlefield selection (step 7) with `battlefieldCards` from selected deck; skip option provided |
+| 20 | Match board renders vertical 0-8 score trackers on left and right sides | VERIFIED | `VerticalScoreTracker` component (lines 67-95): 9 circles stacked vertically, gold/navy theme; used at lines 607 (left/opponent) and 646 (right/me) flanking battlefield center |
+| 21 | Match board shows per-player zones (Legend, Champion) and opponent board | VERIFIED | `OpponentBoard` component (lines 211-324): legend, champion, base slots, rune row; `ZoneSlot` components for my Legend (line 683) and Champion (line 692) with drag-drop base zone |
+
+**Score:** 21/21 truths verified
+
+---
+
+## Required Artifacts
+
+| Artifact | Expected | Status | Details |
+|----------|----------|--------|---------|
+| `apps/api/src/modules/match/match-scoring.ts` | Pure scoring engine | VERIFIED | Exports `createInitialState`, `cycleBattlefieldControl`, `scoreConquest`, `scoreBeginningPhase`, `validateWinCondition`, `advancePhase`, `advanceTurn` |
+| `packages/db/src/schema/match-sessions.ts` | match_sessions table | VERIFIED | Exists; exported from `schema/index.ts` |
+| `packages/db/src/schema/match-players.ts` | match_players table | VERIFIED | Exists; FK to match_sessions |
+| `packages/db/src/schema/news-articles.ts` | news_articles table | VERIFIED | Exists; unique URL constraint |
+| `packages/shared/src/schemas/match.schema.ts` | Zod match schemas | VERIFIED | Exports `matchFormatSchema`, `matchCreateSchema`, `matchJoinSchema`, `matchStateSchema`, `matchHistorySchema` |
+| `apps/api/__tests__/match-scoring.spec.ts` | TDD tests | VERIFIED | 40 tests |
+| `apps/api/src/modules/match/match.service.ts` | Match CRUD + scoring | VERIFIED | 11 methods including `submitBattlefieldSelection`, `revealBattlefields`, `getById`, `history` |
+| `apps/api/src/modules/match/match.gateway.ts` | Socket.IO gateway | VERIFIED | 7 event handlers; `this.matchService` injected and used |
+| `apps/api/src/modules/match/match.router.ts` | tRPC procedures | VERIFIED | 5 procedures: `create`, `join`, `getState`, `getById`, `history` |
+| `apps/api/src/modules/news/news.service.ts` | News scraper + cron | VERIFIED | `onModuleInit`, `syncCron`, `scrapeRiftboundGg`, `upsertArticles`, `getLatest` |
+| `apps/api/src/modules/news/news.router.ts` | tRPC news endpoint | VERIFIED | `getLatest` publicProcedure + `triggerSync` protectedProcedure |
+| `apps/web/src/app/(dashboard)/match/new/page.tsx` | Match setup wizard with deck selection | VERIFIED | 969 lines; 9-step wizard (types 1-9); `trpc.deck.list.useQuery` at line 215; `trpc.deck.getById.useQuery` at line 221; `battlefieldCards` state wired to BattlefieldSelection |
+| `apps/web/src/app/match/[code]/page.tsx` | Public join page | VERIFIED | Public route outside dashboard group |
+| `apps/web/src/app/match/[code]/battlefield-selection.tsx` | Secret BF selection | VERIFIED | Emits `battlefield:submit`; listens for `battlefield:reveal`; CSS flip animation |
+| `apps/web/src/app/match/[code]/guest-deck-builder.tsx` | Guest deck builder with champion zone | VERIFIED | 756 lines; 2-step flow (legend -> build); `addCard` assigns `zone='champion'` for first Champion Unit; validation requires champion zone |
+| `apps/web/src/lib/match-socket.ts` | Socket.IO client singleton | VERIFIED | Exports `getMatchSocket`, `disconnectMatchSocket` |
+| `apps/web/src/components/match-qr-code.tsx` | QR code component | VERIFIED | react-qr-code SVG |
+| `apps/web/src/hooks/use-match-socket.ts` | Socket.IO React hook | VERIFIED | Exports `useMatchSocket`; exposes `tapBattlefield` emit helper |
+| `apps/web/src/app/match/[code]/match-board.tsx` | Match gameplay view with play mat layout | VERIFIED | 848 lines; `VerticalScoreTracker` component inline (lines 67-95); `OpponentBoard` component (lines 211-324); per-player Legend/Champion zone slots; gold/navy color scheme (`bg-[#0a1628]`, `border-[#c5a84a]/30`) |
+| `apps/web/src/app/match/[code]/battlefield-zone.tsx` | Tappable BF component | VERIFIED | `onTap(index)` callback |
+| `apps/web/src/app/match/[code]/turn-controls.tsx` | ABCD phase + turn controls | VERIFIED |  |
+| `apps/web/src/app/match/[code]/turn-log.tsx` | Collapsible history panel | VERIFIED |  |
+| `apps/web/src/app/match/[code]/match-end-overlay.tsx` | Win celebration | VERIFIED | Dynamic `import('canvas-confetti')` |
+| `apps/web/src/app/(dashboard)/match/page.tsx` | Match history list | VERIFIED | `trpc.match.history.useInfiniteQuery`; links to `/match/history/${match.id}` |
+| `apps/web/src/app/(dashboard)/match/history/[id]/page.tsx` | Match detail view | VERIFIED | `trpc.match.getById.useQuery` |
+| `apps/web/src/app/(dashboard)/news-feed.tsx` | News feed component | VERIFIED | `trpc.news.getLatest.useQuery` |
+| `apps/web/src/app/(dashboard)/page.tsx` | Dashboard home | VERIFIED | Imports and renders `<NewsFeed />` |
+
+**Implementation note — Plan 07 artifact contains check deviation:**
+Plan 07 specified `match-board.tsx` artifact `contains: "player-base-row"`. That CSS class name does NOT appear in the file. The implementation used different naming (`OpponentBoard`, `ZoneSlot`, base zone drop area, rune row). However, the structural goal — per-player zones, shared battlefield center, vertical score trackers — IS present. The `VerticalScoreTracker` component is verified at lines 607 and 646.
+
+**Implementation note — Guest deck builder champion step approach:**
+Plan 07 specified a three-step flow `'legend' | 'champion' | 'cards'`. The actual implementation uses `'legend' | 'build'` with `addCard` logic that assigns `zone='champion'` for the first Champion Unit added in the build step. The UAT root cause was "no mechanism to place a Champion Unit in the champion zone" — that mechanism now exists at lines 452-454. The validation goal (champion zone counted, `isValid` requires it) is achieved. The specific UI approach (inline assignment vs separate picker step) differs but the observable truth (detection works, validation passes) is satisfied.
+
+---
+
+## Key Link Verification
+
+| From | To | Via | Status | Details |
+|------|----|-----|--------|---------|
+| `packages/shared/src/schemas/match.schema.ts` | `apps/api/src/modules/match/match-scoring.ts` | shared MatchState type | WIRED | `match-scoring.ts` imports `MatchState` from `@la-grieta/shared` |
+| `apps/api/src/modules/match/match.gateway.ts` | `apps/api/src/modules/match/match.service.ts` | DI injection | WIRED | `this.matchService` used in all 7 event handlers |
+| `apps/api/src/modules/match/match.service.ts` | `apps/api/src/modules/match/match-scoring.ts` | pure function imports | WIRED | Imports and calls all 7 scoring functions |
+| `apps/api/src/modules/news/news.service.ts` | `packages/db/src/schema/news-articles.ts` | Drizzle query | WIRED | `newsArticles` used in insert, orderBy, and from clauses |
+| `apps/api/src/app.module.ts` | `MatchModule` + `NewsModule` | imports array | WIRED | Both modules in AppModule imports |
+| `apps/api/src/trpc/trpc.router.ts` | `MatchRouter` + `NewsRouter` | buildRouter | WIRED | `match: this.matchRouter.buildRouter()`, `news: this.newsRouter.buildRouter()` |
+| `apps/web/src/app/(dashboard)/match/new/page.tsx` | `trpc.deck.list` | useQuery step 5 | WIRED | `trpc.deck.list.useQuery({ limit: 50 }, { enabled: step >= 5 })` at line 215 |
+| `apps/web/src/app/(dashboard)/match/new/page.tsx` | `trpc.deck.getById` | useQuery after deck select | WIRED | `trpc.deck.getById.useQuery({ id: selectedDeckId! }, { enabled: !!selectedDeckId })` at line 221 |
+| `apps/web/src/app/(dashboard)/match/new/page.tsx` | `battlefieldCards` -> BattlefieldSelection | useEffect + prop | WIRED | `useEffect` populates `battlefieldCards` from `selectedDeck.cards.filter(c => c.zone === 'battlefield')` (lines 228-244); passed as prop at line 862 |
+| `apps/web/src/app/(dashboard)/match/new/page.tsx` | `match.create` tRPC | useMutation | WIRED | `trpc.match.create.useMutation` at line 202 |
+| `apps/web/src/app/match/[code]/guest-deck-builder.tsx` | champion zone assignment | addCard logic | WIRED | `if (card.cardType === 'Champion Unit') { zone = hasChampion ? 'main' : 'champion'; }` at lines 452-454 |
+| `apps/web/src/app/match/[code]/guest-deck-builder.tsx` | validation.hasChampion | championEntry check | WIRED | `const hasChampion = !!championEntry; const mainOk = mainCount === MAIN_DECK_SIZE && hasChampion;` (lines 436-437) |
+| `apps/web/src/app/match/[code]/match-board.tsx` | `VerticalScoreTracker` | inline component | WIRED | Used at lines 607 and 646 with `score`, `winTarget`, `color`, `side` props |
+| `apps/web/src/app/match/[code]/match-board.tsx` | `useMatchSocket` hook | hook consumption | WIRED | `import { useMatchSocket }` at line 19; destructured at line 332 |
+| `apps/web/src/app/match/[code]/join-form.tsx` | `match.join` tRPC | useMutation | WIRED | `trpc.match.join.useMutation` |
+| `apps/web/src/app/match/[code]/battlefield-selection.tsx` | Socket.IO `battlefield:submit` | emit | WIRED | `socket.emit('battlefield:submit', ...)` |
+| `apps/web/src/app/match/[code]/battlefield-selection.tsx` | Socket.IO `battlefield:reveal` | on listener | WIRED | `socket.on('battlefield:reveal', onReveal)` |
+| `apps/web/src/hooks/use-match-socket.ts` | Socket.IO `battlefield:tap` | emit | WIRED | `socket.emit('battlefield:tap', ...)` in `tapBattlefield` |
+| `apps/web/src/app/(dashboard)/match/page.tsx` | `match.history` tRPC | useInfiniteQuery | WIRED | `trpc.match.history.useInfiniteQuery` |
+| `apps/web/src/app/(dashboard)/match/history/[id]/page.tsx` | `match.getById` tRPC | useQuery | WIRED | `trpc.match.getById.useQuery` |
+| `apps/web/src/app/(dashboard)/news-feed.tsx` | `news.getLatest` tRPC | useQuery | WIRED | `trpc.news.getLatest.useQuery` |
+| `apps/web/src/app/(dashboard)/page.tsx` | `news-feed.tsx` | component import | WIRED | `import { NewsFeed } from './news-feed'`; rendered in JSX |
+
+---
+
+## Requirements Coverage
+
+| Requirement | Source Plan(s) | Description | Status | Evidence |
+|-------------|---------------|-------------|--------|---------|
+| PTS-01 | 03-01, 03-02, 03-03, 03-07 | Create 1v1 match session (2 BFs, first to 8 pts) | SATISFIED | `createInitialState('1v1')` returns 2 BFs, winTarget=8; wizard creates match; deck selection step (plan 07) provides BF cards |
+| PTS-02 | 03-01, 03-02 | Create 2v2 match session (3 BFs, first to 11 pts) | SATISFIED | `WIN_TARGET_2V2=11`, `BATTLEFIELDS_2V2=3`; wizard supports 2v2 format |
+| PTS-03 | 03-01, 03-02, 03-03, 03-07 | Create FFA match session (3-4 players, 3 BFs, first to 8 pts) | SATISFIED | `WIN_TARGET_FFA=8`, `BATTLEFIELDS_FFA=3`; wizard supports FFA; guest builder updated to handle champion detection |
+| PTS-04 | 03-01, 03-02, 03-04 | Track battlefield control (who controls each BF) | SATISFIED | `cycleBattlefieldControl` in scoring engine; `BattlefieldZone` shows control state; real-time sync via Socket.IO |
+| PTS-05 | 03-01, 03-02, 03-04, 03-06 | Auto-score +1 on conquest and +1 per controlled BF at turn start | SATISFIED | `scoreConquest` and `scoreBeginningPhase` called in `match.service.ts`; score flash animation in match-board |
+| PTS-06 | 03-02, 03-03 | Opponent can join synced session by QR without an account | SATISFIED | `optionalAuthProcedure` on `match.join`; `match-qr-code.tsx` renders join URL QR; `/match/[code]` public route |
+| PTS-07 | 03-02, 03-04 | Both players see real-time score updates | SATISFIED | Socket.IO gateway broadcasts `state:patch` to room; `useMatchSocket` listens and updates React state |
+| PTS-08 | 03-05 | Authenticated users can view match history | SATISFIED | `match.history` rateLimitedProtectedProcedure; `match/page.tsx` uses `useInfiniteQuery`; detail view at `match/history/[id]` |
+| PLAT-02 | 03-02, 03-05 | News section displaying Riftbound community updates | SATISFIED | `NewsService` scrapes riftbound.gg on cron + startup; `news.getLatest` public endpoint; `NewsFeed` component on dashboard home |
+
+**No orphaned requirements.** All 9 requirements claimed across Phase 03 plans are confirmed implemented.
+
+---
+
+## Anti-Patterns Found
+
+No blockers or stubs found in Plan 07 modified files.
+
+| File | Line | Pattern | Severity | Impact |
+|------|------|---------|----------|--------|
+| `apps/web/src/app/(dashboard)/match/new/page.tsx` | 609 | `handleDeckSelect` defined inside `if (step === 5)` block | Info | Non-idiomatic but not a bug — function is scoped correctly within the render path |
+| — | — | No TODOs, FIXMEs, empty stubs, or placeholder returns found in any Plan 07 modified files | — | — |
+
+**Notable implementation deviation (not an anti-pattern):** Plan 07 Task 2 specified a three-step builder flow (`'legend' | 'champion' | 'cards'`). The implementation uses two steps (`'legend' | 'build'`) with inline zone assignment in `addCard`. The UAT goal (champion detection + validation) is achieved through a different but equivalent mechanism. The `player-base-row` CSS class specified in the artifact `contains` check was not used; the play mat structure was implemented with `OpponentBoard`, `ZoneSlot`, and inline zone area components.
+
+---
+
+## Human Verification Required
+
+### 1. Full end-to-end match flow (two devices/browsers)
+
+**Test:** Open the app. Create a new 1v1 Synced match as an authenticated user. At step 5 (deck selection), select a deck that has battlefield zone cards. Proceed through QR share (step 6). On a second device/browser, navigate to `/match/[code]`. Enter a guest name, select Player. Walk through the guest deck builder: pick a Legend, click "Continue to Build Deck", then on the build step add a Champion Unit from the main tab (verify it appears in the deck panel with a "Champion" badge), then add ~40 main cards and 12 runes, then confirm. Both devices should reach battlefield selection. Secretly pick different battlefield cards on each device. Confirm on both. Verify simultaneous card flip animation. Play the match: tap a battlefield, advance phases (A→B→C→D), advance turn. Verify +1 awarded when advancing to B phase for a controlled battlefield. At 7 points, attempt to win without holding a battlefield — verify 8th point rule toast fires. Win legitimately and verify confetti + victory chime overlay.
+
+**Expected:** All steps flow without errors. Real-time sync works. 8th point rule correctly blocks invalid win. Confetti fires on win overlay.
+
+**Why human:** Multi-device Socket.IO round-trips, CSS flip animation timing, AudioContext chime, haptic vibrate, and toast appearance all require a running browser.
+
+### 2. Dashboard home news feed
+
+**Test:** Restart the API server. Navigate to the dashboard home page (authenticated). Check if news articles from riftbound.gg appear. If articles are empty, call the `news.triggerSync` tRPC mutation (protectedProcedure — requires auth), then refresh.
+
+**Expected:** News cards appear with thumbnail, title, source badge (riftbound.gg), relative date, and truncated excerpt. Each card opens the full article in a new tab.
+
+**Why human:** Requires a live network request to riftbound.gg. Cheerio selector correctness for current riftbound.gg blog HTML cannot be verified statically.
+
+### 3. Match history and detail view
+
+**Test:** After completing a match, navigate to the Match tab. Verify the completed match appears in the list with format badge (e.g., "1v1"), opponent names, final score, duration, and win/loss indicator. Click the match row. Verify the detail page at `/match/history/[uuid]` shows: header with format badge and date, all players with final scores and color rings, scoring breakdown table (conquest points vs holding points), battlefield card names, and a turn-by-turn timeline.
+
+**Expected:** History list shows the match. Detail view populates all sections correctly.
+
+**Why human:** Requires completed match data in the database. Correctness of `computeScoringBreakdown` and `groupLogByTurn` display requires visual verification with real data.
+
+### 4. Match tab icon visible in dashboard nav
+
+**Test:** Open the app on a mobile browser or desktop. Look at the bottom navigation. Verify the Match tab shows a visible crossed-swords icon (two diagonal lines with a central circle).
+
+**Expected:** The IconMatch SVG icon renders at equal visual weight to the Collection, Decks, and Profile tab icons.
+
+**Why human:** SVG stroke inheritance behavior is browser-dependent. Explicit `stroke="currentColor"` attributes were added to child elements in Plan 06 but visual appearance requires a browser.
+
+### 5. Guest deck builder Champion Unit detection in build step
+
+**Test:** Visit `/match/[code]` without logging in. Enter a name and select Player. Pick a Legend and click "Continue to Build Deck". In the build step, from the Main Deck tab, add a Champion Unit card (e.g., one listed under "Unit" type filter or search by name). Verify the card appears in the left panel under "Main Deck" with a "Champion" badge. Verify the Main Deck section header shows `(needs Champion)` tooltip disappears once the champion is added. Build a valid deck (40 main + 12 runes + 3 battlefields + 1 champion). Verify the "Deck Ready — Continue" button enables.
+
+**Expected:** First Champion Unit added goes to champion zone. Validation requires and counts it. Ready button enables only on valid complete deck.
+
+**Why human:** Requires browser interaction with real Champion Unit card data from the database. Visual badge rendering and button state require runtime observation.
+
+### 6. Deck selection step populates battlefield cards (synced mode)
+
+**Test:** As an authenticated user, start a new synced match. Complete format (1v1), mode (synced), player name, first player. Arrive at step 5. Verify your decks are listed. Select a deck with battlefield zone cards. Verify the match is created (loading spinner, then proceeds to QR step). Proceed to step 7 (battlefield selection). Verify the battlefield selection screen shows actual battlefield cards from your deck (not an empty grid).
+
+**Expected:** Deck list fetched via `trpc.deck.list`. Selected deck populates battlefield cards via `trpc.deck.getById` useEffect. BF zone cards extracted and passed to `BattlefieldSelection`.
+
+**Why human:** Requires an authenticated user with decks containing battlefield zone cards in the database. The useEffect population of `battlefieldCards` state requires runtime verification.
+
+### 7. Match board play mat layout visual verification
+
+**Test:** Open an active match board. Verify the layout from top to bottom: (1) compact top bar with Exit button, ABCD phase circles, match code and turn number; (2) opponent board section with player name, active indicator, and zone slots; (3) center strip with left vertical score tracker (9 circles, opponent's color) + UnitZone + battlefield cards + UnitZone + right vertical score tracker (9 circles, your color); (4) large droppable base zone with Legend and Champion slots; (5) channeled runes row; (6) hand display row; (7) controls bar. Verify gold/navy color scheme throughout.
+
+**Expected:** Symmetric play mat structure. Score trackers show circles 8 at top down to 0 at bottom, current score filled. All zones visible on 375px-wide screen without horizontal scrolling.
+
+**Why human:** Visual layout, vertical proportion, responsive sizing, and the score tracker circle appearance require browser rendering.
+
+---
+
+## Re-Verification Summary
+
+This is the second verification of Phase 03. The previous verification (score: 16/16, status: human_needed) established all automated infrastructure was in place. Plan 07 subsequently closed three UAT gaps:
+
+1. **Deck selection step** — `match/new/page.tsx` expanded from 6 to 9 steps. Step 5 adds deck selection via `trpc.deck.list` + `trpc.deck.getById`, with `battlefieldCards` state flowing into `BattlefieldSelection` at step 7 (synced). The blocker UAT gap (empty battlefieldCards array) is closed.
+
+2. **Champion Unit detection** — `guest-deck-builder.tsx` `addCard` now correctly assigns `zone='champion'` for the first Champion Unit card added (lines 452-454). Validation requires champion zone (`mainOk = mainCount === MAIN_DECK_SIZE && hasChampion`). The UAT gap (validation doesn't count champion units) is closed. Implementation uses inline zone assignment in the `build` step rather than a separate picker step, but the observable behavior is equivalent.
+
+3. **Play mat layout** — `match-board.tsx` (848 lines) now includes `VerticalScoreTracker` component (lines 67-95) used on both sides of the battlefield center, `OpponentBoard` component (lines 211-324) showing opponent's zones, and `ZoneSlot` components for my Legend and Champion. Gold/navy color scheme throughout.
+
+No regressions detected in previously verified items. All 16 original truths remain verified. Five new truths (17-21) added for Plan 07 work. Total score: 21/21.
+
+---
+
+_Verified: 2026-03-13T13:30:00Z_
+_Verifier: Claude (gsd-verifier)_
+_Re-verification: Plan 07 gap closure — deck selection step, champion unit detection, play mat layout_
