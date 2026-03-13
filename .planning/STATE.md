@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-04-PLAN.md — Phase 03 Plan 04 match gameplay board complete
-last_updated: "2026-03-13T03:31:20.646Z"
+stopped_at: Completed 03-05-PLAN.md (awaiting Task 2 checkpoint) — match history detail, news feed, i18n complete
+last_updated: "2026-03-13T03:39:18.050Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 ---
@@ -99,6 +99,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03 P02 | 13 | 2 tasks | 16 files |
 | Phase 03 P03 | 10 | 2 tasks | 12 files |
 | Phase 03-points-tracker P04 | 15 | 2 tasks | 11 files |
+| Phase 03-points-tracker P05 | 5 | 1 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -165,6 +166,8 @@ Recent decisions affecting current work:
 - [Phase 03-04]: useMatchSocket separates fullState (MatchWithPlayers session metadata) from matchState (MatchState scoring engine) — state:full sets both, state:patch only updates matchState
 - [Phase 03-04]: isPaused inferred from last log entry event field — MatchState has no explicit isPaused boolean, pause appends 'paused' to log
 - [Phase 03-04]: MatchEndOverlay imports canvas-confetti dynamically to avoid SSR bundle inclusion, gracefully skips if import fails
+- [Phase 03-05]: MatchSummary.players has no userId — WinIndicator uses match.winnerId and status for Live/Draw states
+- [Phase 03-05]: computeScoringBreakdown parses log event strings (conquest:playerId:idx) — no separate scoring field in DB
 
 ### Roadmap Evolution
 
@@ -184,6 +187,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T03:31:20.641Z
-Stopped at: Completed 03-04-PLAN.md — Phase 03 Plan 04 match gameplay board complete
+Last session: 2026-03-13T03:39:18.044Z
+Stopped at: Completed 03-05-PLAN.md (awaiting Task 2 checkpoint) — match history detail, news feed, i18n complete
 Resume file: None

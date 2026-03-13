@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1.1: Collection UX Polish** - (INSERTED) Optimistic grid interactions, undo toasts, market price display, deck wizard refinements
 - [ ] **Phase 1.2: Smart Deck Builder** - (INSERTED) Zone-aware deck editor with format validation, suggestion engine, analytics, and collection integration
 - [ ] **Phase 2: Deck Builder Enhancements** - Competitive players can build, validate, analyze, and share decks with champion-first workflow and format-legal enforcement
-- [ ] **Phase 3: Points Tracker** - Any two players can run a scored match with real-time sync via QR code — no account required for the joining player
+- [x] **Phase 3: Points Tracker** - Any two players can run a scored match with real-time sync via QR code — no account required for the joining player (completed 2026-03-13)
 - [ ] **Phase 4: Tournament Manager** - A tournament organizer can run a full Swiss tournament offline from registration through standings, with crash-safe state
 - [ ] **Phase 5: WhatsApp Marketplace** - Buyers and sellers can transact through WhatsApp with automatic want-match notifications and escrow-backed transactions
 
@@ -93,7 +93,7 @@ Plans:
   3. Opponent can join a synced session by scanning a QR code without creating an account, and both screens show the same score in real time
   4. Authenticated users can view their match history after a session ends
   5. The news section displays Riftbound community updates and announcements
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [ ] 03-01-PLAN.md — DB schema + shared Zod schemas + constants + TDD scoring engine
@@ -137,6 +137,6 @@ Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
 | 1.1 Collection UX Polish | 3/3 | Complete |  |
 | 1.2 Smart Deck Builder | 0/4 | Not started | - |
 | 2. Deck Builder Enhancements | 2/3 | In Progress|  |
-| 3. Points Tracker | 4/5 | In Progress|  |
+| 3. Points Tracker | 5/5 | Complete   | 2026-03-13 |
 | 4. Tournament Manager | 0/? | Not started | - |
 | 5. WhatsApp Marketplace | 0/? | Not started | - |
