@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-02-PLAN.md — Phase 03 Plan 02 match service + news module complete
-last_updated: "2026-03-13T03:08:14.086Z"
+stopped_at: Completed 03-03-PLAN.md — Phase 03 Plan 03 match setup flow UI complete
+last_updated: "2026-03-13T03:20:56.130Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 20
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 ---
@@ -97,6 +97,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02 P03 | 2 | 2 tasks | 2 files |
 | Phase 03 P01 | 18 | 2 tasks | 16 files |
 | Phase 03 P02 | 13 | 2 tasks | 16 files |
+| Phase 03 P03 | 10 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -156,6 +157,9 @@ Recent decisions affecting current work:
 - [Phase 03]: MatchSummary type includes both id and sessionId — buildPaginatedResult requires T extends { id: string } for cursor pagination
 - [Phase 03]: vi.mock('@la-grieta/db') required in tests for drizzle column stubs — column objects not available without real DB in vitest context
 - [Phase 03]: @nestjs/websockets pinned to ^10.0.0 matching @nestjs/common version — v11 would cause peer dependency mismatch
+- [Phase 03]: Socket.IO singleton in match-socket.ts: getMatchSocket(code) reconnects/reuses to prevent duplicate connections on React re-renders
+- [Phase 03]: Card flip reveal uses CSS rotateY(180deg) with transformStyle preserve-3d — no external animation library
+- [Phase 03]: Public /match/[code] route outside (dashboard) group — no auth guard, accessible without login
 
 ### Roadmap Evolution
 
@@ -175,6 +179,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T03:08:14.082Z
-Stopped at: Completed 03-02-PLAN.md — Phase 03 Plan 02 match service + news module complete
+Last session: 2026-03-13T03:20:56.126Z
+Stopped at: Completed 03-03-PLAN.md — Phase 03 Plan 03 match setup flow UI complete
 Resume file: None
