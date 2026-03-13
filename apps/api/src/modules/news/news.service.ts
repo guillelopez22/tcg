@@ -1,6 +1,7 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { DbClient } from '@la-grieta/db';
@@ -17,13 +18,18 @@ export interface ScrapedArticle {
 }
 
 @Injectable()
-export class NewsService {
+export class NewsService implements OnModuleInit {
   private readonly logger = new Logger(NewsService.name);
   private isSyncing = false;
 
   constructor(
     @Inject('DB_CLIENT') private readonly db: DbClient,
   ) {}
+
+  /** Sync on startup so dev environments get news data immediately. */
+  async onModuleInit(): Promise<void> {
+    await this.syncCron();
+  }
 
   /** Runs every 4 hours. */
   @Cron('0 */4 * * *')
@@ -147,7 +153,7 @@ export class NewsService {
     return this.db
       .select()
       .from(newsArticles)
-      .orderBy(desc(newsArticles.publishedAt))
+      .orderBy(desc(sql`COALESCE(${newsArticles.publishedAt}, ${newsArticles.scrapedAt})`))
       .limit(limit);
   }
 
