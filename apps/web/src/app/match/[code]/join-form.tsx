@@ -5,6 +5,7 @@ import { trpc } from '@/lib/trpc';
 import { getMatchSocket } from '@/lib/match-socket';
 import { GuestDeckBuilder } from './guest-deck-builder';
 import { BattlefieldSelection } from './battlefield-selection';
+import { MatchBoard } from './match-board';
 import type { TempDeck } from './guest-deck-builder';
 import type { MatchState } from './battlefield-selection';
 import type { inferRouterOutputs } from '@trpc/server';
@@ -263,27 +264,13 @@ export function JoinForm({ code }: JoinFormProps) {
     );
   }
 
-  if (joinStep === 'active') {
+  if (joinStep === 'active' && playerId) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center">
-        {/* Reconnecting banner */}
-        {isSocketDisconnected && (
-          <div className="w-full bg-yellow-900/30 border border-yellow-700/40 rounded-lg px-4 py-2 text-sm text-yellow-400 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-            Reconnecting...
-          </div>
-        )}
-        <div className="w-12 h-12 rounded-full bg-green-900/30 border border-green-700/40 flex items-center justify-center">
-          <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <div>
-          <p className="text-base font-semibold text-white">Joined as {role}</p>
-          <p className="text-sm text-zinc-400 mt-1">Match is in progress</p>
-        </div>
-        <p className="text-xs text-zinc-600">Match board coming in Plan 04</p>
-      </div>
+      <MatchBoard
+        code={code}
+        playerId={playerId}
+        role={role}
+      />
     );
   }
 

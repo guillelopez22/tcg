@@ -14,7 +14,7 @@ export default function PublicMatchPage({ params }: MatchPageProps) {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
-      {/* Minimal header */}
+      {/* Minimal header — hidden when MatchBoard takes over (it uses fixed positioning) */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
         <span className="font-bold text-white text-sm tracking-wide">La Grieta</span>
         <span className="text-xs text-zinc-500 font-mono">{code}</span>

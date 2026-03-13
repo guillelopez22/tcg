@@ -262,6 +262,17 @@
   50%      { opacity: 0.8; }
 }
 
+@keyframes pulse-slow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50%      { box-shadow: 0 0 12px 4px rgba(99, 102, 241, 0.35); }
+}
+
+@keyframes score-flash {
+  0%   { opacity: 1; transform: translateY(0) scale(1.2); }
+  80%  { opacity: 0.6; transform: translateY(-20px) scale(1); }
+  100% { opacity: 0; transform: translateY(-28px) scale(0.8); }
+}
+
 /* ── Utilities ──────────────────────────────────────── */
 
 @layer utilities {
@@ -275,6 +286,14 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border-width: 0;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse-slow 2s ease-in-out infinite;
+  }
+
+  .animate-score-flash {
+    animation: score-flash 1s ease-out forwards;
   }
 
   .line-clamp-2 {

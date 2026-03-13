@@ -7,6 +7,7 @@
  */
 
 import { io, type Socket } from 'socket.io-client';
+import type { MatchState } from '@la-grieta/shared';
 
 // ---------------------------------------------------------------------------
 // Typed event interfaces
@@ -48,13 +49,18 @@ export interface MatchStatePayload {
   code: string;
   status: 'waiting' | 'active' | 'completed' | 'abandoned';
   format: '1v1' | '2v2' | 'ffa';
+  state: MatchState | null;
   players: Array<{
     id: string;
     displayName: string;
     role: string;
     color: string;
-    score: number;
+    finalScore: number | null;
+    isWinner: boolean;
   }>;
+  winnerId: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
 }
 
 export interface MatchEndedPayload {
@@ -64,21 +70,49 @@ export interface MatchEndedPayload {
   finalScores: Array<{ playerId: string; displayName: string; score: number }>;
 }
 
+export interface PlayerDisconnectedPayload {
+  socketId: string;
+}
+
 // ---------------------------------------------------------------------------
 // Typed socket
 // ---------------------------------------------------------------------------
 
 export interface ServerToClientEvents {
-  'battlefield:submitted': (payload: BattlefieldSubmittedPayload) => void;
-  'battlefield:reveal': (payload: BattlefieldRevealPayload) => void;
-  'match:player-joined': (payload: MatchPlayerJoinedPayload) => void;
-  'match:state': (payload: MatchStatePayload) => void;
+  /** Initial full match state on connection (MatchWithPlayers from API) */
+  'state:full': (payload: MatchStatePayload) => void;
+  /** Incremental state update (MatchState from scoring engine) */
+  'state:patch': (payload: MatchState) => void;
+  /** A player disconnected from the socket */
+  'player:disconnected': (payload: PlayerDisconnectedPayload) => void;
+  /** Match has ended */
   'match:ended': (payload: MatchEndedPayload) => void;
+  /** Battlefield submission acknowledged */
+  'battlefield:submitted': (payload: BattlefieldSubmittedPayload) => void;
+  /** All battlefields revealed simultaneously */
+  'battlefield:reveal': (payload: BattlefieldRevealPayload) => void;
+  /** Player joined (legacy) */
+  'match:player-joined': (payload: MatchPlayerJoinedPayload) => void;
+  /** Error from server */
   'error': (payload: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
+  /** Submit battlefield card IDs (setup phase) */
   'battlefield:submit': (payload: BattlefieldSubmitPayload) => void;
+  /** Tap a battlefield to cycle its control */
+  'battlefield:tap': (payload: { code: string; battlefieldIndex: number; playerId: string }) => void;
+  /** Advance current phase (A->B->C->D->A) */
+  'phase:advance': (payload: { code: string; playerId: string }) => void;
+  /** Advance to next player's turn */
+  'turn:advance': (payload: { code: string }) => void;
+  /** Toggle match pause */
+  'match:pause': (payload: { code: string }) => void;
+  /** End match (by score or concession) */
+  'match:end': (payload: { code: string; winnerId: string | null; reason: 'score' | 'concession' }) => void;
+  /** Undo last action */
+  'match:undo': (payload: { code: string }) => void;
+  /** Keep-alive ping */
   'match:ping': () => void;
 }
 
