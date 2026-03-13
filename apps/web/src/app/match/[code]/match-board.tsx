@@ -3,9 +3,12 @@
 /**
  * MatchBoard — full-screen match gameplay view.
  *
- * Integrates: battlefield zones, score displays, ABCD phase tracker,
- * turn controls, undo, pause, concession, turn log, win overlay.
- * All state flows through useMatchSocket (Socket.IO).
+ * Integrates: battlefield zones, per-player zone rows, vertical score trackers,
+ * ABCD phase tracker, turn controls, undo, pause, concession, turn log, win overlay.
+ * Layout mirrors the physical Riftbound play mat:
+ *   - Opponent zones (top, mirrored)
+ *   - Shared battlefield center flanked by vertical 0-8 score trackers
+ *   - My zones (bottom)
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -13,7 +16,6 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useMatchSocket } from '@/hooks/use-match-socket';
 import { BattlefieldZone } from './battlefield-zone';
-import { ScoreDisplay } from './score-display';
 import { TurnControls } from './turn-controls';
 import { TurnLog } from './turn-log';
 import { MatchEndOverlay } from './match-end-overlay';
@@ -34,6 +36,190 @@ const COLOR_MAP: Record<string, string> = {
   green: 'green',
   yellow: 'yellow',
 };
+
+// Color classes for player colors
+const PLAYER_COLOR_CLASSES: Record<string, { bg: string; border: string; text: string }> = {
+  blue: {
+    bg: 'bg-blue-500',
+    border: 'border-blue-500',
+    text: 'text-blue-400',
+  },
+  red: {
+    bg: 'bg-red-500',
+    border: 'border-red-500',
+    text: 'text-red-400',
+  },
+  green: {
+    bg: 'bg-green-500',
+    border: 'border-green-500',
+    text: 'text-green-400',
+  },
+  yellow: {
+    bg: 'bg-yellow-400',
+    border: 'border-yellow-400',
+    text: 'text-yellow-400',
+  },
+};
+
+// ---------------------------------------------------------------------------
+// VerticalScoreTracker — 0-8 circles stacked vertically
+// ---------------------------------------------------------------------------
+
+function VerticalScoreTracker({
+  score,
+  winTarget,
+  color,
+  side,
+}: {
+  score: number;
+  winTarget: number;
+  color: string;
+  side: 'left' | 'right';
+}) {
+  const colorClasses = PLAYER_COLOR_CLASSES[color] ?? PLAYER_COLOR_CLASSES.blue!;
+  const max = Math.max(winTarget, 8);
+  const points = Array.from({ length: max + 1 }, (_, i) => i); // 0..winTarget
+
+  return (
+    <div
+      className={`flex flex-col items-center gap-[3px] py-1 px-1 ${
+        side === 'left' ? 'items-start' : 'items-end'
+      }`}
+    >
+      {/* Render from high to low so 0 is at bottom */}
+      {[...points].reverse().map((point) => {
+        const isCurrent = point === score;
+        const isFilled = point <= score;
+        return (
+          <div
+            key={point}
+            className={`
+              w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all
+              border
+              ${isCurrent
+                ? `${colorClasses.bg} border-transparent text-white scale-110 shadow-sm`
+                : isFilled
+                ? `${colorClasses.bg} border-transparent text-white opacity-60`
+                : 'bg-[#0a1628] border-[#c5a84a]/30 text-[#c5a84a]/40'
+              }
+            `}
+          >
+            {point}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ZoneSlot — a single zone card-shaped slot on the play mat
+// ---------------------------------------------------------------------------
+
+function ZoneSlot({ label }: { label: string }) {
+  return (
+    <div
+      className="
+        w-[52px] h-[72px] rounded
+        bg-[#0a1628] border border-[#c5a84a]/30
+        flex items-end justify-center pb-1
+        flex-shrink-0
+      "
+    >
+      <span className="text-[8px] font-medium text-[#c5a84a]/60 text-center leading-tight px-0.5">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PlayerZoneRows — renders Base row + Runes row for one player
+// isOpponent=true mirrors the layout (opponent side is upside-down relative to yours)
+// ---------------------------------------------------------------------------
+
+function PlayerZoneRows({
+  playerName,
+  color,
+  isOpponent,
+  isCurrentTurn,
+}: {
+  playerName: string;
+  color: string;
+  isOpponent: boolean;
+  isCurrentTurn: boolean;
+}) {
+  const colorClasses = PLAYER_COLOR_CLASSES[color] ?? PLAYER_COLOR_CLASSES.blue!;
+
+  // Base row: Champion | Legend | (empty space) | Main Deck
+  // Runes row: Runes Deck | (empty space) | Trash
+  // Opponent mirrors: Main Deck | (empty) | Legend | Champion (base)
+  //                    Trash | (empty) | Runes Deck (runes)
+
+  const baseRow = isOpponent
+    ? (
+      <div className="flex items-center gap-1.5 px-2">
+        <ZoneSlot label="Main Deck" />
+        <div className="flex-1" />
+        <ZoneSlot label="Legend" />
+        <ZoneSlot label="Champion" />
+      </div>
+    )
+    : (
+      <div className="flex items-center gap-1.5 px-2">
+        <ZoneSlot label="Champion" />
+        <ZoneSlot label="Legend" />
+        <div className="flex-1" />
+        <ZoneSlot label="Main Deck" />
+      </div>
+    );
+
+  const runesRow = isOpponent
+    ? (
+      <div className="flex items-center gap-1.5 px-2">
+        <ZoneSlot label="Trash" />
+        <div className="flex-1" />
+        <ZoneSlot label="Runes Deck" />
+      </div>
+    )
+    : (
+      <div className="flex items-center gap-1.5 px-2">
+        <ZoneSlot label="Runes Deck" />
+        <div className="flex-1" />
+        <ZoneSlot label="Trash" />
+      </div>
+    );
+
+  const nameBar = (
+    <div className={`flex items-center gap-1.5 px-2 py-0.5 ${isOpponent ? '' : ''}`}>
+      <div className={`w-1.5 h-1.5 rounded-full ${isCurrentTurn ? colorClasses.bg : 'bg-zinc-700'} flex-shrink-0`} />
+      <span className={`text-[10px] font-medium ${isCurrentTurn ? colorClasses.text : 'text-zinc-500'} truncate`}>
+        {playerName}
+        {isCurrentTurn && <span className="ml-1 opacity-60">(active)</span>}
+      </span>
+    </div>
+  );
+
+  if (isOpponent) {
+    // Opponent: runes on top (far from center), base closer to center
+    return (
+      <div className="space-y-1 py-1">
+        {nameBar}
+        {runesRow}
+        {baseRow}
+      </div>
+    );
+  }
+
+  // My side: base closer to center, runes at bottom
+  return (
+    <div className="space-y-1 py-1">
+      {baseRow}
+      {runesRow}
+      {nameBar}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -150,12 +336,27 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
   // Match ended
   const isMatchEnded = !!matchEndedPayload || fullState?.status === 'completed';
 
-  // Player layout: my score at bottom, opponent at top
+  // Player layout: my data at bottom, opponent at top
   const myPlayer = players.find((p) => p.playerId === playerId);
   const otherPlayers = players.filter((p) => p.playerId !== playerId);
 
+  // Score data
+  const myScore = matchState?.players.find((p) => p.playerId === playerId)?.score ?? 0;
+  const opponentScores = otherPlayers.map((op) => ({
+    player: op,
+    score: matchState?.players.find((p) => p.playerId === op.playerId)?.score ?? 0,
+  }));
+
+  // Primary opponent for single-score tracker display
+  const primaryOpponent = otherPlayers[0];
+  const primaryOpponentScore = opponentScores[0]?.score ?? 0;
+
+  const phaseLabels: Record<string, string> = {
+    A: 'Awaken', B: 'Beginning', C: 'Channel', D: 'Draw',
+  };
+
   return (
-    <div className="fixed inset-0 bg-surface flex flex-col overflow-hidden z-30">
+    <div className="fixed inset-0 bg-[#0a1628] flex flex-col overflow-hidden z-30">
       {/* Reconnecting banner */}
       {isReconnecting && (
         <div className="fixed top-0 inset-x-0 z-50 bg-yellow-900/80 border-b border-yellow-700/60 px-4 py-2 flex items-center gap-2">
@@ -189,121 +390,148 @@ export function MatchBoard({ code, playerId, role }: MatchBoardProps) {
         />
       )}
 
-      {/* ── Top bar: exit + opponent scores ── */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-surface-border bg-surface-card/60 shrink-0">
+      {/* ── Top bar: exit + match code + turn + ABCD phase ── */}
+      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[#c5a84a]/20 bg-[#0a1628]/80 shrink-0">
         <button
           onClick={handleExit}
-          className="text-xs text-zinc-500 hover:text-white transition-colors px-2 py-1 rounded border border-surface-border shrink-0"
+          className="text-xs text-zinc-500 hover:text-white transition-colors px-2 py-1 rounded border border-[#c5a84a]/20 shrink-0"
         >
           Exit
         </button>
 
-        <div className="flex gap-2 flex-1 justify-center overflow-hidden">
-          {otherPlayers.length > 0 ? (
-            otherPlayers.map((p) => (
-              <ScoreDisplay
-                key={p.playerId}
-                playerName={p.displayName}
-                score={p.score}
-                winTarget={winTarget}
-                color={p.color}
-                isCurrentTurn={p.playerId === activePlayerId}
-              />
-            ))
-          ) : (
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <div className="w-2 h-2 rounded-full bg-zinc-600 animate-pulse" />
-              Waiting for opponent...
-            </div>
-          )}
-        </div>
-
-        <div className="text-right shrink-0">
-          <p className="text-[10px] text-zinc-600 font-mono">{code}</p>
-          <p className="text-[10px] text-zinc-600">T{turnNumber}</p>
-        </div>
-      </div>
-
-      {/* ── ABCD Phase indicator ── */}
-      <div className="flex items-center justify-center gap-1.5 py-2 bg-surface-card/40 border-b border-surface-border/50 shrink-0">
-        {(['A', 'B', 'C', 'D'] as const).map((ph) => {
-          const phaseLabels: Record<string, string> = {
-            A: 'Awaken', B: 'Beginning', C: 'Channel', D: 'Draw',
-          };
-          return (
+        {/* ABCD phase — compact inline circles */}
+        <div className="flex items-center gap-1 flex-1 justify-center">
+          {(['A', 'B', 'C', 'D'] as const).map((ph) => (
             <button
               key={ph}
               disabled
               title={phaseLabels[ph]}
               className={`
-                w-8 h-8 rounded-full text-xs font-bold transition-all cursor-default
+                w-6 h-6 rounded-full text-[10px] font-bold transition-all cursor-default
                 ${ph === phase
-                  ? 'bg-rift-600 text-white shadow-lg scale-110'
-                  : 'bg-surface-elevated text-zinc-500 opacity-40'
+                  ? 'bg-rift-600 text-white shadow-sm scale-110'
+                  : 'bg-[#0a1628] border border-[#c5a84a]/20 text-zinc-600'
                 }
               `}
             >
               {ph}
             </button>
-          );
-        })}
-        <span className="ml-1 text-xs text-zinc-500">
-          {phase === 'A' ? 'Awaken' : phase === 'B' ? 'Beginning' : phase === 'C' ? 'Channel' : 'Draw'}
-        </span>
-        {turnNumber === 1 && phase === 'C' && (
-          <span className="ml-1 text-[10px] bg-rift-900/50 text-rift-400 px-2 py-0.5 rounded border border-rift-700/40">
-            Draw 3 runes
-          </span>
+          ))}
+          <span className="ml-1 text-[10px] text-zinc-500">{phaseLabels[phase]}</span>
+          {turnNumber === 1 && phase === 'C' && (
+            <span className="ml-1 text-[9px] bg-rift-900/50 text-rift-400 px-1.5 py-0.5 rounded border border-rift-700/40">
+              +3 runes
+            </span>
+          )}
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="text-[9px] text-zinc-600 font-mono">{code}</p>
+          <p className="text-[9px] text-zinc-600">T{turnNumber}</p>
+        </div>
+      </div>
+
+      {/* ── Opponent zones (top of screen) ── */}
+      <div className="shrink-0 border-b border-[#c5a84a]/10 bg-[#060e1a]/60">
+        {otherPlayers.length > 0 ? (
+          otherPlayers.map((op) => (
+            <PlayerZoneRows
+              key={op.playerId}
+              playerName={op.displayName}
+              color={playerColorMap[op.playerId] ?? 'blue'}
+              isOpponent={true}
+              isCurrentTurn={op.playerId === activePlayerId}
+            />
+          ))
+        ) : (
+          <div className="flex items-center justify-center gap-2 py-3 text-xs text-zinc-500">
+            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-pulse" />
+            Waiting for opponent...
+          </div>
         )}
       </div>
 
-      {/* ── Battlefield zones ── */}
-      <div className="flex-1 p-3 min-h-0">
-        <style>{`
-          .match-bf-grid { display: flex; flex-direction: column; height: 100%; gap: 12px; }
-          @media (orientation: landscape) {
-            .match-bf-grid { flex-direction: row; }
-          }
-        `}</style>
-        <div className="match-bf-grid">
-          {battlefields.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-              <div className="lg-spinner-sm mr-2" />
-              Loading battlefields...
-            </div>
+      {/* ── Center: Score trackers + Battlefield zones ── */}
+      <div className="flex items-stretch min-h-0 flex-1">
+        {/* Left score tracker (opponent) */}
+        <div className="flex items-center justify-center px-1 bg-[#060e1a]/40 border-r border-[#c5a84a]/10">
+          {primaryOpponent ? (
+            <VerticalScoreTracker
+              score={primaryOpponentScore}
+              winTarget={winTarget}
+              color={playerColorMap[primaryOpponent.playerId] ?? 'blue'}
+              side="left"
+            />
           ) : (
-            battlefields.map((bf, i) => (
-              <BattlefieldZone
-                key={i}
-                index={i}
-                control={bf.control}
-                playerColors={playerColorMap}
-                cardArt={(bf as { cardArt?: string | null }).cardArt}
-                cardName={(bf as { cardName?: string | null }).cardName}
-                onTap={handleTapBattlefield}
-                disabled={isSpectator}
-                showScoreFlash={flashingBattlefields.has(i)}
-              />
-            ))
+            <div className="w-7" />
+          )}
+        </div>
+
+        {/* Battlefield zones */}
+        <div className="flex-1 p-2 min-w-0">
+          <style>{`
+            .match-bf-grid { display: flex; flex-direction: column; height: 100%; gap: 8px; }
+            @media (orientation: landscape) {
+              .match-bf-grid { flex-direction: row; }
+            }
+          `}</style>
+          <div className="match-bf-grid player-base-row">
+            {battlefields.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+                <div className="lg-spinner-sm mr-2" />
+                Loading battlefields...
+              </div>
+            ) : (
+              battlefields.map((bf, i) => (
+                <BattlefieldZone
+                  key={i}
+                  index={i}
+                  control={bf.control}
+                  playerColors={playerColorMap}
+                  cardArt={(bf as { cardArt?: string | null }).cardArt}
+                  cardName={(bf as { cardName?: string | null }).cardName}
+                  onTap={handleTapBattlefield}
+                  disabled={isSpectator}
+                  showScoreFlash={flashingBattlefields.has(i)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right score tracker (me) */}
+        <div className="flex items-center justify-center px-1 bg-[#060e1a]/40 border-l border-[#c5a84a]/10">
+          {myPlayer ? (
+            <VerticalScoreTracker
+              score={myScore}
+              winTarget={winTarget}
+              color={playerColorMap[myPlayer.playerId] ?? 'blue'}
+              side="right"
+            />
+          ) : (
+            <div className="w-7" />
           )}
         </div>
       </div>
 
-      {/* ── Bottom bar: my score + controls + turn log ── */}
-      <div className="border-t border-surface-border bg-surface-card/60 shrink-0">
-        {/* My score */}
-        {myPlayer && (
-          <div className="flex justify-center px-3 pt-2">
-            <ScoreDisplay
-              playerName={`${myPlayer.displayName} (You)`}
-              score={myPlayer.score}
-              winTarget={winTarget}
-              color={myPlayer.color}
-              isCurrentTurn={myPlayer.playerId === activePlayerId}
-            />
+      {/* ── My zones (bottom half) ── */}
+      <div className="shrink-0 border-t border-[#c5a84a]/10 bg-[#060e1a]/60">
+        {myPlayer ? (
+          <PlayerZoneRows
+            playerName={`${myPlayer.displayName} (You)`}
+            color={playerColorMap[myPlayer.playerId] ?? 'blue'}
+            isOpponent={false}
+            isCurrentTurn={myPlayer.playerId === activePlayerId}
+          />
+        ) : (
+          <div className="flex items-center justify-center py-3 text-xs text-zinc-500">
+            Joining match...
           </div>
         )}
+      </div>
 
+      {/* ── Controls bar ── */}
+      <div className="border-t border-[#c5a84a]/20 bg-[#060e1a]/80 shrink-0">
         {/* Turn controls (only for players, not spectators) */}
         {!isSpectator && (
           <div className="px-3 py-2">
