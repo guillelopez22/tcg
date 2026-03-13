@@ -34,11 +34,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Points Tracker
 
-- [ ] **PTS-01**: User can create a 1v1 match session (2 battlefields, first to 8 points)
-- [ ] **PTS-02**: User can create a 2v2 match session (3 battlefields, first to 11 points)
-- [ ] **PTS-03**: User can create a FFA match session (3-4 players, 3 battlefields, first to 8 points)
-- [ ] **PTS-04**: User can track battlefield control (who controls each battlefield)
-- [ ] **PTS-05**: System automatically scores +1 on conquest and +1 per controlled battlefield at turn start
+- [x] **PTS-01**: User can create a 1v1 match session (2 battlefields, first to 8 points)
+- [x] **PTS-02**: User can create a 2v2 match session (3 battlefields, first to 11 points)
+- [x] **PTS-03**: User can create a FFA match session (3-4 players, 3 battlefields, first to 8 points)
+- [x] **PTS-04**: User can track battlefield control (who controls each battlefield)
+- [x] **PTS-05**: System automatically scores +1 on conquest and +1 per controlled battlefield at turn start
 - [ ] **PTS-06**: Opponent can join a synced session by scanning a QR code without needing an account
 - [ ] **PTS-07**: Both players see real-time score updates on their screens
 - [ ] **PTS-08**: Authenticated users can view their match history
@@ -125,11 +125,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DECK-07 | Phase 2 | Complete |
 | DECK-08 | Phase 2 | Complete |
 | DECK-09 | Phase 2 | Complete |
-| PTS-01 | Phase 3 | Pending |
-| PTS-02 | Phase 3 | Pending |
-| PTS-03 | Phase 3 | Pending |
-| PTS-04 | Phase 3 | Pending |
-| PTS-05 | Phase 3 | Pending |
+| PTS-01 | Phase 3 | Complete |
+| PTS-02 | Phase 3 | Complete |
+| PTS-03 | Phase 3 | Complete |
+| PTS-04 | Phase 3 | Complete |
+| PTS-05 | Phase 3 | Complete |
 | PTS-06 | Phase 3 | Pending |
 | PTS-07 | Phase 3 | Pending |
 | PTS-08 | Phase 3 | Pending |
