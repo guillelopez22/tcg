@@ -93,7 +93,7 @@ Plans:
   3. Opponent can join a synced session by scanning a QR code without creating an account, and both screens show the same score in real time
   4. Authenticated users can view their match history after a session ends
   5. The news section displays Riftbound community updates and announcements
-**Plans:** 7 plans (5 complete + 2 gap closure)
+**Plans:** 6/7 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — DB schema + shared Zod schemas + constants + TDD scoring engine
@@ -139,6 +139,6 @@ Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
 | 1.1 Collection UX Polish | 3/3 | Complete |  |
 | 1.2 Smart Deck Builder | 0/4 | Not started | - |
 | 2. Deck Builder Enhancements | 2/3 | In Progress|  |
-| 3. Points Tracker | 5/7 | Gap closure | 2026-03-13 |
+| 3. Points Tracker | 6/7 | In Progress|  |
 | 4. Tournament Manager | 0/? | Not started | - |
 | 5. WhatsApp Marketplace | 0/? | Not started | - |
