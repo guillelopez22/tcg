@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-06-PLAN.md — IconMatch SVG fix, importFromText zone correction, news startup sync
-last_updated: "2026-03-13T14:17:45.656Z"
+stopped_at: Completed 03-07-PLAN.md — match deck selection, guest champion unit step, play mat layout
+last_updated: "2026-03-13T14:22:27.984Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 22
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 ---
@@ -101,6 +101,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 03-points-tracker P04 | 15 | 2 tasks | 11 files |
 | Phase 03-points-tracker P05 | 5 | 1 tasks | 6 files |
 | Phase 03-points-tracker P06 | 15 | 2 tasks | 5 files |
+| Phase 03-points-tracker P07 | 25 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -171,6 +172,9 @@ Recent decisions affecting current work:
 - [Phase 03-05]: computeScoringBreakdown parses log event strings (conquest:playerId:idx) — no separate scoring field in DB
 - [Phase 03-points-tracker]: getZoneForCardType returns main for Champion Unit by design — zone correction in importFromText preserves parser zone for Champion Units, only fixes Legend/Rune/Battlefield
 - [Phase 03-points-tracker]: OnModuleInit syncCron on news startup ensures dev environments get data immediately; wrapped in existing isSyncing guard to prevent double-sync
+- [Phase 03-07]: Deck selection step triggers handleCreateMatch directly — createMatch.onSuccess handles step navigation for local vs synced modes
+- [Phase 03-07]: Guest deck builder auto-advance uses useEffect on entries+step — cleaner than imperative navigation in addCard callback
+- [Phase 03-07]: VerticalScoreTracker renders circles top=high/bottom=low matching physical play mat orientation
 
 ### Roadmap Evolution
 
@@ -190,6 +194,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T14:17:45.652Z
-Stopped at: Completed 03-06-PLAN.md — IconMatch SVG fix, importFromText zone correction, news startup sync
+Last session: 2026-03-13T14:22:27.979Z
+Stopped at: Completed 03-07-PLAN.md — match deck selection, guest champion unit step, play mat layout
 Resume file: None
