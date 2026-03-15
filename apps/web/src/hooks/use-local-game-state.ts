@@ -32,6 +32,11 @@ export interface PlayerGameState {
   trash: GameCardInfo[];
   /** UIDs of exhausted cards (base, legend, champion) */
   exhaustedUids: string[];
+  /**
+   * Units deployed to each battlefield slot.
+   * Index matches the battlefield index (0, 1, 2...).
+   */
+  fieldUnits: GameCardInfo[][];
 }
 
 /** Card info as provided by the deck builder — uid is assigned later during expansion */
@@ -101,7 +106,8 @@ type Action =
   | { type: 'DISCARD_TO_TRASH'; playerIndex: number; cardUid: string }
   | { type: 'RETURN_FROM_BASE'; playerIndex: number; cardUid: string }
   | { type: 'DISCARD_FROM_BASE'; playerIndex: number; cardUid: string }
-  | { type: 'TOGGLE_CARD_EXHAUST'; playerIndex: number; cardUid: string };
+  | { type: 'TOGGLE_CARD_EXHAUST'; playerIndex: number; cardUid: string }
+  | { type: 'MOVE_TO_FIELD'; playerIndex: number; cardUid: string; battlefieldIndex: number };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -372,6 +378,30 @@ function reducer(state: LocalGameState, action: Action): LocalGameState {
       return { ...state, gameState: newPlayers };
     }
 
+    case 'MOVE_TO_FIELD': {
+      if (state.gameState === null) return state;
+      const { playerIndex, cardUid, battlefieldIndex } = action;
+      const player = state.gameState[playerIndex];
+      if (!player) return state;
+
+      const cardIndex = player.base.findIndex((c) => c.uid === cardUid);
+      if (cardIndex === -1) return state;
+      const card = player.base[cardIndex]!;
+
+      const newPlayers = updatePlayer(state.gameState, playerIndex, (p) => {
+        const newFieldUnits = p.fieldUnits.map((units, i) =>
+          i === battlefieldIndex ? [...units, card] : units,
+        );
+        return {
+          ...p,
+          base: p.base.filter((_, i) => i !== cardIndex),
+          fieldUnits: newFieldUnits,
+        };
+      });
+
+      return { ...state, gameState: newPlayers };
+    }
+
     default:
       return state;
   }
@@ -415,6 +445,8 @@ function buildInitialPlayerState(entries: LocalDeckEntry[]): PlayerGameState {
     base: [],
     trash: [],
     exhaustedUids: [],
+    // Pre-allocate 3 battlefield slots (indices 0, 1, 2)
+    fieldUnits: [[], [], []],
   };
 }
 
@@ -469,6 +501,7 @@ export function useLocalGameState(
     currentChampion: currentPlayer?.championCard ?? null,
     currentBase: currentPlayer?.base ?? [],
     currentTrash: currentPlayer?.trash ?? [],
+    currentFieldUnits: currentPlayer?.fieldUnits ?? [[], [], []],
 
     // Opponent visible info (counts only — for synced mode)
     opponentDeckCount: opponentPlayer?.mainDeck.length ?? 0,
@@ -537,6 +570,10 @@ export function useLocalGameState(
 
     toggleCardExhaust(playerIndex: number, cardUid: string) {
       dispatch({ type: 'TOGGLE_CARD_EXHAUST', playerIndex, cardUid });
+    },
+
+    moveToField(playerIndex: number, cardUid: string, battlefieldIndex: number) {
+      dispatch({ type: 'MOVE_TO_FIELD', playerIndex, cardUid, battlefieldIndex });
     },
   } as const;
 }

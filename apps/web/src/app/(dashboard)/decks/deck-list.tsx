@@ -7,7 +7,7 @@ import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { ListSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
-import { TrendingDecks } from './trending-decks';
+import { TournamentDecks } from '../news/tournament-decks';
 import { CommunityDecks } from './community-decks';
 import { DeckWizard } from './deck-wizard';
 import { ImportDeckModal } from './import-deck-modal';
@@ -124,7 +124,7 @@ export function DeckList() {
   const tabs: Array<{ key: DeckTab; label: string }> = [
     { key: 'my-decks', label: 'My Decks' },
     { key: 'community', label: 'Community' },
-    { key: 'trending', label: 'Trending' },
+    { key: 'trending', label: 'Top Events' },
   ];
 
   return (
@@ -166,7 +166,7 @@ export function DeckList() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'trending' && <TrendingDecks />}
+      {activeTab === 'trending' && <TournamentDecks />}
 
       {activeTab === 'community' && <CommunityDecks />}
 

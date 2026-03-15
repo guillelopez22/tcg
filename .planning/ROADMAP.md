@@ -2,7 +2,7 @@
 
 ## Overview
 
-La Grieta ships five capabilities in dependency order. Collection Tracker ships first because six downstream features — marketplace notifications, want/trade cross-matching, deck buildability, and collection stats — all require knowing what users own. Deck Builder enhancements follow as pure-logic work that has no upstream dependencies and delivers immediate value to competitive players. Points Tracker ships next as a standalone, high-visibility feature that establishes La Grieta's presence at tournament venues before the marketplace is ready. Tournament Manager ships fourth with its non-negotiable offline-first guarantee, and its development window is used to start the WhatsApp phone-warming period. WhatsApp Marketplace ships last because it aggregates everything before it and carries the most external operational dependencies.
+La Grieta ships four capabilities in dependency order. Collection Tracker ships first because six downstream features — marketplace notifications, want/trade cross-matching, deck buildability, and collection stats — all require knowing what users own. Deck Builder enhancements follow as pure-logic work that has no upstream dependencies and delivers immediate value to competitive players. Points Tracker ships next as a standalone, high-visibility feature that establishes La Grieta's presence at tournament venues before the marketplace is ready. WhatsApp Marketplace ships last because it aggregates the collection, wantlist, and tradelist data from earlier phases and carries the most external operational dependencies. Tournament Manager was removed from v1 — Riot provides official tournament infrastructure, and the complexity-to-value ratio was too high.
 
 ## Phases
 
@@ -17,8 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1.2: Smart Deck Builder** - (INSERTED) Zone-aware deck editor with format validation, suggestion engine, analytics, and collection integration
 - [ ] **Phase 2: Deck Builder Enhancements** - Competitive players can build, validate, analyze, and share decks with champion-first workflow and format-legal enforcement
 - [x] **Phase 3: Points Tracker** - Any two players can run a scored match with real-time sync via QR code — no account required for the joining player (completed 2026-03-13)
-- [ ] **Phase 4: Tournament Manager** - A tournament organizer can run a full Swiss tournament offline from registration through standings, with crash-safe state
-- [ ] **Phase 5: WhatsApp Marketplace** - Buyers and sellers can transact through WhatsApp with automatic want-match notifications and escrow-backed transactions
+- [ ] **Phase 4: WhatsApp Marketplace** - Buyers and sellers can transact through WhatsApp with automatic want-match notifications and escrow-backed transactions
 
 ## Phase Details
 
@@ -104,21 +103,9 @@ Plans:
 - [ ] 03-06-PLAN.md — (GAP) Icon fix, deck import zone correction, news sync startup
 - [ ] 03-07-PLAN.md — (GAP) Match wizard deck selection + guest champion unit flow
 
-### Phase 4: Tournament Manager
-**Goal**: A tournament organizer can register players, generate correct Swiss pairings with bye handling, and run the full tournament offline — with state that survives a browser crash and syncs to the server when connectivity returns
-**Depends on**: Phase 3
-**Requirements**: TOUR-01, TOUR-02, TOUR-03, TOUR-04, TOUR-05, TOUR-06, TOUR-07, TOUR-08
-**Success Criteria** (what must be TRUE):
-  1. Tournament organizer can create a tournament, register players, and generate Swiss pairings including correct bye assignment for odd player counts
-  2. Tournament state persists through a full browser crash and refresh — no data loss, no manual recovery step
-  3. Players can submit deck lists linked to their La Grieta deck builder decks
-  4. Tournament organizer can export the current round's pairings to PDF and view the standings table after any completed round
-  5. Tournament data syncs automatically to the server when the device regains internet connectivity
-**Plans**: TBD
-
-### Phase 5: WhatsApp Marketplace
+### Phase 4: WhatsApp Marketplace
 **Goal**: Buyers and sellers in the Riftbound community can find cards, post listings, and complete trades through WhatsApp, with automatic notification when a wishlisted card hits the market and escrow-backed transaction safety
-**Depends on**: Phase 4
+**Depends on**: Phase 3
 **Requirements**: WHAP-01, WHAP-02, WHAP-03, WHAP-04, WHAP-05, WHAP-06, WHAP-07
 **Success Criteria** (what must be TRUE):
   1. Buyer can search card inventory by sending text commands to the WhatsApp bot and receive accurate results
@@ -131,7 +118,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -140,5 +127,4 @@ Phases execute in numeric order: 1 → 1.1 → 1.2 → 2 → 3 → 4 → 5
 | 1.2 Smart Deck Builder | 0/4 | Not started | - |
 | 2. Deck Builder Enhancements | 2/3 | In Progress|  |
 | 3. Points Tracker | 6/7 | In Progress|  |
-| 4. Tournament Manager | 0/? | Not started | - |
-| 5. WhatsApp Marketplace | 0/? | Not started | - |
+| 4. WhatsApp Marketplace | 0/? | Not started | - |

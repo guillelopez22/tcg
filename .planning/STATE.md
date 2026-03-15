@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03-07-PLAN.md — match deck selection, guest champion unit step, play mat layout
-last_updated: "2026-03-15T19:53:55.679Z"
+stopped_at: Phase 4 (Tournament Manager) removed from v1 — deploy to production next
+last_updated: "2026-03-15T20:36:33.197Z"
 last_activity: 2026-03-11 — Roadmap created, 42 requirements mapped across 5 phases
 progress:
-  total_phases: 7
+  total_phases: 6
   completed_phases: 5
   total_plans: 22
   completed_plans: 22
@@ -180,6 +180,7 @@ Recent decisions affecting current work:
 
 - Phase 01.1 inserted after Phase 1: Collection UX Polish (URGENT) — deck wizard, +/- steppers on collection grid, tradelist asking price editor, wantlist/tradelist remove buttons
 - Phase 01.2 inserted after Phase 1: Smart Deck Builder (URGENT)
+- Phase 4 (Tournament Manager) removed from v1 (2026-03-15): Riot provides official tournament infrastructure, complexity too high for value. TOUR-01 through TOUR-08 moved to v2. WhatsApp Marketplace renumbered to Phase 4.
 
 ### Pending Todos
 
@@ -187,13 +188,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 5 prerequisite]: Meta Business Account registration for Honduras must be verified early — country restrictions are unknown. Start this before Phase 4 ends.
-- [Phase 5 prerequisite]: WhatsApp Cloud API pricing beyond 1,000 conversations/month must be validated against projected usage before committing to the marketplace approach.
+- [Phase 4 prerequisite]: Meta Business Account registration for Honduras must be verified early — country restrictions are unknown. Start this before Phase 4 (WhatsApp Marketplace) begins.
+- [Phase 4 prerequisite]: WhatsApp Cloud API pricing beyond 1,000 conversations/month must be validated against projected usage before committing to the marketplace approach.
 - [Phase 1 risk]: Camera scanning accuracy on Riftbound-specific card art (especially Alt-Art variants) has not been empirically tested. Measure hash accuracy on 20-30 sample cards during Phase 1 before committing to hash-only matching.
 - [Phase 3 risk]: WebSocket state loss on iOS mobile browsers requires 15-second heartbeat + full-state reconnect — must be implemented, not deferred.
 
 ## Session Continuity
 
-Last session: 2026-03-13T14:22:27.979Z
-Stopped at: Completed 03-07-PLAN.md — match deck selection, guest champion unit step, play mat layout
-Resume file: None
+Last session: 2026-03-15T20:36:33.192Z
+Stopped at: Phase 4 (Tournament Manager) removed from v1 — deploy to production next
+Resume file: .planning/ROADMAP.md

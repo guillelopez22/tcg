@@ -2,7 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { RARITY_COLORS, DOMAIN_COLORS } from '@/lib/design-tokens';
@@ -17,9 +18,18 @@ interface CardDetailProps {
 
 export function CardDetail({ cardId }: CardDetailProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const { data: card, isLoading, isError } = trpc.card.getById.useQuery({ id: cardId });
   const [justAdded, setJustAdded] = useState(false);
   const utils = trpc.useUtils();
+
+  const goBack = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/cards');
+    }
+  }, [router]);
 
   const addToCollection = trpc.collection.add.useMutation({
     onSuccess() {
@@ -48,7 +58,7 @@ export function CardDetail({ cardId }: CardDetailProps) {
       <div className="flex items-center justify-center px-4 py-24">
         <div className="text-center">
           <p className="lg-text-secondary mb-4">Card not found.</p>
-          <Link href="/cards" className="lg-btn-link">Back to cards</Link>
+          <button onClick={goBack} className="lg-btn-link">Go back</button>
         </div>
       </div>
     );
@@ -59,9 +69,9 @@ export function CardDetail({ cardId }: CardDetailProps) {
 
   return (
     <div className="lg-container py-6 lg-page-padding">
-      <Link href="/cards" className="inline-flex items-center gap-1 lg-text-secondary hover:text-white mb-6 transition-colors">
-        <span aria-hidden>&larr;</span> Back to cards
-      </Link>
+      <button onClick={goBack} className="inline-flex items-center gap-1 lg-text-secondary hover:text-white mb-6 transition-colors">
+        <span aria-hidden>&larr;</span> Go back
+      </button>
 
       <div className="flex flex-col sm:flex-row gap-6">
         {/* Card image */}

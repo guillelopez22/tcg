@@ -62,6 +62,9 @@ export class DeckRouter {
         .input(deckBrowseSchema)
         .query(({ input }) => this.deckService.browse(input)),
 
+      metaBreakdown: pub
+        .query(() => this.deckService.metaBreakdown()),
+
       suggest: proc
         .input(deckSuggestSchema)
         .query(({ ctx, input }) => this.deckSuggestionsService.suggest(ctx.userId, input)),

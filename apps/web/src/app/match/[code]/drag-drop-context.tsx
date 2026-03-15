@@ -16,7 +16,14 @@ import type { GameCardInfo } from '@/hooks/use-local-game-state';
 // ---------------------------------------------------------------------------
 
 /** Zones a card can be dragged from / dropped into */
-export type ZoneId = 'hand' | 'base' | 'trash' | 'runes';
+export type ZoneId =
+  | 'hand'
+  | 'base'
+  | 'trash'
+  | 'runes'
+  | 'battlefield-0'
+  | 'battlefield-1'
+  | 'battlefield-2';
 
 interface DragState {
   card: GameCardInfo;

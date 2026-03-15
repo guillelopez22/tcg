@@ -31,6 +31,8 @@ export interface ChampionEntry {
 export interface DeckLink {
   url: string;
   name: string;
+  /** 1-based placement in tournament (1 = winner, 2 = finalist, etc.) */
+  placement: number | null;
 }
 
 export interface ScrapedCard {
@@ -196,7 +198,7 @@ export async function scrapeChampionDecks(
     const url = href.startsWith('http') ? href : `${BASE_URL}${href}`;
     const name = $(el).text().trim() || href;
     if (!deckLinks.find((d) => d.url === url)) {
-      deckLinks.push({ url, name });
+      deckLinks.push({ url, name, placement: null });
     }
     return;
   });
@@ -320,20 +322,22 @@ export async function scrapeRecentTournaments(limit = 3): Promise<TournamentEntr
  */
 export async function scrapeTournamentDecks(
   tournamentUrl: string,
-  limit = 8,
+  limit = 16,
 ): Promise<DeckLink[]> {
   await delay(REQUEST_DELAY_MS);
   const html = await fetchHtml(tournamentUrl);
   const $ = cheerio.load(html);
   const deckLinks: DeckLink[] = [];
 
+  let placementCounter = 0;
   $('a[href*="/riftbound-metagame/deck-"]').each((_i, el) => {
     if (deckLinks.length >= limit) return false;
     const href = $(el).attr('href') ?? '';
     const url = href.startsWith('http') ? href : `${BASE_URL}${href}`;
     const name = $(el).text().trim() || href;
     if (!deckLinks.find((d) => d.url === url)) {
-      deckLinks.push({ url, name });
+      placementCounter++;
+      deckLinks.push({ url, name, placement: placementCounter });
     }
     return;
   });

@@ -5,6 +5,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
@@ -29,6 +30,7 @@ const RARITY_COLORS: Record<string, string> = {
 export default function CardDetailPage({ params }: PageProps) {
   const { cardId } = params;
   const { user } = useAuth();
+  const router = useRouter();
   const t = useTranslations('collection');
   const tWant = useTranslations('wantlist');
   const tTrade = useTranslations('tradelist');
@@ -101,7 +103,7 @@ export default function CardDetailPage({ params }: PageProps) {
     return (
       <div className="lg-page-padding text-center py-16">
         <p className="lg-text-secondary">Card not found.</p>
-        <Link href="/collection" className="lg-btn-link mt-2 block">Back to collection</Link>
+        <button onClick={() => router.back()} className="lg-btn-link mt-2 block">Go back</button>
       </div>
     );
   }

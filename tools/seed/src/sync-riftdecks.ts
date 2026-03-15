@@ -34,13 +34,13 @@ const SYSTEM_USERNAME = 'la-grieta-system';
 const SYNC_TIERS = new Set(['S', 'A', 'B']);
 
 /** Top N meta decks to pull per champion. */
-const DECKS_PER_CHAMPION = 2;
+const DECKS_PER_CHAMPION = 3;
 
 /** Top N recent tournaments to pull decks from. */
-const TOURNAMENT_LIMIT = 3;
+const TOURNAMENT_LIMIT = 5;
 
 /** Top N decks to pull per tournament. */
-const DECKS_PER_TOURNAMENT = 8;
+const DECKS_PER_TOURNAMENT = 16;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,7 +52,21 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function dedupeByUrl(links: Array<{ url: string; name: string; tier: string | null }>): Array<{ url: string; name: string; tier: string | null }> {
+function detectRegion(tournamentName: string | null, deckName: string): string | null {
+  const text = `${tournamentName ?? ''} ${deckName}`.toLowerCase();
+  // Chinese indicators
+  if (/[\u4e00-\u9fff]/.test(text) || text.includes('china') || text.includes('cn ') || text.includes('shanghai') || text.includes('beijing') || text.includes('shenzhen')) {
+    return 'China';
+  }
+  // City/country names for non-China regions
+  if (text.includes('bologna') || text.includes('italy')) return 'Europe';
+  if (text.includes('las vegas') || text.includes('usa') || text.includes('na ')) return 'North America';
+  if (text.includes('tokyo') || text.includes('japan') || text.includes('seoul') || text.includes('korea')) return 'Asia';
+  if (text.includes('brazil') || text.includes('latam') || text.includes('honduras')) return 'Latin America';
+  return 'International';
+}
+
+function dedupeByUrl(links: Array<{ url: string; name: string; tier: string | null; tournament: string | null }>): Array<{ url: string; name: string; tier: string | null; tournament: string | null }> {
   const seen = new Set<string>();
   return links.filter((l) => {
     if (seen.has(l.url)) return false;
@@ -112,7 +126,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
   // Step 2: Collect deck URLs from tier list (S/A/B tier champions)
   // ------------------------------------------------------------------
   console.log('\nFetching tier list...');
-  let deckLinks: Array<{ url: string; name: string; tier: string | null }> = [];
+  let deckLinks: Array<{ url: string; name: string; tier: string | null; tournament: string | null; placement: number | null }> = [];
 
   try {
     const champions = await scrapeTierListChampions();
@@ -125,7 +139,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
       try {
         const championDecks = await scrapeChampionDecks(champion.slug, DECKS_PER_CHAMPION);
         console.log(`  ${champion.name} (${champion.tier}): ${championDecks.length} deck(s)`);
-        deckLinks.push(...championDecks.map((d) => ({ ...d, tier: champion.tier })));
+        deckLinks.push(...championDecks.map((d) => ({ ...d, tier: champion.tier, tournament: null, placement: null })));
       } catch (err) {
         console.warn(`  Failed to scrape champion ${champion.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -147,7 +161,7 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
       try {
         const tournamentDecks = await scrapeTournamentDecks(tournament.url, DECKS_PER_TOURNAMENT);
         console.log(`  "${tournament.name}": ${tournamentDecks.length} deck(s)`);
-        deckLinks.push(...tournamentDecks.map((d) => ({ ...d, tier: null })));
+        deckLinks.push(...tournamentDecks.map((d) => ({ ...d, tier: null, tournament: tournament.name, placement: d.placement })));
       } catch (err) {
         console.warn(`  Failed to scrape tournament "${tournament.name}": ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -170,13 +184,14 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
   // ------------------------------------------------------------------
   // Step 5: Scrape each deck page
   // ------------------------------------------------------------------
-  const scrapedDecks: Array<ScrapedDeck & { tier: string | null }> = [];
+  const scrapedDecks: Array<ScrapedDeck & { tier: string | null; tournament: string | null; region: string | null; placement: number | null }> = [];
 
   for (const link of deckLinks) {
     try {
       const deck = await scrapeDeckPage(link.url);
       if (deck) {
-        scrapedDecks.push({ ...deck, tier: link.tier });
+        const region = detectRegion(link.tournament, deck.name);
+        scrapedDecks.push({ ...deck, tier: link.tier, tournament: link.tournament, region, placement: link.placement });
         console.log(`  Parsed: "${deck.name}" (${deck.cards.length} cards)`);
       } else {
         console.warn(`  Skipped (no data): ${link.url}`);
@@ -322,6 +337,9 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
           isPublic: true,
           domain: deckData.domain || null,
           tier: deckData.tier,
+          tournament: deckData.tournament,
+          region: deckData.region,
+          placement: deckData.placement,
           coverCardId,
           updatedAt: new Date(),
         })
@@ -342,6 +360,9 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
           isPublic: true,
           domain: deckData.domain || null,
           tier: deckData.tier,
+          tournament: deckData.tournament,
+          region: deckData.region,
+          placement: deckData.placement,
           coverCardId,
         })
         .returning({ id: decks.id });

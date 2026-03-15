@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { LanguageToggle } from './language-toggle';
 
 const navLinks = [
+  { href: '/news', label: 'News', icon: IconNews },
   { href: '/cards', label: 'Cards', icon: IconCards },
   { href: '/collection', label: 'Collection', icon: IconCollection },
   { href: '/decks', label: 'Decks', icon: IconDecks },
@@ -95,6 +96,16 @@ export function DashboardNav() {
 }
 
 /* ── Icons (20x20 SVG, stroke-based) ── */
+
+function IconNews({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 4h10v12H5a2 2 0 0 1-2-2V4Z" />
+      <path d="M13 8h4v6a2 2 0 0 1-2 2h-2V8Z" />
+      <path d="M6 7h4M6 10h4M6 13h2" />
+    </svg>
+  );
+}
 
 function IconCards({ className }: { className?: string }) {
   return (

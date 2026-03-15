@@ -43,17 +43,6 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **PTS-07**: Both players see real-time score updates on their screens
 - [x] **PTS-08**: Authenticated users can view their match history
 
-### Tournament Manager
-
-- [ ] **TOUR-01**: TO can create a tournament and register players
-- [ ] **TOUR-02**: System generates Swiss pairings with correct bye handling for odd player counts
-- [ ] **TOUR-03**: Tournament runs fully offline (IndexedDB persistence on every mutation)
-- [ ] **TOUR-04**: Tournament state survives browser crash and refresh
-- [ ] **TOUR-05**: Players can submit deck lists linked to the deck builder
-- [ ] **TOUR-06**: TO can export current round pairings to PDF for display
-- [ ] **TOUR-07**: TO can view standings table after each round
-- [ ] **TOUR-08**: Tournament data syncs to server when connectivity is restored
-
 ### WhatsApp Marketplace
 
 - [ ] **WHAP-01**: Buyer can search card inventory via WhatsApp text commands
@@ -79,6 +68,17 @@ Deferred to future release. Tracked but not in current roadmap.
 - **MOB-01**: React Native mobile app for iOS and Android
 - **MOB-02**: Offline card database bundled locally (~550 cards)
 - **MOB-03**: Native camera integration for faster card scanning
+
+### Tournament Manager (moved from v1 — Riot provides official tournament infrastructure)
+
+- **TOUR-01**: TO can create a tournament and register players
+- **TOUR-02**: System generates Swiss pairings with correct bye handling for odd player counts
+- **TOUR-03**: Tournament runs fully offline (IndexedDB persistence on every mutation)
+- **TOUR-04**: Tournament state survives browser crash and refresh
+- **TOUR-05**: Players can submit deck lists linked to the deck builder
+- **TOUR-06**: TO can export current round pairings to PDF for display
+- **TOUR-07**: TO can view standings table after each round
+- **TOUR-08**: Tournament data syncs to server when connectivity is restored
 
 ### Advanced Features
 
@@ -133,28 +133,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PTS-06 | Phase 3 | Complete |
 | PTS-07 | Phase 3 | Complete |
 | PTS-08 | Phase 3 | Complete |
-| TOUR-01 | Phase 4 | Pending |
-| TOUR-02 | Phase 4 | Pending |
-| TOUR-03 | Phase 4 | Pending |
-| TOUR-04 | Phase 4 | Pending |
-| TOUR-05 | Phase 4 | Pending |
-| TOUR-06 | Phase 4 | Pending |
-| TOUR-07 | Phase 4 | Pending |
-| TOUR-08 | Phase 4 | Pending |
-| WHAP-01 | Phase 5 | Pending |
-| WHAP-02 | Phase 5 | Pending |
-| WHAP-03 | Phase 5 | Pending |
-| WHAP-04 | Phase 5 | Pending |
-| WHAP-05 | Phase 5 | Pending |
-| WHAP-06 | Phase 5 | Pending |
-| WHAP-07 | Phase 5 | Pending |
+| WHAP-01 | Phase 4 | Pending |
+| WHAP-02 | Phase 4 | Pending |
+| WHAP-03 | Phase 4 | Pending |
+| WHAP-04 | Phase 4 | Pending |
+| WHAP-05 | Phase 4 | Pending |
+| WHAP-06 | Phase 4 | Pending |
+| WHAP-07 | Phase 4 | Pending |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 3 | Complete |
 | PLAT-03 | Phase 1 | Complete |
 
 **Coverage:**
-- v1 requirements: 42 total
-- Mapped to phases: 42
+- v1 requirements: 34 total (8 TOUR-* moved to v2)
+- Mapped to phases: 34
 - Unmapped: 0
 
 ---

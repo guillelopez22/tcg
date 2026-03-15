@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { useAuth } from '@/lib/auth-context';
 import { RARITY_COLORS, DOMAIN_COLORS } from '@/lib/design-tokens';
@@ -145,9 +146,19 @@ function BuildabilitySection({ deckId }: { deckId: string }) {
 
 export function DeckDetail({ id }: DeckDetailProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>('cards');
   const { data: deck, isLoading, isError } = trpc.deck.getById.useQuery({ id });
+
+  const goBack = useCallback(() => {
+    // Use browser history if available (preserves News → Deck → News flow)
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/decks');
+    }
+  }, [router]);
 
   if (isLoading) {
     return <div role="status"><span className="sr-only">Loading deck</span><DetailSkeleton /></div>;
@@ -157,7 +168,7 @@ export function DeckDetail({ id }: DeckDetailProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <p className="lg-text-secondary mb-4">Deck not found.</p>
-        <Link href="/decks" className="lg-btn-link">Back to decks</Link>
+        <button onClick={goBack} className="lg-btn-link">Go back</button>
       </div>
     );
   }
@@ -173,9 +184,9 @@ export function DeckDetail({ id }: DeckDetailProps) {
 
   return (
     <div className="space-y-6">
-      <Link href="/decks" className="inline-flex items-center gap-1 lg-text-secondary hover:text-white transition-colors">
-        <span aria-hidden>&larr;</span> Back to decks
-      </Link>
+      <button onClick={goBack} className="inline-flex items-center gap-1 lg-text-secondary hover:text-white transition-colors">
+        <span aria-hidden>&larr;</span> Go back
+      </button>
 
       {/* Deck header */}
       <div className="lg-card px-5 py-4 space-y-3">
