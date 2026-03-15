@@ -783,7 +783,7 @@ export function MatchBoard({ code, playerId, role, localDecks }: MatchBoardProps
         </div>
 
         {/* ── 6. Hand (DRAG SOURCE) + Trash (DROP TARGET) ── */}
-        <div className="shrink-0 flex flex-col border-t border-[#c5a84a]/10" style={{ height: '120px' }}>
+        <div className="shrink-0 flex flex-col border-t border-[#c5a84a]/10" style={{ height: '160px' }}>
           <DropZone
             zone="hand"
             accepts={['base']}

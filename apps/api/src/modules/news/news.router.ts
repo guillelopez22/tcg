@@ -16,9 +16,16 @@ export class NewsRouter {
         .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
         .query(({ input }) => this.newsService.getLatest(input?.limit ?? 20)),
 
+      getCount: this.trpc.publicProcedure
+        .query(() => this.newsService.getCount()),
+
+      getSyncStatus: this.trpc.publicProcedure
+        .query(() => this.newsService.getSyncStatus()),
+
       triggerSync: this.trpc.protectedProcedure
         .mutation(async () => {
-          await this.newsService.syncCron();
+          // Non-blocking — returns immediately, sync runs in background
+          void this.newsService.syncCron();
           return { success: true };
         }),
     });

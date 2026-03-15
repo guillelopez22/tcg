@@ -471,6 +471,12 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
         return [...prev, { card, quantity: 1, zone }];
       }
 
+      // Champion slot: only 1 copy of the champion card (it occupies its own zone)
+      if (zone === 'champion') {
+        if (existing) return prev; // already in deck — no increment
+        return [...prev, { card, quantity: 1, zone }];
+      }
+
       // Main deck: per-card copy limits
       const maxCopies = isSignatureCard(card.cardType) ? MAX_SIGNATURE_COPIES : MAX_COPIES_PER_CARD;
       if (existing) {
@@ -680,6 +686,53 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
               </div>
             </div>
 
+            {/* Champion Unit slot */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-white">Champion Unit</span>
+                {championEntry
+                  ? <span className="text-xs text-green-400">✓ 1/1</span>
+                  : <span className="text-xs text-zinc-500">0/1</span>
+                }
+              </div>
+              {championEntry ? (
+                <div className="flex items-center gap-2 rounded-lg border border-rift-700/60 bg-rift-950/40 px-2 py-1.5">
+                  {championEntry.card.imageSmall && (
+                    <div className="relative w-7 h-10 rounded overflow-hidden shrink-0">
+                      <Image src={championEntry.card.imageSmall} alt={championEntry.card.name} fill className="object-cover" sizes="28px" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white truncate">{championEntry.card.name}</p>
+                    {championEntry.card.domain && (
+                      <div className="flex gap-1 mt-0.5">
+                        {parseDomains(championEntry.card.domain).filter(Boolean).map((d) => (
+                          <DomainBadge key={d} domain={d} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeCardFully(championEntry.card.id)}
+                    aria-label={`Remove champion ${championEntry.card.name}`}
+                    className="w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-surface-elevated transition-colors shrink-0"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-rift-700/40 bg-rift-950/20 py-3 px-2">
+                  <svg className="w-4 h-4 text-rift-500/60 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                  <p className="text-xs text-rift-400/70">Add a Champion Unit from the browser</p>
+                </div>
+              )}
+            </div>
+
             {/* Main Deck */}
             <div>
               <SectionHeader
@@ -687,7 +740,6 @@ export function GuestDeckBuilder({ matchCode, onDeckReady }: GuestDeckBuilderPro
                 count={mainCount}
                 max={MAIN_DECK_SIZE}
                 valid={validation.mainOk}
-                extra={!validation.hasChampion ? '(needs Champion)' : undefined}
               />
               {mainEntries.length === 0 ? (
                 <p className="lg-text-muted text-center py-3">No cards yet</p>

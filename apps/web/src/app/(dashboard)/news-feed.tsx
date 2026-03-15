@@ -112,7 +112,10 @@ function EmptyNewsState() {
 }
 
 export function NewsFeed() {
-  const { data: articles, isLoading } = trpc.news.getLatest.useQuery({ limit: 10 });
+  const { data: articles, isLoading, isError } = trpc.news.getLatest.useQuery(
+    { limit: 10 },
+    { retry: 1, staleTime: 5 * 60 * 1_000 },
+  );
 
   return (
     <div className="space-y-3">
@@ -123,6 +126,10 @@ export function NewsFeed() {
           {[1, 2, 3].map((i) => (
             <NewsCardSkeleton key={i} />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="lg-card p-6 text-center">
+          <p className="text-zinc-400 text-sm">Could not load news. The server may still be syncing.</p>
         </div>
       ) : !articles || articles.length === 0 ? (
         <EmptyNewsState />
