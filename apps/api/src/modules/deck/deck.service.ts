@@ -393,15 +393,16 @@ export class DeckService {
   }
 
   /**
-   * Re-validate all decks and update their status.
-   * One-time fix after validation formula changes.
+   * Re-validate all decks, fix bad data, and update status.
+   * Fixes: signature cards with qty > 1, missing champion zone assignment.
    */
-  async revalidateAllStatuses(): Promise<{ updated: number }> {
+  async revalidateAllStatuses(): Promise<{ updated: number; fixed: number }> {
     const allDecks = await this.db
       .select({ id: decks.id })
       .from(decks);
 
     let updated = 0;
+    let fixed = 0;
     for (const deck of allDecks) {
       const cardRows = await this.db
         .select({
@@ -415,7 +416,37 @@ export class DeckService {
       if (cardRows.length === 0) continue;
 
       const cardTypeMap = await this.buildCardTypeMap(cardRows.map((c) => c.cardId));
-      const errors = validateDeckFormat(cardRows, cardTypeMap);
+
+      // Fix missing champion zone: if no champion zone entry, promote first Champion Unit
+      const hasChampionZone = cardRows.some((r) => r.zone === 'champion');
+      if (!hasChampionZone) {
+        const champRow = cardRows.find((r) => cardTypeMap.get(r.cardId) === 'Champion Unit');
+        if (champRow) {
+          if (champRow.quantity > 1) {
+            // Split: 1 to champion, rest stay in main
+            await this.db
+              .update(deckCards)
+              .set({ quantity: champRow.quantity - 1 })
+              .where(and(eq(deckCards.deckId, deck.id), eq(deckCards.cardId, champRow.cardId), eq(deckCards.zone, champRow.zone)));
+            await this.db
+              .insert(deckCards)
+              .values({ deckId: deck.id, cardId: champRow.cardId, quantity: 1, zone: 'champion' });
+          } else {
+            await this.db
+              .update(deckCards)
+              .set({ zone: 'champion' })
+              .where(and(eq(deckCards.deckId, deck.id), eq(deckCards.cardId, champRow.cardId), eq(deckCards.zone, champRow.zone)));
+          }
+          fixed++;
+        }
+      }
+
+      // Re-read after fixes and validate
+      const fixedRows = await this.db
+        .select({ cardId: deckCards.cardId, quantity: deckCards.quantity, zone: deckCards.zone })
+        .from(deckCards)
+        .where(eq(deckCards.deckId, deck.id));
+      const errors = validateDeckFormat(fixedRows, cardTypeMap);
       const newStatus = errors.length === 0 ? 'complete' : 'draft';
 
       await this.db
@@ -426,7 +457,7 @@ export class DeckService {
       updated++;
     }
 
-    return { updated };
+    return { updated, fixed };
   }
 
   async setCards(userId: string, input: DeckSetCardsInput): Promise<DeckWithCards> {
@@ -935,14 +966,24 @@ export class DeckService {
       }
     }
 
-    // Apply zone correction: Champion Units, Legends, Battlefields, and Runes
-    // must always be stored in their canonical zone regardless of what the parser infers.
-    // The parser defaults these to 'main', which inflates the main count.
+    // Apply zone correction: Legends, Battlefields, and Runes go to their canonical zone.
+    // Champion Units: first one goes to 'champion' zone, rest stay in 'main'.
+    // Signature cards: enforce 1-copy limit.
     if (resolved.length > 0) {
       const cardTypeMap = await this.buildCardTypeMap(resolved.map((c) => c.cardId));
+      let hasChampion = false;
       for (let i = 0; i < resolved.length; i++) {
         const entry = resolved[i]!;
-        const derivedZone = getZoneForCardType(cardTypeMap.get(entry.cardId) ?? null);
+        const cardType = cardTypeMap.get(entry.cardId) ?? null;
+        const derivedZone = getZoneForCardType(cardType);
+
+        // First Champion Unit goes to champion zone
+        if (cardType === 'Champion Unit' && !hasChampion) {
+          hasChampion = true;
+          resolved[i] = { ...entry, zone: 'champion', quantity: 1 };
+          continue;
+        }
+
         resolved[i] = {
           ...entry,
           zone: derivedZone !== 'main' ? derivedZone : entry.zone,

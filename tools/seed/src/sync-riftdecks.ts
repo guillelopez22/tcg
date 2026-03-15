@@ -14,6 +14,7 @@ import 'dotenv/config';
 import { createDbClient } from '@la-grieta/db';
 import { users, decks, deckCards, cards } from '@la-grieta/db';
 import { eq, inArray, and } from 'drizzle-orm';
+import { getZoneForCardType, validateDeckFormat, SIGNATURE_TYPES } from '@la-grieta/shared';
 import {
   scrapeTierListChampions,
   scrapeChampionDecks,
@@ -208,6 +209,16 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
     cardRows.map((r) => [r.externalId, r.id]),
   );
 
+  // Also fetch card types for zone assignment
+  const cardTypeRows = await db
+    .select({ id: cards.id, cardType: cards.cardType })
+    .from(cards)
+    .where(inArray(cards.id, cardRows.map((r) => r.id)));
+
+  const cardTypeById = new Map<string, string>(
+    cardTypeRows.map((r) => [r.id, r.cardType]),
+  );
+
   const missingCards = allExternalIds.filter((eid) => !cardIdByExternalId.has(eid));
   if (missingCards.length > 0) {
     console.warn(
@@ -236,9 +247,10 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
       deckData.cards[0]?.externalId;
     const coverCardId = coverExternalId ? (cardIdByExternalId.get(coverExternalId) ?? null) : null;
 
-    // Build card rows, skipping cards not found in DB
-    const deckCardValues: Array<{ deckId: string; cardId: string; quantity: number }> = [];
+    // Build card rows with proper zone assignment, skipping cards not found in DB
+    const deckCardValues: Array<{ deckId: string; cardId: string; quantity: number; zone: string }> = [];
     let thisSkipped = 0;
+    let championAssigned = false;
 
     for (const c of deckData.cards) {
       const cardId = cardIdByExternalId.get(c.externalId);
@@ -246,10 +258,51 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
         thisSkipped++;
         continue;
       }
-      deckCardValues.push({ deckId: '', cardId, quantity: c.quantity });
+
+      const cardType = cardTypeById.get(cardId) ?? null;
+      let zone = getZoneForCardType(cardType);
+      let quantity = c.quantity;
+
+      // First Champion Unit → champion zone (qty 1), rest to main
+      if (cardType === 'Champion Unit' && !championAssigned) {
+        championAssigned = true;
+        deckCardValues.push({ deckId: '', cardId, quantity: 1, zone: 'champion' });
+        if (quantity > 1) {
+          deckCardValues.push({ deckId: '', cardId, quantity: quantity - 1, zone: 'main' });
+        }
+        continue;
+      }
+
+      deckCardValues.push({ deckId: '', cardId, quantity, zone });
     }
 
     skippedCards += thisSkipped;
+
+    // Move overflow main cards to sideboard (main zone capped at 40)
+    let mainTotal = deckCardValues
+      .filter((v) => v.zone === 'main')
+      .reduce((s, v) => s + v.quantity, 0);
+
+    if (mainTotal > 40) {
+      // Walk backwards through main entries, shifting overflow to sideboard
+      for (let i = deckCardValues.length - 1; i >= 0 && mainTotal > 40; i--) {
+        const entry = deckCardValues[i]!;
+        if (entry.zone !== 'main') continue;
+
+        const overflow = Math.min(entry.quantity, mainTotal - 40);
+        entry.quantity -= overflow;
+        mainTotal -= overflow;
+
+        if (overflow > 0) {
+          deckCardValues.push({ deckId: '', cardId: entry.cardId, quantity: overflow, zone: 'sideboard' });
+        }
+
+        // Remove entry if quantity hit 0
+        if (entry.quantity === 0) {
+          deckCardValues.splice(i, 1);
+        }
+      }
+    }
 
     // Check if this deck already exists (name match under system user)
     const existing = await db
@@ -308,6 +361,17 @@ export async function syncRiftdecks(databaseUrl: string): Promise<{
     const finalCardValues = deckCardValues.map((v) => ({ ...v, deckId }));
     if (finalCardValues.length > 0) {
       await db.insert(deckCards).values(finalCardValues);
+    }
+
+    // Compute and set status based on validation
+    const cardTypeMap = new Map<string, string | null>(
+      finalCardValues.map((v) => [v.cardId, cardTypeById.get(v.cardId) ?? null]),
+    );
+    const errors = validateDeckFormat(finalCardValues, cardTypeMap);
+    const status = errors.length === 0 ? 'complete' : 'draft';
+    await db.update(decks).set({ status }).where(eq(decks.id, deckId));
+    if (errors.length > 0) {
+      console.log(`    Status: ${status} (${errors.join(', ')})`);
     }
   }
 

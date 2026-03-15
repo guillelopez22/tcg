@@ -1,7 +1,7 @@
 'use client';
 
-// Deck creation wizard — 4-step flow:
-// 1. Name deck  2. Pick legend  3. Build (main / rune / battlefield)  4. Review & create
+// Deck creation wizard — 5-step flow:
+// 1. Name deck  2. Pick legend  3. Choose method  4. Build (main / rune / battlefield)  5. Review & create
 // Rendering: client-only (modal, interactive state machine)
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
@@ -16,6 +16,7 @@ import {
   MAIN_DECK_SIZE,
   RUNE_DECK_SIZE,
   BATTLEFIELD_COUNT,
+  SIDEBOARD_SIZE,
   SIGNATURE_TYPES,
   type DeckZone,
 } from '@la-grieta/shared';
@@ -30,7 +31,9 @@ type RouterOutput = inferRouterOutputs<AppRouter>;
 type LegendCard = RouterOutput['card']['legends'][number];
 type CardItem = RouterOutput['card']['list']['items'][number];
 
-type Step = 'name' | 'legend' | 'build' | 'review';
+type Step = 'name' | 'legend' | 'method' | 'build' | 'review';
+type BuildMethod = 'manual' | 'import' | 'auto';
+type ImportTab = 'text' | 'url' | 'code';
 
 interface DeckEntry {
   card: CardItem;
@@ -55,9 +58,21 @@ const MAIN_CARD_TYPES = ['Unit', 'Champion Unit', 'Spell', 'Gear', 'Signature Un
 const STEPS: { id: Step; label: string }[] = [
   { id: 'name', label: 'Name' },
   { id: 'legend', label: 'Legend' },
+  { id: 'method', label: 'Method' },
   { id: 'build', label: 'Build' },
   { id: 'review', label: 'Review' },
 ];
+
+// Rarity priority for auto-build: prefer common/uncommon to fill slots
+const RARITY_PRIORITY: Record<string, number> = {
+  Common: 0,
+  Uncommon: 1,
+  Rare: 2,
+  Epic: 3,
+  Showcase: 4,
+  'Alternate Art': 5,
+  Overnumbered: 6,
+};
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -78,6 +93,148 @@ function isSignatureCard(cardType: string | null | undefined): boolean {
 function getDomainBadge(domain: string): string {
   const colors = DOMAIN_COLORS[domain] ?? FALLBACK_DOMAIN;
   return `${colors.text} ${colors.bg} ${colors.border}`;
+}
+
+function rarityScore(rarity: string | null | undefined): number {
+  if (!rarity) return 99;
+  return RARITY_PRIORITY[rarity] ?? 99;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-build algorithm
+// Given all available cards for a legend's domains, produce a complete deck.
+// Returns DeckEntry[] (without the legend entry — caller adds that separately).
+// ---------------------------------------------------------------------------
+
+function autoBuildEntries(
+  legend: LegendCard,
+  domainCards: CardItem[],
+): DeckEntry[] {
+  const legendDomains = parseDomains(legend.domain);
+  const legendDomain = legend.domain;
+
+  const entries: DeckEntry[] = [];
+
+  // Helpers
+  const addEntry = (card: CardItem, qty: number, zone: DeckZone) => {
+    entries.push({ card, quantity: qty, zone });
+  };
+
+  // Exclude legends, tokens, and the legend itself
+  const EXCLUDED = new Set(['Legend', 'Token']);
+  const eligible = domainCards.filter(
+    (c) => !EXCLUDED.has(c.cardType ?? '') && c.id !== legend.id,
+  );
+
+  // Sort by rarity ascending (commons first — better for a starter deck)
+  const sorted = [...eligible].sort((a, b) => rarityScore(a.rarity) - rarityScore(b.rarity));
+
+  // ---- 1. Champion Unit (goes to champion zone) ----
+  const championCandidates = sorted.filter((c) => c.cardType === 'Champion Unit');
+  let champion: CardItem | null = null;
+  if (championCandidates.length > 0) {
+    champion = championCandidates[0]!;
+    addEntry(champion, 1, 'champion');
+  }
+
+  // ---- 2. Rune deck (12 runes) ----
+  const runeCandidates = sorted.filter((c) => c.cardType === 'Rune');
+  let runeTotal = 0;
+  const runeAdded = new Set<string>();
+  for (const card of runeCandidates) {
+    if (runeTotal >= RUNE_DECK_SIZE) break;
+    const qty = Math.min(3, RUNE_DECK_SIZE - runeTotal);
+    addEntry(card, qty, 'rune');
+    runeAdded.add(card.id);
+    runeTotal += qty;
+  }
+
+  // ---- 3. Battlefields (3 unique) ----
+  const bfCandidates = sorted.filter((c) => c.cardType === 'Battlefield');
+  const bfAdded = new Set<string>();
+  for (const card of bfCandidates) {
+    if (bfAdded.size >= BATTLEFIELD_COUNT) break;
+    // Unique by name
+    if ([...bfAdded].some((id) => eligible.find((c) => c.id === id)?.name === card.name)) continue;
+    addEntry(card, 1, 'battlefield');
+    bfAdded.add(card.id);
+  }
+
+  // ---- 4. Main deck (40 cards) ----
+  // Priority order: signature cards for this legend → units → spells/gear
+  // Signature cards: must match legend's exact domain pair, max 1 copy each
+  const signatureCandidates = sorted.filter(
+    (c) => isSignatureCard(c.cardType) && c.domain === legendDomain,
+  );
+  const mainExcluded = new Set(['Rune', 'Battlefield', 'Legend', 'Token', 'Champion Unit']);
+  const mainCandidates = sorted.filter(
+    (c) => !mainExcluded.has(c.cardType ?? '') && !isSignatureCard(c.cardType),
+  );
+
+  let mainTotal = 0;
+  const mainAdded = new Map<string, number>(); // cardId -> quantity
+
+  // Add signatures first (1 copy each)
+  for (const card of signatureCandidates) {
+    if (mainTotal >= MAIN_DECK_SIZE) break;
+    addEntry(card, 1, 'main');
+    mainAdded.set(card.id, 1);
+    mainTotal += 1;
+  }
+
+  // Fill remaining main deck slots
+  // Balance domains: interleave cards from both domains
+  const domain0Cards = mainCandidates.filter((c) =>
+    parseDomains(c.domain || null).includes(legendDomains[0] as string),
+  );
+  const domain1Cards = legendDomains[1]
+    ? mainCandidates.filter(
+        (c) =>
+          parseDomains(c.domain || null).includes(legendDomains[1] as string) &&
+          !parseDomains(c.domain || null).includes(legendDomains[0] as string),
+      )
+    : [];
+
+  // Interleaved fill: take turns from each domain pool
+  const fillPools = domain1Cards.length > 0 ? [domain0Cards, domain1Cards] : [domain0Cards];
+  let poolIdx = 0;
+  const seenInFill = new Set<string>(mainAdded.keys());
+
+  // We'll do multiple passes until main deck is full
+  let progress = true;
+  while (mainTotal < MAIN_DECK_SIZE && progress) {
+    progress = false;
+    for (let pass = 0; pass < fillPools.length && mainTotal < MAIN_DECK_SIZE; pass++) {
+      const pool = fillPools[(poolIdx + pass) % fillPools.length]!;
+      for (const card of pool) {
+        if (mainTotal >= MAIN_DECK_SIZE) break;
+        if (seenInFill.has(card.id)) {
+          // Try to add another copy
+          const existing = mainAdded.get(card.id) ?? 0;
+          const maxCopies = isSignatureCard(card.cardType) ? MAX_SIGNATURE_COPIES : MAX_COPIES_PER_CARD;
+          if (existing < maxCopies) {
+            // Find the entry and increment
+            const entry = entries.find((e) => e.card.id === card.id && e.zone === 'main');
+            if (entry) {
+              entry.quantity += 1;
+              mainAdded.set(card.id, existing + 1);
+              mainTotal += 1;
+              progress = true;
+            }
+          }
+        } else {
+          seenInFill.add(card.id);
+          addEntry(card, 1, 'main');
+          mainAdded.set(card.id, 1);
+          mainTotal += 1;
+          progress = true;
+        }
+      }
+    }
+    poolIdx = (poolIdx + 1) % fillPools.length;
+  }
+
+  return entries;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,10 +360,10 @@ function SectionHeader({ title, count, max, valid, extra }: SectionHeaderProps) 
 }
 
 // ---------------------------------------------------------------------------
-// Card browser (used in step 3)
+// Card browser (used in step 4 — Build)
 // ---------------------------------------------------------------------------
 
-type BrowserTab = 'main' | 'rune' | 'battlefield';
+type BrowserTab = 'main' | 'rune' | 'battlefield' | 'sideboard';
 
 interface CardBrowserProps {
   legend: LegendCard;
@@ -221,18 +378,11 @@ function CardBrowser({ legend, entries, onAdd, activeTab, onTabChange }: CardBro
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
-  // Determine which domain to query based on tab
-  const queryDomain = activeTab === 'rune'
-    ? domains[0] // will load both domains separately
-    : activeTab === 'battlefield'
-      ? undefined
-      : domains[0];
-
   const cardType = activeTab === 'rune'
     ? 'Rune'
     : activeTab === 'battlefield'
       ? 'Battlefield'
-      : typeFilter !== 'all' ? typeFilter : undefined;
+      : typeFilter !== 'all' ? typeFilter : undefined; // main + sideboard share card types
 
   // Query first domain
   const q1 = trpc.card.list.useQuery(
@@ -264,7 +414,7 @@ function CardBrowser({ legend, entries, onAdd, activeTab, onTabChange }: CardBro
     for (const c of [...(q1.data?.items ?? []), ...(q2.data?.items ?? [])]) {
       if (seen.has(c.id)) continue;
       // When browsing "main" with no type filter, exclude non-main card types
-      if (activeTab === 'main' && !cardType && EXCLUDED_FROM_MAIN.has(c.cardType ?? '')) continue;
+      if ((activeTab === 'main' || activeTab === 'sideboard') && !cardType && EXCLUDED_FROM_MAIN.has(c.cardType ?? '')) continue;
       // Signature cards must match the legend's exact domain pair (not just one domain)
       if (isSignatureCard(c.cardType) && c.domain !== legend.domain) continue;
       seen.add(c.id);
@@ -285,6 +435,7 @@ function CardBrowser({ legend, entries, onAdd, activeTab, onTabChange }: CardBro
     { id: 'main', label: 'Main Deck' },
     { id: 'rune', label: 'Runes' },
     { id: 'battlefield', label: 'Battlefields' },
+    { id: 'sideboard', label: 'Sideboard' },
   ];
 
   return (
@@ -359,6 +510,41 @@ function CardBrowser({ legend, entries, onAdd, activeTab, onTabChange }: CardBro
 }
 
 // ---------------------------------------------------------------------------
+// SVG icons for method cards
+// ---------------------------------------------------------------------------
+
+function IconBuildManually() {
+  return (
+    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="9" rx="1" />
+      <rect x="14" y="3" width="7" height="5" rx="1" />
+      <rect x="14" y="12" width="7" height="9" rx="1" />
+      <rect x="3" y="16" width="7" height="5" rx="1" />
+    </svg>
+  );
+}
+
+function IconImport() {
+  return (
+    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3v12m0 0-4-4m4 4 4-4" />
+      <path d="M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" />
+    </svg>
+  );
+}
+
+function IconAutoWand() {
+  return (
+    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m15 4-1 1 1 1 1-1-1-1ZM3 20l9-9M5 6 4 7l1 1 1-1-1-1ZM7 2l-1 1 1 1 1-1-1-1Z" />
+      <path d="m20 8-1 1 1 1 1-1-1-1ZM18 4l-1 1 1 1 1-1-1-1Z" />
+      <path d="M12 8a4 4 0 0 1 4 4" />
+      <path d="M6 18a4 4 0 0 1 4-4" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -376,11 +562,82 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
   const [nameError, setNameError] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Method step state
+  const [buildMethod, setBuildMethod] = useState<BuildMethod | null>(null);
+
+  // Import inline state
+  const [importTab, setImportTab] = useState<ImportTab>('text');
+  const [importText, setImportText] = useState('');
+  const [importName, setImportName] = useState('');
+  const [importUrl, setImportUrl] = useState('');
+  const [importCode, setImportCode] = useState('');
+  const [importError, setImportError] = useState('');
+
+  // Auto-build state
+  const [isAutoBuilding, setIsAutoBuilding] = useState(false);
+
   // Fetch legends once
   const { data: legendsData, isLoading: legendsLoading } = trpc.card.legends.useQuery(
     undefined,
     { staleTime: Infinity, enabled: isOpen },
   );
+
+  // Fetch domain cards for auto-build (domain 1)
+  const legendDomains = useMemo(() => parseDomains(selectedLegend?.domain ?? null), [selectedLegend]);
+
+  const autoBuildQ1 = trpc.card.list.useQuery(
+    { domain: legendDomains[0] || undefined, limit: 100 },
+    {
+      staleTime: 60_000,
+      enabled: isOpen && buildMethod === 'auto' && !!legendDomains[0],
+    },
+  );
+
+  const autoBuildQ2 = trpc.card.list.useQuery(
+    { domain: legendDomains[1] || undefined, limit: 100 },
+    {
+      staleTime: 60_000,
+      enabled: isOpen && buildMethod === 'auto' && !!legendDomains[1],
+    },
+  );
+
+  // Battlefield cards have no domain — need a separate query
+  const autoBuildBfQ = trpc.card.list.useQuery(
+    { cardType: 'Battlefield', limit: 50 },
+    {
+      staleTime: 60_000,
+      enabled: isOpen && buildMethod === 'auto',
+    },
+  );
+
+  // tRPC mutations for import
+  const importFromTextMutation = trpc.deck.importFromText.useMutation({
+    onSuccess(result) {
+      if (result.resolved.length === 0) {
+        setImportError('No cards could be matched from the pasted text.');
+        return;
+      }
+      applyImportResult(result.resolved, result.deckName);
+    },
+    onError(err) {
+      setImportError(err.message || 'Import failed. Please check your deck list.');
+    },
+  });
+
+  const importFromUrlMutation = trpc.deck.importFromUrl.useMutation({
+    onSuccess(result) {
+      if (result.resolved.length === 0) {
+        setImportError('No cards could be matched from that URL.');
+        return;
+      }
+      applyImportResult(result.resolved, result.deckName);
+    },
+    onError(err) {
+      setImportError(err.message || 'Failed to fetch deck from URL.');
+    },
+  });
+
+  const utils = trpc.useUtils();
 
   const createDeck = trpc.deck.create.useMutation({
     onSuccess: (deck) => {
@@ -401,6 +658,42 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     }
   }, [isOpen, step]);
 
+  // Auto-build: when queries are ready and we're in auto mode, run the algorithm
+  useEffect(() => {
+    if (!isAutoBuilding) return;
+    if (!selectedLegend) return;
+
+    const q1Done = autoBuildQ1.isSuccess;
+    const q2Done = !legendDomains[1] || autoBuildQ2.isSuccess;
+    const bfDone = autoBuildBfQ.isSuccess;
+
+    if (!q1Done || !q2Done || !bfDone) return;
+
+    const allDomainCards = [
+      ...(autoBuildQ1.data?.items ?? []),
+      ...(autoBuildQ2.data?.items ?? []),
+      ...(autoBuildBfQ.data?.items ?? []),
+    ];
+
+    // Deduplicate
+    const seen = new Set<string>();
+    const deduped: CardItem[] = [];
+    for (const c of allDomainCards) {
+      if (!seen.has(c.id)) { seen.add(c.id); deduped.push(c); }
+    }
+
+    const legendEntry: DeckEntry = {
+      card: selectedLegend as unknown as CardItem,
+      quantity: 1,
+      zone: 'legend',
+    };
+
+    const built = autoBuildEntries(selectedLegend, deduped);
+    setEntries([legendEntry, ...built]);
+    setIsAutoBuilding(false);
+    setStep('review');
+  }, [isAutoBuilding, autoBuildQ1.isSuccess, autoBuildQ2.isSuccess, autoBuildBfQ.isSuccess, autoBuildQ1.data, autoBuildQ2.data, autoBuildBfQ.data, selectedLegend, legendDomains]);
+
   // Reset when modal closes
   const handleClose = useCallback(() => {
     setStep('name');
@@ -411,6 +704,14 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     setEntries([]);
     setBrowserTab('main');
     setNameError('');
+    setBuildMethod(null);
+    setImportTab('text');
+    setImportText('');
+    setImportName('');
+    setImportUrl('');
+    setImportCode('');
+    setImportError('');
+    setIsAutoBuilding(false);
     onClose();
   }, [onClose]);
 
@@ -433,18 +734,18 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     });
   }, [legendsData, legendSearch, legendDomainFilter]);
 
-  const legendDomains = useMemo(() => parseDomains(selectedLegend?.domain ?? null), [selectedLegend]);
-
   // Partition entries by zone category
   const legendEntry = entries.find((e) => e.zone === 'legend');
   const championEntry = entries.find((e) => e.zone === 'champion');
-  const mainEntries = entries.filter((e) => e.zone === 'main' || e.zone === 'champion');
+  const mainEntries = entries.filter((e) => e.zone === 'main');
   const runeEntries = entries.filter((e) => e.zone === 'rune');
   const battlefieldEntries = entries.filter((e) => e.zone === 'battlefield');
+  const sideboardEntries = entries.filter((e) => e.zone === 'sideboard');
 
   const mainCount = mainEntries.reduce((s, e) => s + e.quantity, 0);
   const runeCount = runeEntries.reduce((s, e) => s + e.quantity, 0);
   const battlefieldCount = battlefieldEntries.length;
+  const sideboardCount = sideboardEntries.reduce((s, e) => s + e.quantity, 0);
 
   // Validation
   const validation = useMemo(() => {
@@ -452,6 +753,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     const mainOk = mainCount === MAIN_DECK_SIZE && hasChampion;
     const runeOk = runeCount === RUNE_DECK_SIZE;
     const bfOk = battlefieldCount === BATTLEFIELD_COUNT;
+    const sideboardOk = sideboardCount <= SIDEBOARD_SIZE;
     // All signature cards must match the legend's domain
     const legendDomain = legendEntry?.card.domain ?? null;
     const signaturesOk = entries
@@ -461,10 +763,11 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
       mainOk,
       runeOk,
       bfOk,
+      sideboardOk,
       hasChampion,
-      isValid: mainOk && runeOk && bfOk && signaturesOk,
+      isValid: mainOk && runeOk && bfOk && sideboardOk && signaturesOk,
     };
-  }, [mainCount, runeCount, battlefieldCount, championEntry, entries, legendEntry]);
+  }, [mainCount, runeCount, battlefieldCount, sideboardCount, championEntry, entries, legendEntry]);
 
   // — Entry mutation helpers —
 
@@ -477,12 +780,12 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
       }
 
       // Determine target zone FIRST, then find existing entry in that zone
-      let zone: DeckZone = 'main';
+      let zone: DeckZone = browserTab === 'sideboard' ? 'sideboard' : 'main';
       if (card.cardType === 'Rune') zone = 'rune';
       else if (card.cardType === 'Battlefield') zone = 'battlefield';
       else if (card.cardType === 'Champion Unit') {
         const hasChampion = prev.some((e) => e.zone === 'champion');
-        zone = hasChampion ? 'main' : 'champion';
+        zone = hasChampion ? zone : 'champion'; // keep sideboard if on sideboard tab
       }
 
       // Champion zone: only 1 card allowed
@@ -510,22 +813,32 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         return [...prev, { card, quantity: 1, zone }];
       }
 
-      // Main deck: enforce size limit
-      const currentMainTotal = prev
-        .filter((e) => e.zone === 'main')
-        .reduce((s, e) => s + e.quantity, 0);
-      if (currentMainTotal >= MAIN_DECK_SIZE) return prev;
+      // Main / sideboard: enforce size limits
+      if (zone === 'sideboard') {
+        const currentSideboardTotal = prev
+          .filter((e) => e.zone === 'sideboard')
+          .reduce((s, e) => s + e.quantity, 0);
+        if (currentSideboardTotal >= SIDEBOARD_SIZE) return prev;
+      } else {
+        const currentMainTotal = prev
+          .filter((e) => e.zone === 'main')
+          .reduce((s, e) => s + e.quantity, 0);
+        if (currentMainTotal >= MAIN_DECK_SIZE) return prev;
+      }
 
-      // Per-card copy limits (count across main zone only for this card)
-      const maxCopies = isSignatureCard(card.cardType) ? MAX_SIGNATURE_COPIES : MAX_COPIES_PER_CARD;
-      const existing = prev.find((e) => e.card.id === card.id && e.zone === 'main');
+      // Per-card copy limits (count across main + sideboard for this card)
+      const totalCopies = prev
+        .filter((e) => e.card.id === card.id && (e.zone === 'main' || e.zone === 'sideboard'))
+        .reduce((s, e) => s + e.quantity, 0);
+      if (totalCopies >= MAX_COPIES_PER_CARD) return prev;
+
+      const existing = prev.find((e) => e.card.id === card.id && e.zone === zone);
       if (existing) {
-        if (existing.quantity >= maxCopies) return prev;
-        return prev.map((e) => e.card.id === card.id && e.zone === 'main' ? { ...e, quantity: e.quantity + 1 } : e);
+        return prev.map((e) => e.card.id === card.id && e.zone === zone ? { ...e, quantity: e.quantity + 1 } : e);
       }
       return [...prev, { card, quantity: 1, zone }];
     });
-  }, []);
+  }, [browserTab]);
 
   const removeCard = useCallback((cardId: string) => {
     setEntries((prev) => {
@@ -539,6 +852,52 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
   const removeCardFully = useCallback((cardId: string) => {
     setEntries((prev) => prev.filter((e) => e.card.id !== cardId));
   }, []);
+
+  // Convert import resolved list into DeckEntry format and jump to review
+  function applyImportResult(
+    resolved: Array<{ cardId: string; quantity: number; zone: string; name?: string; imageSmall?: string | null }>,
+    importedDeckName: string,
+  ) {
+    // We need full CardItem objects. The import API only returns cardId/quantity/zone.
+    // Fetch full card data for each resolved card via the card cache.
+    // For now, build minimal CardItem-like objects from the resolved data.
+    // The review step only needs id, name, imageSmall, cardType, domain for display.
+    const newEntries: DeckEntry[] = resolved.map((r) => ({
+      card: {
+        id: r.cardId,
+        name: r.name ?? r.cardId,
+        imageSmall: r.imageSmall ?? null,
+        // Minimal fields — review only displays name/image, build step is skipped
+        externalId: '',
+        number: '',
+        code: '',
+        cleanName: r.name ?? '',
+        setId: '',
+        rarity: '',
+        cardType: null,
+        domain: null,
+        energyCost: null,
+        powerCost: null,
+        might: null,
+        description: null,
+        flavorText: null,
+        imageLarge: null,
+        tcgplayerId: null,
+        tcgplayerUrl: null,
+        set: { id: '', name: '', slug: '', releaseDate: null },
+      } as unknown as CardItem,
+      quantity: r.quantity,
+      zone: (r.zone as DeckZone) ?? 'main',
+    }));
+
+    // Set deck name from import if user hasn't customised it
+    if (!deckName.trim() || deckName === importedDeckName) {
+      setDeckName(importedDeckName);
+    }
+
+    setEntries(newEntries);
+    setStep('review');
+  }
 
   // — Step navigation —
 
@@ -557,7 +916,7 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         if (hasLegend) return prev;
         return [...prev, { card: selectedLegend as unknown as CardItem, quantity: 1, zone: 'legend' }];
       });
-      setStep('build');
+      setStep('method');
     } else if (step === 'build') {
       setStep('review');
     }
@@ -565,8 +924,62 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
 
   const goBack = () => {
     if (step === 'legend') setStep('name');
-    else if (step === 'build') setStep('legend');
-    else if (step === 'review') setStep('build');
+    else if (step === 'method') {
+      setBuildMethod(null);
+      setImportError('');
+      setStep('legend');
+    }
+    else if (step === 'build') setStep('method');
+    else if (step === 'review') {
+      // Go back to build if user manually built, otherwise method
+      if (buildMethod === 'manual') setStep('build');
+      else setStep('method');
+    }
+  };
+
+  // Method selection handlers
+  const handlePickManual = () => {
+    setBuildMethod('manual');
+    setStep('build');
+  };
+
+  const handlePickImport = () => {
+    setBuildMethod('import');
+    // Stay on method step, but now show inline import UI
+    // (renderMethod conditionally renders import UI when buildMethod === 'import')
+  };
+
+  const handlePickAuto = () => {
+    setBuildMethod('auto');
+    setIsAutoBuilding(true);
+    // The useEffect watching autoBuildQ1/Q2 will run the algorithm and advance to review
+  };
+
+  const handleSubmitImport = () => {
+    setImportError('');
+    if (importTab === 'text') {
+      if (!importText.trim()) { setImportError('Please paste a deck list.'); return; }
+      importFromTextMutation.mutate({ text: importText, name: importName || deckName || undefined });
+    } else if (importTab === 'url') {
+      if (!importUrl.trim()) { setImportError('Please enter a URL.'); return; }
+      importFromUrlMutation.mutate({ url: importUrl, name: importName || deckName || undefined });
+    } else {
+      // Share code
+      if (!importCode.trim()) { setImportError('Please enter a share code.'); return; }
+      void utils.deck.resolveShareCode.fetch({ code: importCode.trim() }).then((deck) => {
+        const resolved = deck.cards.map((c) => ({
+          cardId: c.card.id,
+          quantity: c.quantity,
+          zone: c.zone,
+          name: c.card.name,
+          imageSmall: c.card.imageSmall,
+        }));
+        applyImportResult(resolved, `Copy of ${deck.name}`);
+      }).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Share code not found.';
+        setImportError(message);
+      });
+    }
   };
 
   // — Create deck —
@@ -735,6 +1148,228 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     </div>
   );
 
+  const renderMethod = () => {
+    // If user picked Import, show the inline import UI
+    if (buildMethod === 'import') {
+      const isLoading = importFromTextMutation.isPending || importFromUrlMutation.isPending;
+      const importTabs: { id: ImportTab; label: string }[] = [
+        { id: 'text', label: 'Text Paste' },
+        { id: 'url', label: 'URL' },
+        { id: 'code', label: 'Share Code' },
+      ];
+      return (
+        <div className="flex flex-col gap-4 p-6 overflow-y-auto">
+          <div>
+            <button
+              type="button"
+              onClick={() => { setBuildMethod(null); setImportError(''); }}
+              className="lg-text-muted text-xs flex items-center gap-1 mb-3 hover:text-white transition-colors"
+              aria-label="Back to method selection"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+              </svg>
+              Back to method selection
+            </button>
+            <h2 className="lg-page-title mb-1">Import a Deck</h2>
+            <p className="lg-text-secondary">Paste a deck list, provide a URL, or enter a share code.</p>
+          </div>
+
+          {/* Import tabs */}
+          <div className="flex border-b border-surface-border shrink-0">
+            {importTabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => { setImportTab(t.id); setImportError(''); }}
+                className={t.id === importTab ? 'lg-tab-active' : 'lg-tab-inactive'}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="space-y-3">
+            {importTab === 'text' && (
+              <>
+                <div className="lg-field">
+                  <label htmlFor="import-name" className="lg-label">Deck name (optional — overrides wizard name)</label>
+                  <input
+                    id="import-name"
+                    type="text"
+                    value={importName}
+                    onChange={(e) => setImportName(e.target.value)}
+                    placeholder={deckName || 'My Imported Deck'}
+                    className="lg-input"
+                  />
+                </div>
+                <div className="lg-field">
+                  <label htmlFor="import-text" className="lg-label">Deck list</label>
+                  <textarea
+                    id="import-text"
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder={'3x Card Name\n2x Other Card\n...'}
+                    className="lg-input min-h-[160px] resize-y font-mono text-sm"
+                    aria-label="Paste deck list text"
+                  />
+                </div>
+              </>
+            )}
+
+            {importTab === 'url' && (
+              <>
+                <div className="lg-field">
+                  <label htmlFor="import-url-name" className="lg-label">Deck name (optional)</label>
+                  <input
+                    id="import-url-name"
+                    type="text"
+                    value={importName}
+                    onChange={(e) => setImportName(e.target.value)}
+                    placeholder={deckName || 'My Imported Deck'}
+                    className="lg-input"
+                  />
+                </div>
+                <div className="lg-field">
+                  <label htmlFor="import-url" className="lg-label">Deck URL</label>
+                  <input
+                    id="import-url"
+                    type="url"
+                    value={importUrl}
+                    onChange={(e) => setImportUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitImport(); }}
+                    placeholder="https://riftbound.gg/deck/..."
+                    className="lg-input"
+                    aria-label="Enter deck URL"
+                  />
+                </div>
+              </>
+            )}
+
+            {importTab === 'code' && (
+              <div className="lg-field">
+                <label htmlFor="import-code" className="lg-label">Share code</label>
+                <input
+                  id="import-code"
+                  type="text"
+                  value={importCode}
+                  onChange={(e) => setImportCode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitImport(); }}
+                  placeholder="LG-a3Xk9m"
+                  className="lg-input"
+                  aria-label="Enter share code"
+                />
+              </div>
+            )}
+
+            {importError && (
+              <p className="text-xs text-red-400" role="alert">{importError}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSubmitImport}
+              disabled={isLoading}
+              className="lg-btn-primary w-full flex items-center justify-center gap-2"
+            >
+              {isLoading && (
+                <div role="status" className="lg-spinner-sm">
+                  <span className="sr-only">Importing</span>
+                </div>
+              )}
+              {isLoading ? 'Importing…' : 'Import'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Auto-building loading state
+    if (buildMethod === 'auto' && isAutoBuilding) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 p-8">
+          <div role="status" className="lg-spinner">
+            <span className="sr-only">Building deck</span>
+          </div>
+          <p className="text-sm text-white font-medium">Building your deck…</p>
+          <p className="lg-text-muted text-xs text-center">
+            Selecting cards from {legendDomains.filter(Boolean).join(' + ')} domain{legendDomains.filter(Boolean).length > 1 ? 's' : ''}.
+          </p>
+        </div>
+      );
+    }
+
+    // Default: show 3 method cards
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <div>
+          <h2 className="lg-page-title mb-1">How do you want to build?</h2>
+          <p className="lg-text-secondary">Choose a starting point for your deck.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Build Manually */}
+          <button
+            type="button"
+            onClick={handlePickManual}
+            className={[
+              'lg-card p-5 flex flex-col items-center gap-3 text-center transition-all duration-200',
+              'hover:border-rift-500/60 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-rift-900/30',
+              'focus-visible:ring-2 focus-visible:ring-rift-500',
+            ].join(' ')}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rift-900/50 border border-rift-700/50 flex items-center justify-center text-rift-400">
+              <IconBuildManually />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white mb-1">Build Manually</p>
+              <p className="text-xs text-zinc-500 leading-relaxed">Browse and add cards one by one to craft your ideal deck.</p>
+            </div>
+          </button>
+
+          {/* Import a Deck */}
+          <button
+            type="button"
+            onClick={handlePickImport}
+            className={[
+              'lg-card p-5 flex flex-col items-center gap-3 text-center transition-all duration-200',
+              'hover:border-rift-500/60 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-rift-900/30',
+              'focus-visible:ring-2 focus-visible:ring-rift-500',
+            ].join(' ')}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rift-900/50 border border-rift-700/50 flex items-center justify-center text-rift-400">
+              <IconImport />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white mb-1">Import a Deck</p>
+              <p className="text-xs text-zinc-500 leading-relaxed">Paste a deck list, enter a URL, or use a share code.</p>
+            </div>
+          </button>
+
+          {/* Auto-Build */}
+          <button
+            type="button"
+            onClick={handlePickAuto}
+            className={[
+              'lg-card p-5 flex flex-col items-center gap-3 text-center transition-all duration-200',
+              'hover:border-rift-500/60 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-rift-900/30',
+              'focus-visible:ring-2 focus-visible:ring-rift-500',
+            ].join(' ')}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rift-900/50 border border-rift-700/50 flex items-center justify-center text-rift-400">
+              <IconAutoWand />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white mb-1">Auto-Build for Me</p>
+              <p className="text-xs text-zinc-500 leading-relaxed">Instantly fill a complete deck from your legend's domains. Review before saving.</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderBuild = () => {
     if (!selectedLegend) return null;
 
@@ -744,27 +1379,60 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         <div className="lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-surface-border flex flex-col overflow-hidden">
           <div className="p-4 overflow-y-auto flex-1 space-y-5">
 
-            {/* Legend (locked) */}
+            {/* Legend + Champion */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-white">Legend</span>
-                <span className="text-xs text-green-400">✓ 1/1</span>
+                <span className="text-sm font-semibold text-white">Legend & Champion</span>
+                <span className={`text-xs ${validation.hasChampion ? 'text-green-400' : 'text-amber-400'}`}>
+                  {validation.hasChampion ? '✓' : '!'} {championEntry ? '2/2' : '1/2'}
+                </span>
               </div>
-              <div className="flex items-center gap-2 lg-card p-2">
-                {selectedLegend.imageSmall && (
-                  <div className="relative w-8 h-11 rounded overflow-hidden shrink-0">
-                    <Image src={selectedLegend.imageSmall} alt={selectedLegend.name} fill className="object-cover" sizes="32px" />
+              <div className="space-y-1.5">
+                {/* Legend (locked) */}
+                <div className="flex items-center gap-2 lg-card p-2">
+                  {selectedLegend.imageSmall && (
+                    <div className="relative w-8 h-11 rounded overflow-hidden shrink-0">
+                      <Image src={selectedLegend.imageSmall} alt={selectedLegend.name} fill className="object-cover" sizes="32px" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white truncate">{selectedLegend.name}</p>
+                    <div className="flex gap-1 mt-0.5">
+                      {legendDomains.filter(Boolean).map((d) => (
+                        <DomainBadge key={d} domain={d} />
+                      ))}
+                    </div>
+                  </div>
+                  <span className="lg-badge bg-zinc-800 text-zinc-400 text-[9px] ml-auto shrink-0">Legend</span>
+                </div>
+
+                {/* Champion (clickable to swap) */}
+                {championEntry ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeCardFully(championEntry.card.id);
+                      setBrowserTab('main');
+                    }}
+                    className="w-full flex items-center gap-2 lg-card p-2 hover:border-rift-600/50 transition-colors text-left"
+                    title="Click to remove and pick a different Champion Unit"
+                  >
+                    {championEntry.card.imageSmall && (
+                      <div className="relative w-8 h-11 rounded overflow-hidden shrink-0">
+                        <Image src={championEntry.card.imageSmall} alt={championEntry.card.name} fill className="object-cover" sizes="32px" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-white truncate">{championEntry.card.name}</p>
+                      <p className="text-[10px] text-zinc-500">Champion Unit</p>
+                    </div>
+                    <span className="lg-badge bg-rift-900/50 text-rift-400 text-[9px] ml-auto shrink-0">Swap</span>
+                  </button>
+                ) : (
+                  <div className="lg-card p-2 border-dashed">
+                    <p className="text-xs text-amber-400 text-center">Add a Champion Unit from the card browser</p>
                   </div>
                 )}
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{selectedLegend.name}</p>
-                  <div className="flex gap-1 mt-0.5">
-                    {legendDomains.filter(Boolean).map((d) => (
-                      <DomainBadge key={d} domain={d} />
-                    ))}
-                  </div>
-                </div>
-                <span className="lg-badge bg-zinc-800 text-zinc-400 text-[9px] ml-auto shrink-0">Locked</span>
               </div>
             </div>
 
@@ -775,7 +1443,6 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                 count={mainCount}
                 max={MAIN_DECK_SIZE}
                 valid={validation.mainOk}
-                extra={!validation.hasChampion ? '(needs Champion Unit)' : undefined}
               />
               {mainEntries.length === 0 ? (
                 <p className="lg-text-muted text-center py-3">No cards yet</p>
@@ -821,6 +1488,26 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
                 <div className="space-y-1">
                   {battlefieldEntries.map((e) => (
                     <DeckEntryRow key={e.card.id} entry={e} onRemove={removeCardFully} onRemoveFully={removeCardFully} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sideboard */}
+            <div>
+              <SectionHeader
+                title="Sideboard"
+                count={sideboardCount}
+                max={SIDEBOARD_SIZE}
+                valid={validation.sideboardOk}
+                extra="(optional)"
+              />
+              {sideboardEntries.length === 0 ? (
+                <p className="lg-text-muted text-center py-3">No sideboard cards</p>
+              ) : (
+                <div className="space-y-1">
+                  {sideboardEntries.map((e) => (
+                    <DeckEntryRow key={e.card.id} entry={e} onRemove={removeCard} onRemoveFully={removeCardFully} />
                   ))}
                 </div>
               )}
@@ -874,6 +1561,12 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         <div>
           <h2 className="lg-page-title mb-1">Review your deck</h2>
           <p className="lg-text-secondary">"{deckName}" — {selectedLegend?.name}</p>
+          {buildMethod === 'auto' && (
+            <p className="text-xs text-rift-400 mt-1">Auto-built from {legendDomains.filter(Boolean).join(' + ')} cards. Edit in the Build step if needed.</p>
+          )}
+          {buildMethod === 'import' && (
+            <p className="text-xs text-rift-400 mt-1">Imported deck. Verify the cards look correct before creating.</p>
+          )}
         </div>
 
         {/* Validation messages */}
@@ -902,10 +1595,11 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
 
         {/* Sections summary */}
         {[
-          { label: 'Legend', items: legendEntry ? [legendEntry] : [], max: 1, count: 1 },
+          { label: 'Legend & Champion', items: [legendEntry, championEntry].filter(Boolean) as DeckEntry[], max: 2, count: (legendEntry ? 1 : 0) + (championEntry ? 1 : 0) },
           { label: 'Main Deck', items: mainEntries, max: MAIN_DECK_SIZE, count: mainCount },
           { label: 'Rune Deck', items: runeEntries, max: RUNE_DECK_SIZE, count: runeCount },
           { label: 'Battlefields', items: battlefieldEntries, max: BATTLEFIELD_COUNT, count: battlefieldEntries.length },
+          ...(sideboardEntries.length > 0 ? [{ label: 'Sideboard', items: sideboardEntries, max: SIDEBOARD_SIZE, count: sideboardCount }] : []),
         ].map(({ label, items, max, count }) => (
           <div key={label}>
             <div className="flex items-center justify-between mb-2">
@@ -951,7 +1645,14 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     (step === 'legend' && !!selectedLegend) ||
     (step === 'build');
 
-  const isTallStep = step === 'legend' || step === 'build' || step === 'review';
+  // Method step: footer Next/Back are hidden (actions are in the cards themselves)
+  // Exception: when showing import UI inside method step, show a Back button in footer
+  const showFooter = step !== 'method' || (buildMethod === 'import');
+  // When showing the inline import UI, show only Back (submit is in the content)
+  const footerOnlyBack = step === 'method' && buildMethod === 'import';
+
+  const isTallStep = step === 'legend' || step === 'build' || step === 'review' ||
+    (step === 'method' && buildMethod === 'import');
 
   return (
     <div
@@ -993,47 +1694,52 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
         <div className={`flex-1 overflow-hidden flex flex-col ${step === 'build' ? '' : 'overflow-y-auto'}`}>
           {step === 'name' && renderName()}
           {step === 'legend' && renderLegend()}
+          {step === 'method' && renderMethod()}
           {step === 'build' && renderBuild()}
           {step === 'review' && renderReview()}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-surface-border shrink-0 gap-3">
-          <button
-            type="button"
-            onClick={step === 'name' ? handleClose : goBack}
-            className="lg-btn-secondary"
-          >
-            {step === 'name' ? 'Cancel' : 'Back'}
-          </button>
+        {/* Footer — hidden on method step (method cards are the actions) */}
+        {showFooter && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-surface-border shrink-0 gap-3">
+            <button
+              type="button"
+              onClick={step === 'name' ? handleClose : goBack}
+              className="lg-btn-secondary"
+            >
+              {step === 'name' ? 'Cancel' : 'Back'}
+            </button>
 
-          {step === 'review' ? (
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={!validation.isValid || createDeck.isPending}
-              className="lg-btn-primary flex items-center gap-2"
-            >
-              {createDeck.isPending ? (
-                <>
-                  <div className="lg-spinner-sm" role="status" />
-                  <span>Creating…</span>
-                </>
+            {!footerOnlyBack && (
+              step === 'review' ? (
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={!validation.isValid || createDeck.isPending}
+                  className="lg-btn-primary flex items-center gap-2"
+                >
+                  {createDeck.isPending ? (
+                    <>
+                      <div className="lg-spinner-sm" role="status" />
+                      <span>Creating…</span>
+                    </>
+                  ) : (
+                    'Create Deck'
+                  )}
+                </button>
               ) : (
-                'Create Deck'
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={!canGoNext}
-              className="lg-btn-primary"
-            >
-              {step === 'build' ? 'Review' : 'Next'}
-            </button>
-          )}
-        </div>
+                <button
+                  type="button"
+                  onClick={goNext}
+                  disabled={!canGoNext}
+                  className="lg-btn-primary"
+                >
+                  {step === 'build' ? 'Review' : 'Next'}
+                </button>
+              )
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

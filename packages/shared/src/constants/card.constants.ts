@@ -51,7 +51,7 @@ export type DeckZone = (typeof DECK_ZONES)[number];
 
 // Riftbound deck size limits
 export const MAX_COPIES_PER_CARD = 3;
-export const MAX_SIGNATURE_COPIES = 1;
+export const MAX_SIGNATURE_COPIES = 3;
 /** Main deck size: 40 cards (excludes legend, champion, runes, battlefields) */
 export const MAIN_DECK_SIZE = 40;
 export const RUNE_DECK_SIZE = 12;

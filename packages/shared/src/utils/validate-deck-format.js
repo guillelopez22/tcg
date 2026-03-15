@@ -31,13 +31,14 @@ export function validateDeckFormat(entries, cardTypeMap, domainMap) {
             mainSideboardCopies.set(entry.cardId, (mainSideboardCopies.get(entry.cardId) ?? 0) + entry.quantity);
         }
     }
-    // Main deck = main + sideboard. Champion is a separate zone (1 card).
-    // We accept 40 (no sideboard) or 48 (40 + 8 sideboard).
-    const mainPool = (zoneTotals['main'] ?? 0) + (zoneTotals['sideboard'] ?? 0);
-    const mainWithoutSideboard = MAIN_DECK_SIZE;
-    const mainWithSideboard = MAIN_DECK_SIZE + SIDEBOARD_SIZE;
-    if (mainPool !== mainWithoutSideboard && mainPool !== mainWithSideboard) {
-        errors.push(`Main deck: ${mainPool}/${mainWithoutSideboard} (or ${mainWithSideboard} with sideboard)`);
+    // Main zone must be exactly 40. Sideboard is optional (0-8).
+    const mainZoneCount = zoneTotals['main'] ?? 0;
+    const sideboardZoneCount = zoneTotals['sideboard'] ?? 0;
+    if (mainZoneCount !== MAIN_DECK_SIZE) {
+        errors.push(`Main deck: ${mainZoneCount}/${MAIN_DECK_SIZE}`);
+    }
+    if (sideboardZoneCount > SIDEBOARD_SIZE) {
+        errors.push(`Sideboard: ${sideboardZoneCount}/${SIDEBOARD_SIZE}`);
     }
     // Legend: exactly 1
     if (zoneTotals['legend'] !== LEGEND_COUNT) {
@@ -55,14 +56,9 @@ export function validateDeckFormat(entries, cardTypeMap, domainMap) {
     if (zoneTotals['battlefield'] !== BATTLEFIELD_COUNT) {
         errors.push(`Battlefields: ${zoneTotals['battlefield']}/${BATTLEFIELD_COUNT}`);
     }
-    // Copy-limit checks (main + sideboard only)
+    // Copy-limit checks (main + sideboard only) — all cards share the same 3-copy limit
     for (const [cardId, total] of mainSideboardCopies) {
-        const cardType = cardTypeMap.get(cardId) ?? null;
-        const isSignature = cardType !== null && SIGNATURE_TYPES.includes(cardType);
-        if (isSignature && total > MAX_SIGNATURE_COPIES) {
-            errors.push(`Signature card limit: 1 copy (cardId: ${cardId})`);
-        }
-        else if (!isSignature && total > MAX_COPIES_PER_CARD) {
+        if (total > MAX_COPIES_PER_CARD) {
             errors.push(`Too many copies of cardId: ${cardId} (${total}/${MAX_COPIES_PER_CARD})`);
         }
     }

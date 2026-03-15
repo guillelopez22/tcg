@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { createDbClient } from '@la-grieta/db';
 import { users, decks, deckCards, cards } from '@la-grieta/db';
 import { eq, inArray } from 'drizzle-orm';
-import { getZoneForCardType } from '@la-grieta/shared';
+import { getZoneForCardType, validateDeckFormat, SIGNATURE_TYPES } from '@la-grieta/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +86,21 @@ async function main(): Promise<void> {
   }
 
   const systemUserId = systemUser.id;
+
+  // Step 1b: If --clean flag, delete all system user decks first
+  if (process.argv.includes('--clean')) {
+    const systemDecks = await db
+      .select({ id: decks.id })
+      .from(decks)
+      .where(eq(decks.userId, systemUserId));
+
+    if (systemDecks.length > 0) {
+      const deckIds = systemDecks.map((d) => d.id);
+      await db.delete(deckCards).where(inArray(deckCards.deckId, deckIds));
+      await db.delete(decks).where(inArray(decks.id, deckIds));
+      console.log(`Cleaned ${systemDecks.length} existing system decks`);
+    }
+  }
 
   // Step 2: Collect all externalIds referenced by tournament decks
   const allExternalIds = [
@@ -207,7 +222,19 @@ async function main(): Promise<void> {
       await db.insert(deckCards).values(deckCardValues);
     }
 
-    console.log(`    → ${deckCardValues.length} cards`);
+    // Compute and set status
+    const cardTypeMap = new Map<string, string | null>();
+    for (const dcv of deckCardValues) {
+      const ct = cardTypeByExternalId.get(
+        [...cardIdByExternalId.entries()].find(([, v]) => v === dcv.cardId)?.[0] ?? '',
+      ) ?? null;
+      cardTypeMap.set(dcv.cardId, ct);
+    }
+    const errors = validateDeckFormat(deckCardValues, cardTypeMap);
+    const status = errors.length === 0 ? 'complete' : 'draft';
+    await db.update(decks).set({ status }).where(eq(decks.id, deckId));
+
+    console.log(`    → ${deckCardValues.length} cards [${status}]${errors.length > 0 ? ` (${errors.join(', ')})` : ''}`);
   }
 
   console.log(`\nDone! Created: ${created}, Updated: ${updated}`);
