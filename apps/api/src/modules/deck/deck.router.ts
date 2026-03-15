@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { TrpcService } from '../../trpc/trpc.service';
 import { DeckService } from './deck.service';
+import { DeckImportService } from './deck-import.service';
+import { DeckSuggestionsService } from './deck-suggestions.service';
 import {
   deckListSchema,
   deckGetByIdSchema,
@@ -22,6 +24,8 @@ export class DeckRouter {
   constructor(
     private readonly trpc: TrpcService,
     private readonly deckService: DeckService,
+    private readonly deckImportService: DeckImportService,
+    private readonly deckSuggestionsService: DeckSuggestionsService,
   ) {}
 
   buildRouter() {
@@ -60,7 +64,7 @@ export class DeckRouter {
 
       suggest: proc
         .input(deckSuggestSchema)
-        .query(({ ctx, input }) => this.deckService.suggest(ctx.userId, input)),
+        .query(({ ctx, input }) => this.deckSuggestionsService.suggest(ctx.userId, input)),
 
       buildability: proc
         .input(deckBuildabilitySchema)
@@ -69,7 +73,7 @@ export class DeckRouter {
       // Share code endpoints
       generateShareCode: proc
         .input(shareCodeGenerateSchema)
-        .mutation(({ ctx, input }) => this.deckService.generateShareCode(ctx.userId, input.deckId)),
+        .mutation(({ ctx, input }) => this.deckImportService.generateShareCode(ctx.userId, input.deckId)),
 
       // resolveShareCode is a QUERY (read-only, no side effects)
       // Clients should call with .useQuery() or .fetch(), NOT .mutate()
@@ -80,11 +84,11 @@ export class DeckRouter {
       // Import endpoints
       importFromText: proc
         .input(deckImportTextSchema)
-        .mutation(({ ctx, input }) => this.deckService.importFromText(ctx.userId, input)),
+        .mutation(({ ctx, input }) => this.deckImportService.importFromText(ctx.userId, input)),
 
       importFromUrl: proc
         .input(deckImportUrlSchema)
-        .mutation(({ ctx, input }) => this.deckService.importFromUrl(ctx.userId, input)),
+        .mutation(({ ctx, input }) => this.deckImportService.importFromUrl(ctx.userId, input)),
 
       // Admin: re-validate all deck statuses (one-time fix)
       revalidateAll: proc
