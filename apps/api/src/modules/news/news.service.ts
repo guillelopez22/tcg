@@ -17,6 +17,21 @@ export interface ScrapedArticle {
   source: string;
 }
 
+/**
+ * Domain allowlist for scraped content.
+ * Only URLs whose hostname ends with one of these values are accepted.
+ * This prevents open-redirect / SSRF-via-stored-link attacks if the scrapers
+ * ever encounter a malicious redirect or injected content.
+ */
+const ALLOWED_DOMAINS = [
+  'riftbound.leagueoflegends.com',
+  'riftbound.gg',
+  'riftdecks.com',
+  'x.com',
+  'twitter.com',
+  'discord.com',
+] as const;
+
 @Injectable()
 export class NewsService implements OnModuleInit {
   private readonly logger = new Logger(NewsService.name);
@@ -597,6 +612,45 @@ export class NewsService implements OnModuleInit {
     return raw;
   }
 
+  /**
+   * Returns true when `url` belongs to an allowed domain.
+   * Validates that the string is a well-formed URL before comparing hostnames,
+   * so a malformed URL is treated as not-allowed rather than throwing.
+   */
+  private isAllowedUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      // Only https is accepted — reject http, data:, javascript:, etc.
+      if (parsed.protocol !== 'https:') return false;
+      const host = parsed.hostname.toLowerCase();
+      return ALLOWED_DOMAINS.some(
+        (allowed) => host === allowed || host.endsWith(`.${allowed}`),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Sanitises a single article before it is persisted.
+   * Returns null when the article URL itself is not allowed (skip entirely).
+   * Strips the thumbnailUrl when it resolves to a disallowed domain.
+   */
+  private sanitiseArticle(article: ScrapedArticle): ScrapedArticle | null {
+    if (!this.isAllowedUrl(article.url)) {
+      this.logger.warn(`Skipping article with disallowed URL: ${article.url}`);
+      return null;
+    }
+
+    let thumbnailUrl = article.thumbnailUrl;
+    if (thumbnailUrl !== null && !this.isAllowedUrl(thumbnailUrl)) {
+      this.logger.warn(`Stripping disallowed thumbnail URL: ${thumbnailUrl}`);
+      thumbnailUrl = null;
+    }
+
+    return { ...article, thumbnailUrl };
+  }
+
   // ---------------------------------------------------------------------------
   // DB operations
   // ---------------------------------------------------------------------------
@@ -604,7 +658,11 @@ export class NewsService implements OnModuleInit {
   async upsertArticles(articles: ScrapedArticle[]): Promise<void> {
     if (articles.length === 0) return;
 
-    for (const article of articles) {
+    for (const raw of articles) {
+      // Validate and sanitise URL + thumbnail against the domain allowlist
+      const article = this.sanitiseArticle(raw);
+      if (article === null) continue;
+
       await this.db
         .insert(newsArticles)
         .values({

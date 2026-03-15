@@ -10,6 +10,7 @@ import { users, sessions } from '@la-grieta/db';
 import type { Redis } from 'ioredis';
 import type { RegisterInput, LoginInput, JwtPayload } from '@la-grieta/shared';
 import { AuthConfig } from '../../config/auth.config';
+import { isUniqueConstraintError, isPostgresError } from '../../common/errors/error-helpers';
 
 export interface AuthResult {
   user: {
@@ -28,19 +29,9 @@ const REFRESH_GRACE_PERIOD_MS = 30_000;
 // 30 days in milliseconds
 const REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
-function isUniqueConstraintError(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as Record<string, unknown>)['code'] === '23505'
-  );
-}
-
 function getConstraintColumn(err: unknown): string {
-  if (typeof err === 'object' && err !== null && 'constraint' in err) {
-    const constraint = String((err as Record<string, unknown>)['constraint']);
-    if (constraint.includes('username')) return 'username';
+  if (isPostgresError(err) && err.constraint) {
+    if (err.constraint.includes('username')) return 'username';
   }
   return 'email';
 }

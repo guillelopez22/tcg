@@ -35,11 +35,11 @@ export class MatchRouter {
           ),
         ),
 
-      getState: this.trpc.publicProcedure
+      getState: this.trpc.rateLimitedPublicProcedure
         .input(z.object({ code: z.string() }))
         .query(({ input }) => this.matchService.getFullState(input.code)),
 
-      getById: this.trpc.protectedProcedure
+      getById: this.trpc.rateLimitedProtectedProcedure
         .input(z.object({ id: z.string().uuid() }))
         .query(({ input }) => this.matchService.getById(input.id)),
 

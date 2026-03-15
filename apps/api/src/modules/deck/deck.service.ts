@@ -948,6 +948,18 @@ export class DeckService {
   async importFromText(userId: string, input: DeckImportTextInput): Promise<ImportResult> {
     const parseResult = autoDetectAndParse(input.text);
 
+    // Guard: the parser found no recognisable card entries at all.
+    // This can happen even after schema validation if the text is structured
+    // in a format the parser does not support.
+    if (parseResult.entries.length === 0 && parseResult.unmatched.length === 0) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message:
+          'No card entries could be parsed from the import text. ' +
+          'Expected lines in the format "N CardName" (e.g. "3 Zed, The Undying").',
+      });
+    }
+
     // Resolve card names against DB using ILIKE on cleanName
     const resolved: ResolvedDeckCardEntry[] = [];
     const unmatched: string[] = [...parseResult.unmatched];
