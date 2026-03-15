@@ -85,6 +85,10 @@ export class DeckRouter {
       importFromUrl: proc
         .input(deckImportUrlSchema)
         .mutation(({ ctx, input }) => this.deckService.importFromUrl(ctx.userId, input)),
+
+      // Admin: re-validate all deck statuses (one-time fix)
+      revalidateAll: proc
+        .mutation(() => this.deckService.revalidateAllStatuses()),
     });
   }
 }

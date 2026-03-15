@@ -392,6 +392,43 @@ export class DeckService {
     await this.db.delete(decks).where(eq(decks.id, input.id));
   }
 
+  /**
+   * Re-validate all decks and update their status.
+   * One-time fix after validation formula changes.
+   */
+  async revalidateAllStatuses(): Promise<{ updated: number }> {
+    const allDecks = await this.db
+      .select({ id: decks.id })
+      .from(decks);
+
+    let updated = 0;
+    for (const deck of allDecks) {
+      const cardRows = await this.db
+        .select({
+          cardId: deckCards.cardId,
+          quantity: deckCards.quantity,
+          zone: deckCards.zone,
+        })
+        .from(deckCards)
+        .where(eq(deckCards.deckId, deck.id));
+
+      if (cardRows.length === 0) continue;
+
+      const cardTypeMap = await this.buildCardTypeMap(cardRows.map((c) => c.cardId));
+      const errors = validateDeckFormat(cardRows, cardTypeMap);
+      const newStatus = errors.length === 0 ? 'complete' : 'draft';
+
+      await this.db
+        .update(decks)
+        .set({ status: newStatus })
+        .where(eq(decks.id, deck.id));
+
+      updated++;
+    }
+
+    return { updated };
+  }
+
   async setCards(userId: string, input: DeckSetCardsInput): Promise<DeckWithCards> {
     const [existing] = await this.db
       .select({ id: decks.id, userId: decks.userId })
