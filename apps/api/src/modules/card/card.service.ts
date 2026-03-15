@@ -26,6 +26,20 @@ export class CardService {
   ) {}
 
   async list(input: CardListInput): Promise<PaginatedResult<Card & { price: CardPrice | null }>> {
+    // Validate cursor format: must be a UUID when present.
+    // cardListSchema already enforces this via Zod, but we guard here too so
+    // that any caller bypassing the schema layer gets a clear BAD_REQUEST
+    // instead of a silent full-table scan or a database error.
+    if (input.cursor !== undefined) {
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!UUID_RE.test(input.cursor)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid cursor format. Cursor must be a valid UUID.',
+        });
+      }
+    }
+
     const conditions = [];
 
     if (!input.includeProducts) {
