@@ -6,9 +6,20 @@ import { json } from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { runMigrations } from '@la-grieta/db';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
+  // Run DB migrations before the app starts accepting traffic.
+  // If migrations fail we crash intentionally — Railway will retry.
+  const dbUrl = process.env['DATABASE_URL'];
+  if (!dbUrl) {
+    throw new Error('DATABASE_URL is not set — cannot run migrations or start');
+  }
+  console.log('Running database migrations...');
+  await runMigrations(dbUrl);
+  console.log('Database migrations complete');
+
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     { bodyParser: false },
