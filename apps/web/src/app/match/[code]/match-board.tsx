@@ -25,7 +25,10 @@ import { TurnLog } from './turn-log';
 import { MatchEndOverlay } from './match-end-overlay';
 import { HandDisplay } from './hand-display';
 import { MulliganModal } from './mulligan-modal';
-import { DragDropProvider, DropZone, useDragDropSafe, type ZoneId } from './drag-drop-context';
+import { DragDropProvider, DropZone, type ZoneId } from './drag-drop-context';
+import { VerticalScoreTracker } from './board-components/score-display';
+import { ExhaustableCard, ZoneSlot, UnitZone, CARD } from './board-components/exhaustable-card';
+import { OpponentBoard } from './board-components/opponent-board';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,280 +51,6 @@ const PLAYER_COLOR_CLASSES: Record<string, { bg: string; border: string; text: s
   green: { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-400' },
   yellow: { bg: 'bg-yellow-400', border: 'border-yellow-400', text: 'text-yellow-400' },
 };
-
-// Card size constants
-const CARD = {
-  hand: 108,       // hand cards
-  base: 92,        // legend/champion/base
-  rune: 68,        // channeled runes
-  opponentCard: 64, // opponent side cards
-  opponentRune: 48, // opponent runes
-  deck: 92,        // deck pile
-  ghost: 108,      // drag ghost
-} as const;
-
-// ---------------------------------------------------------------------------
-// VerticalScoreTracker
-// ---------------------------------------------------------------------------
-
-function VerticalScoreTracker({
-  score, winTarget, color, side,
-}: {
-  score: number; winTarget: number; color: string; side: 'left' | 'right';
-}) {
-  const colorClasses = PLAYER_COLOR_CLASSES[color] ?? PLAYER_COLOR_CLASSES.blue!;
-  const max = Math.max(winTarget, 8);
-  const points = Array.from({ length: max + 1 }, (_, i) => i);
-
-  return (
-    <div className={`flex flex-col items-center gap-[3px] py-1 px-1 ${side === 'left' ? 'items-start' : 'items-end'}`}>
-      {[...points].reverse().map((point) => {
-        const isCurrent = point === score;
-        const isFilled = point <= score;
-        return (
-          <div
-            key={point}
-            className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all border
-              ${isCurrent ? `${colorClasses.bg} border-transparent text-white scale-110 shadow-sm`
-                : isFilled ? `${colorClasses.bg} border-transparent text-white opacity-60`
-                : 'bg-[#0a1628] border-[#c5a84a]/30 text-[#c5a84a]/40'}`}
-          >
-            {point}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ExhaustableCard — tappable card that can be exhausted (rotated 90deg)
-// ---------------------------------------------------------------------------
-
-function ExhaustableCard({
-  card, label, exhausted, onTap, width = CARD.base, dragZone,
-}: {
-  card: GameCardInfo;
-  label: string;
-  exhausted: boolean;
-  onTap?: () => void;
-  width?: number;
-  dragZone?: ZoneId;
-}) {
-  const dragCtx = useDragDropSafe();
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-  const dragStartedRef = useRef(false);
-
-  function handlePointerDown(e: React.PointerEvent) {
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    dragStartedRef.current = false;
-  }
-
-  function handlePointerMove(e: React.PointerEvent) {
-    const start = pointerStartRef.current;
-    if (!start || dragStartedRef.current) return;
-    const dx = e.clientX - start.x;
-    const dy = e.clientY - start.y;
-    if (Math.sqrt(dx * dx + dy * dy) > 8 && dragZone && dragCtx) {
-      pointerStartRef.current = null;
-      dragStartedRef.current = true;
-      dragCtx.startDrag(card, dragZone, e.clientX, e.clientY);
-    }
-  }
-
-  function handlePointerUp() {
-    if (pointerStartRef.current && !dragStartedRef.current) {
-      onTap?.();
-    }
-    pointerStartRef.current = null;
-    dragStartedRef.current = false;
-  }
-
-  return (
-    <div
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      className="flex flex-col items-center gap-0.5 flex-shrink-0 touch-none select-none cursor-pointer"
-      title={exhausted ? 'Exhausted — tap to ready' : 'Tap to exhaust'}
-      style={{
-        marginRight: exhausted ? `${width * 0.3}px` : '0',
-        marginLeft: exhausted ? `${width * 0.3}px` : '0',
-      }}
-    >
-      <div
-        style={{
-          width: `${width}px`,
-          aspectRatio: '2/3',
-          transform: exhausted ? 'rotate(90deg)' : 'none',
-          opacity: exhausted ? 0.5 : 1,
-          transition: 'transform 0.15s ease, opacity 0.15s ease',
-        }}
-        className="rounded bg-[#0a1628] border border-[#c5a84a]/30 overflow-hidden"
-      >
-        {card.imageSmall ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={card.imageSmall} alt={card.name} className="w-full h-full object-cover" draggable={false} />
-        ) : (
-          <div className="w-full h-full flex items-end justify-center pb-0.5">
-            <span className="text-[8px] text-[#c5a84a]/50 text-center px-0.5 leading-tight">{card.name}</span>
-          </div>
-        )}
-      </div>
-      <span className="text-[8px] text-zinc-500 leading-none">{label}</span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ZoneSlot — empty placeholder
-// ---------------------------------------------------------------------------
-
-function ZoneSlot({ label, width = CARD.base }: { label: string; width?: number }) {
-  return (
-    <div
-      className="flex-shrink-0 rounded bg-[#0a1628] border border-[#c5a84a]/30 flex items-end justify-center pb-1"
-      style={{ width: `${width}px`, aspectRatio: '2/3' }}
-    >
-      <span className="text-[8px] font-medium text-[#c5a84a]/60 text-center leading-tight px-0.5">{label}</span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// UnitZone — large droppable area beside battlefields for deploying units
-// ---------------------------------------------------------------------------
-
-function UnitZone({ side, label }: { side: 'opponent' | 'mine'; label: string }) {
-  return (
-    <div
-      className={`flex-1 min-w-[80px] rounded-lg border-2 border-dashed flex items-center justify-center
-        ${side === 'opponent' ? 'border-red-700/20 bg-red-950/5' : 'border-blue-700/20 bg-blue-950/5'}`}
-    >
-      <span className="text-[10px] text-zinc-500 font-medium text-center px-1">{label}</span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// OpponentBoard — opponent's full board in local mode
-// ---------------------------------------------------------------------------
-
-function OpponentBoard({
-  name,
-  isActive,
-  color,
-  legend,
-  champion,
-  base,
-  channeledRunes,
-  exhaustedUids,
-  deckCount,
-  handCount,
-  runeDeckCount,
-  trashCount,
-  onToggleExhaust,
-}: {
-  name: string;
-  isActive: boolean;
-  color: string;
-  legend: GameCardInfo | null;
-  champion: GameCardInfo | null;
-  base: GameCardInfo[];
-  channeledRunes: { card: GameCardInfo; exhausted: boolean }[];
-  exhaustedUids: string[];
-  deckCount: number;
-  handCount: number;
-  runeDeckCount: number;
-  trashCount: number;
-  onToggleExhaust: (uid: string) => void;
-}) {
-  const colorClasses = PLAYER_COLOR_CLASSES[color] ?? PLAYER_COLOR_CLASSES.blue!;
-
-  return (
-    <div className="shrink-0 border-b border-[#c5a84a]/10 bg-[#060e1a]/60 px-2 py-1.5">
-      {/* Name + counts */}
-      <div className="flex items-center gap-2 mb-1">
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? colorClasses.bg : 'bg-zinc-700'}`} />
-        <span className={`text-[11px] font-medium truncate ${isActive ? colorClasses.text : 'text-zinc-500'}`}>
-          {name}
-          {isActive && <span className="ml-1 opacity-60 text-[10px]">(active)</span>}
-        </span>
-        <span className="ml-auto text-[10px] text-zinc-500 flex-shrink-0 tabular-nums">
-          Deck:{deckCount} Hand:{handCount} Runes:{runeDeckCount} Trash:{trashCount}
-        </span>
-      </div>
-
-      {/* Runes row */}
-      {channeledRunes.length > 0 && (
-        <div className="flex items-end gap-1 overflow-x-auto pb-0.5 mb-1">
-          {channeledRunes.map((rune, i) => (
-            <div key={rune.card.uid} className="flex-shrink-0">
-              <div
-                style={{
-                  width: `${CARD.opponentRune}px`, aspectRatio: '2/3',
-                  transform: rune.exhausted ? 'rotate(90deg)' : 'none',
-                  opacity: rune.exhausted ? 0.5 : 1,
-                  transition: 'transform 0.15s ease, opacity 0.15s ease',
-                  marginRight: rune.exhausted ? '12px' : '0',
-                  marginLeft: rune.exhausted && i > 0 ? '12px' : '0',
-                }}
-                className="rounded bg-[#0a1628] border border-[#c5a84a]/30 overflow-hidden"
-              >
-                {rune.card.imageSmall ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={rune.card.imageSmall} alt={rune.card.name} className="w-full h-full object-cover" draggable={false} />
-                ) : (
-                  <div className="w-full h-full flex items-end justify-center pb-0.5">
-                    <span className="text-[5px] text-[#c5a84a]/50 text-center px-0.5 leading-tight">{rune.card.name}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Legend, Champion, Base */}
-      <div className="flex items-end gap-1.5 overflow-x-auto pb-0.5">
-        {legend ? (
-          <ExhaustableCard
-            card={legend}
-            label="Legend"
-            exhausted={exhaustedUids.includes(legend.uid)}
-            onTap={() => onToggleExhaust(legend.uid)}
-            width={CARD.opponentCard}
-          />
-        ) : <ZoneSlot label="Legend" width={CARD.opponentCard} />}
-        {champion ? (
-          <ExhaustableCard
-            card={champion}
-            label="Champ"
-            exhausted={exhaustedUids.includes(champion.uid)}
-            onTap={() => onToggleExhaust(champion.uid)}
-            width={CARD.opponentCard}
-          />
-        ) : <ZoneSlot label="Champ" width={CARD.opponentCard} />}
-
-        {base.length > 0 && (
-          <div className="w-px h-10 bg-[#c5a84a]/20 mx-0.5 flex-shrink-0" />
-        )}
-
-        {base.map((card) => (
-          <ExhaustableCard
-            key={card.uid}
-            card={card}
-            label="Base"
-            exhausted={exhaustedUids.includes(card.uid)}
-            onTap={() => onToggleExhaust(card.uid)}
-            width={CARD.opponentCard}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // MatchBoard
@@ -367,7 +96,6 @@ export function MatchBoard({ code, playerId, role, localDecks }: MatchBoardProps
   const handleBattlefieldTap = useCallback((bfIndex: number, action: BattlefieldAction) => {
     if (!matchState) return;
 
-    // Show action feedback
     setBfActions((prev) => ({ ...prev, [bfIndex]: action }));
     setTimeout(() => {
       setBfActions((prev) => {
@@ -377,7 +105,6 @@ export function MatchBoard({ code, playerId, role, localDecks }: MatchBoardProps
       });
     }, 1200);
 
-    // Toast for important actions
     if (action === 'conquer') {
       toast.success(`Battlefield ${bfIndex + 1} conquered!`, { duration: 2000 });
     } else if (action === 'showdown') {
@@ -387,7 +114,6 @@ export function MatchBoard({ code, playerId, role, localDecks }: MatchBoardProps
       });
     }
 
-    // Emit to server
     tapBattlefield(bfIndex, playerId);
   }, [matchState, tapBattlefield, playerId]);
 
@@ -648,7 +374,7 @@ export function MatchBoard({ code, playerId, role, localDecks }: MatchBoardProps
           </div>
         </div>
 
-        {/* ── 4. My base zone (large, droppable — takes most vertical space) ── */}
+        {/* ── 4. My base zone (large, droppable) ── */}
         <DropZone
           zone="base"
           accepts={['hand']}
