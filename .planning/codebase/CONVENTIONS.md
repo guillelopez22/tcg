@@ -1,208 +1,268 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-15
 
 ## Naming Patterns
 
 **Files:**
-- Service files: `*.service.ts` (e.g., `user.service.ts`, `auth.service.ts`)
-- Router files: `*.router.ts` (e.g., `auth.router.ts`, `card.router.ts`)
-- Module files: `*.module.ts` (e.g., `auth.module.ts`, `card.module.ts`)
-- Config files: `*.config.ts` stored in `src/config/` directory
-- Schema files: `*.schema.ts` stored in `packages/shared/src/schemas/`
-- Spec files: `*.spec.ts` or `*.test.ts` in `__tests__/` directory adjacent to `src/`
+- Services: `[feature].service.ts` (e.g., `auth.service.ts`)
+- Routers: `[feature].router.ts` (e.g., `auth.router.ts`)
+- Modules: `[feature].module.ts` (e.g., `auth.module.ts`)
+- Components: kebab-case with `.tsx` extension (e.g., `deck-list.tsx`, `add-cards-modal.tsx`)
+- Hooks: `use-[feature].ts` (e.g., `use-local-game-state.ts`)
+- Schemas: `[feature].schema.ts` (e.g., `deck.schema.ts`)
+- Tests: co-located with feature using `.spec.ts` suffix in `__tests__/` directory
 
 **Functions:**
-- Camel case: `getProfile()`, `updateProfile()`, `createSession()`, `setRefreshCookie()`
-- Verb-first pattern for operations: `register()`, `login()`, `logout()`, `refresh()`
-- Private/internal helpers: camelCase prefixed with underscore in test mocks (e.g., `_pushSelect()`, `_pushInsert()`)
-- Factory functions for mocks: `makeMockDb()`, `makeMockRes()`, `makeMockRedis()`
+- camelCase: `registerUser()`, `buildRouter()`, `formatPrice()`
+- Prefixes for specific patterns:
+  - Validation: `validate*()`, `is*()`
+  - Builders: `make*()`
+  - Factories: `make*()` (e.g., `makeMockDb()`, `makeMockRes()`)
+  - Helpers: no special prefix, used within modules
 
 **Variables:**
-- Constants: UPPER_SNAKE_CASE (e.g., `BCRYPT_ROUNDS`, `USER_ID`, `TEST_JWT_SECRET`)
-- Local variables: camelCase (e.g., `existingEmail`, `updateData`, `passwordHash`)
-- Test fixtures: UPPER_SNAKE_CASE with descriptive prefix (e.g., `TEST_USER_PROFILE`, `TEST_SET`, `SET_ID`)
+- camelCase for all variables and parameters
+- Constants in UPPER_SNAKE_CASE at module level (e.g., `BCRYPT_ROUNDS`, `TEST_JWT_SECRET`)
+- Underscore prefix for "private" fields in tests (e.g., `_pushSelect()`, `_pushInsert()`)
+- Ref suffixes for useRef hooks: `deleteTimerRef`, `textInputRef`
 
 **Types:**
-- Interfaces: PascalCase, often exported with suffix (e.g., `AuthResult`, `AuthConfig`)
-- Type aliases: PascalCase (e.g., `CardWithSet`)
-- Zod schemas: camelCase, exported with Schema suffix (e.g., `registerSchema`, `loginSchema`)
-- Types inferred from Zod: `z.infer<typeof schema>` pattern (e.g., `type RegisterInput = z.infer<typeof registerSchema>`)
-
-**Classes:**
-- PascalCase: `UserService`, `AuthService`, `CardService`, `AuthRouter`, `AuthModule`
-- NestJS convention: `@Injectable()` decorator for services, `@Module()` for modules
+- PascalCase for all types, interfaces, and enums
+- Suffix conventions:
+  - Input types: `*Input` (e.g., `RegisterInput`, `CardListInput`)
+  - Result types: `*Result` (e.g., `AuthResult`, `PaginatedResult`)
+  - Config types: `*Config` (e.g., `AuthConfig`)
+  - Schema types derived from Zod: inferred from `z.infer<typeof schema>`
+  - Event/message types: no suffix (e.g., `JwtPayload`)
+- Union types for variants: `'my-decks' | 'community' | 'trending'`
 
 ## Code Style
 
 **Formatting:**
-- Prettier v3.0.0 configured with:
-  - Print width: 100 characters
-  - Tab width: 2 spaces
-  - Trailing commas: all
-  - Quotes: single quotes (`'`)
-  - Semicolons: true
-  - Arrow function parens: always (e.g., `(param) => { ... }`)
-  - Line ending: LF
+- Tool: Prettier v3
+- Print width: 100 characters
+- Indentation: 2 spaces, no tabs
+- Quotes: Single quotes (`'`) for strings
+- Semicolons: Always included
+- Trailing commas: All (even in function parameters)
+- Arrow parens: Always (`(x) =>` not `x =>`)
+- Line endings: LF
 
-- Configuration file: `packages/eslint-config/.prettierrc.js`
-- Run: `pnpm format` or `pnpm format:check`
+**Run formatting:**
+```bash
+npm run format                # Format all files
+npm run format:check          # Check formatting without changes
+```
 
 **Linting:**
-- ESLint with TypeScript support (flat config)
-- Base config: `packages/eslint-config/base.js`
-- Specializations: `nestjs.js` for API, `next.js` for web
+- Tool: ESLint v9 with flat config
+- Primary config: `packages/eslint-config/base.js`
+- Framework-specific configs:
+  - NestJS: `packages/eslint-config/nestjs.js`
+  - Next.js: `packages/eslint-config/next.js`
 
-**Key ESLint Rules:**
-- `@typescript-eslint/no-explicit-any`: error (strict no `any`)
-- `@typescript-eslint/no-unused-vars`: error (unused params must use `_` prefix)
-- `@typescript-eslint/consistent-type-imports`: error (use type imports)
-- `no-console`: warn (allow `console.warn` and `console.error`)
-- `eqeqeq`: error (always use `===`, never `==`)
-- `import/order`: alphabetical grouping by type (builtin → external → internal → parent → sibling → index)
+**Key ESLint rules:**
+- TypeScript strict: no `any`, all unused vars error (unless prefixed `_`)
+- Consistent type imports: `import type { X }` (colon required, not just `import`)
+- No duplicate imports: consolidate from same source
+- Import order enforced: builtin → external → internal → parent → sibling → index (alphabetized, newlines between groups)
+- Equality: `===` always, never `==`
+- Console: only `console.warn()` and `console.error()` allowed in production code (test files exempt)
+- NestJS decorator functions: allow empty constructors for DI
 
 ## Import Organization
 
 **Order:**
-1. Node.js/runtime builtins (e.g., `import * as crypto from 'crypto'`)
-2. External packages (e.g., `import { Injectable } from '@nestjs/common'`)
-3. Internal absolute imports (e.g., `import { users } from '@la-grieta/db'`)
-4. Relative imports (parent/sibling/index)
+1. Builtin Node modules (`import { ... } from 'node:path'`)
+2. External packages (`import Express from 'express'`, `import { z } from 'zod'`)
+3. Internal absolute imports (`import { AuthService } from '@la-grieta/db'`)
+4. Parent relative imports (`import { ... } from '../..'`)
+5. Sibling relative imports (`import { ... } from './'`)
+6. Index imports (`import { ... } from '.'`)
+
+Within each group: alphabetized case-insensitive, newlines between groups.
 
 **Path Aliases:**
-- `@la-grieta/db`: Maps to `packages/db/src/`
-- `@la-grieta/shared`: Maps to `packages/shared/src/`
-- `@la-grieta/tsconfig`: TypeScript base config
-- `@la-grieta/eslint-config`: Linting/formatting config
+- `@la-grieta/db`: `packages/db/src/index.ts`
+- `@la-grieta/shared`: `packages/shared/src/index.ts`
+- `@la-grieta/r2`: `apps/api/src/infrastructure/r2.ts`
+- `@/lib/*`, `@/components/*`, `@/app/*` (Next.js web app only)
 
 **Type Imports:**
-- Always use explicit `import type { ... } from '...'` for types
-- Example: `import type { DbClient } from '@la-grieta/db'`
+```typescript
+import type { AuthResult, JwtPayload } from '@la-grieta/shared';
+import type { DbClient } from '@la-grieta/db';
+import { AuthService } from './auth.service';
+```
 
 ## Error Handling
 
-**Patterns:**
-- Use `TRPCError` from `@trpc/server` for API endpoint errors
-- Include error code and user-friendly message: `new TRPCError({ code: 'NOT_FOUND', message: 'User not found' })`
-- Common codes: `'NOT_FOUND'`, `'CONFLICT'`, `'UNAUTHORIZED'`, `'FORBIDDEN'`, `'INTERNAL_SERVER_ERROR'`
+**Pattern:** TRPCError with explicit status codes
+- Throw from services: `throw new TRPCError({ code: 'UNAUTHORIZED', message: '...' })`
+- Router middleware catches and forwards to client
+- No custom error classes — use TRPC error codes as the single source of truth
 
-**Database Errors:**
-- Wrap database operations in try-catch for constraint violations
-- Helper: `isUniqueConstraintError(err)` checks PostgreSQL constraint violations (code 23505)
-- Throw user-facing TRPCError rather than raw database errors
+**Common Error Codes:**
+- `UNAUTHORIZED`: Invalid credentials, missing auth
+- `FORBIDDEN`: Auth insufficient (deactivated account, etc.)
+- `NOT_FOUND`: Resource does not exist
+- `CONFLICT`: Duplicate constraint, invalid state
+- `BAD_REQUEST`: Input validation failure
+- `INTERNAL_SERVER_ERROR`: Unexpected failure (DB error, etc.)
 
-**Validation:**
-- Use Zod schemas for all API input validation
-- Route inputs: `.input(schema)` in tRPC procedure definition
-- Zod provides automatic type inference: `type RegisterInput = z.infer<typeof registerSchema>`
+**Error Message Consistency:**
+- User-facing: clear, actionable (e.g., "Invalid credentials")
+- Never expose implementation details (DB column names, internal IDs)
+- Validation errors delegate to Zod, which includes field-level messages
 
-**Async/Await:**
-- All async operations use async/await (not `.then()` chains)
-- Functions marked with `async` keyword
-- Operations await before processing results
+**Example from** `apps/api/src/modules/auth/auth.service.ts`:
+```typescript
+if (!user) {
+  throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+}
+if (!user.isActive) {
+  throw new TRPCError({ code: 'FORBIDDEN', message: 'Account is deactivated' });
+}
+```
 
 ## Logging
 
-**Framework:** `console` (no logger library)
+**Framework:** `console` (no dedicated logger library)
 
-**Patterns:**
-- Info: `console.log()` for startup messages and tRPC logging
-- Warnings: `console.warn()` for recoverable issues (linting allows)
-- Errors: `console.error()` for fatal issues (linting allows)
+**Rules:**
+- Only `console.warn()` and `console.error()` in production code
+- Never log passwords, tokens, or PII
+- Use sparingly — prefer returning structured errors
+- Test files (`*.spec.ts`, `__tests__/**`): console allowed without restriction
 
-**tRPC Logging:**
-- Built into `TrpcService`: logs procedure name, type (query/mutation), result status, duration in ms
-- Example: `console.log('[tRPC] auth.register mutation — ok (120ms)')`
+**Pattern:**
+```typescript
+// OK in service
+console.error('Failed to update user:', userId, error);
+
+// Not OK
+console.log('User password hash:', passwordHash); // Never log secrets
+```
 
 ## Comments
 
 **When to Comment:**
-- Complex mock setups: describe call patterns and Drizzle chains (see test files)
-- Business logic: explain why a decision was made (not what the code does)
-- Section dividers: use comment blocks (`// -----------`)
+- Explain *why*, not *what* — the code shows what it does
+- Clarify non-obvious business logic (e.g., "Grace period for concurrent tab refresh races")
+- Document edge cases and workarounds
+- Mark test-specific assumptions (see testing patterns)
 
 **JSDoc/TSDoc:**
-- Optional but encouraged for public exports
-- Not required for private test helpers
-- Example patterns in mock factories in spec files
+- Used minimally — primarily for exported functions in services
+- Document return types and parameters when not obvious from signature
+- Example from tests: `/** Drizzle-style chainable mock. */`
 
-**Test File Structure:**
-- Always include mock factory documentation above function showing expected call patterns
-- Example from `user.service.spec.ts`:
-  ```
-  /**
-   * Drizzle chain mock for UserService.
-   *
-   * Call patterns:
-   *   getProfile:    db.select({...}).from(users).where(...).limit(1)
-   */
-  ```
+**Example from** `apps/api/src/modules/auth/auth.service.ts`:
+```typescript
+// Grace period for concurrent tab refresh races (30 seconds)
+const REFRESH_GRACE_PERIOD_MS = 30_000;
+
+function isUniqueConstraintError(err: unknown): boolean {
+  // PostgreSQL error code 23505 = unique constraint violation
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as Record<string, unknown>)['code'] === '23505'
+  );
+}
+```
 
 ## Function Design
 
 **Size:**
-- Services: functions typically 20-100 lines
-- Keep database queries focused: one operation per function (select, insert, update, delete)
-- Extract complex conditional logic into helper functions
+- Prefer small, single-responsibility functions (< 50 lines)
+- Use helper functions to extract logic (e.g., `isUniqueConstraintError()`)
+- Break complex procedures into named steps
 
 **Parameters:**
-- Injectable dependencies: declared in constructor
-- Route input: single `input` parameter of validated type
-- Context: passed as second parameter in tRPC routers (includes `ctx.userId`, `ctx.req`, `ctx.res`)
-- Use destructuring for object parameters
+- Prefer options objects over long parameter lists
+- Use type-driven design: if signature is complex, the domain model needs refinement
+- Never use rest parameters (`...args`) unless explicitly needed
 
 **Return Values:**
-- Services return fully typed objects (inferred from Zod or explicit types)
-- Throw errors rather than return null/undefined
-- Use optional properties sparingly; prefer explicit empty arrays or throw
+- Always be explicit about return type (no implicit `any`)
+- Return `Promise<T>` for async functions (never `Promise<T | undefined>` — handle undefined as error or false case)
+- Use discriminated unions for complex returns (e.g., `{ success: true, user: ... } | { success: false, error: ... }`)
 
-**Example:**
+**Example from** `apps/api/src/modules/auth/auth.service.ts`:
 ```typescript
-async list(input: CardListInput): Promise<PaginatedResult<Card>> {
-  const conditions = [];
-  // Build query conditions
-  const rows = await this.db.select(...).from(...).where(...);
-  return { items: rows, nextCursor: ... };
+async register(input: RegisterInput, res: Response): Promise<AuthResult> {
+  // Check preconditions, throw errors, return success case only
+  return { user, accessToken };
 }
 ```
 
 ## Module Design
 
 **Exports:**
-- Classes: export with `export class ClassName { ... }`
-- Types: export with `export type TypeName = ...` or `export interface InterfaceName { ... }`
-- Schemas: export const schema, then export type (inferred)
-- Barrel files: not used; import directly from source
+- Each module file exports one primary thing (service, router, constant)
+- Use barrel files (`index.ts`) only for cross-module interfaces needed by multiple consumers
 
-**Example:**
+**Barrel Files:**
+- Used in `packages/shared/src/index.ts` to re-export all schemas and types
+- Used in `packages/db/src/index.ts` to re-export Drizzle ORM and types
+- Not overused — most modules are imported directly
+
+**Module Structure (NestJS):**
 ```typescript
-export const registerSchema = z.object({ ... });
-export type RegisterInput = z.infer<typeof registerSchema>;
+// pattern used in apps/api/src/modules/auth/
 
-export class AuthService {
-  async register(input: RegisterInput): Promise<...> { ... }
+auth.service.ts    // Business logic, pure functions, DB queries
+auth.router.ts     // tRPC endpoint definitions, input validation, error handling
+auth.module.ts     // NestJS module wiring
+```
+
+## Zod Schemas as Source of Truth
+
+**Pattern:**
+- Define input schemas in `packages/shared/src/schemas/`
+- Infer types from schemas: `type RegisterInput = z.infer<typeof registerSchema>`
+- Use same schema for validation in router `.input(schema)`
+- Schema is the contract between client and server
+
+**Example from** `packages/shared/src/schemas/deck.schema.ts`:
+```typescript
+export const deckCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(1000).optional(),
+  isPublic: z.boolean().default(false),
+  coverCardId: z.string().uuid().optional(),
+  cards: z.array(deckCardEntrySchema).max(63).optional(),
+});
+
+export type DeckCreateInput = z.infer<typeof deckCreateSchema>;
+```
+
+## React Component Patterns
+
+**Naming:**
+- Exported components: PascalCase (e.g., `DeckList`, `AddCardsModal`)
+- Sub-components (function within file): PascalCase with clear scope
+- Use `'use client'` at top of file for client-side components
+
+**Hooks:**
+- Custom hooks use `use*` convention: `useLocalGameState()`, `useAuth()`
+- Prefer React hooks (useState, useReducer, useEffect) over external state managers
+- Extract logic into custom hooks when reused across components
+
+**Example from** `apps/web/src/app/(dashboard)/decks/deck-list.tsx`:
+```typescript
+'use client';
+
+export function DeckList() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<DeckTab>('my-decks');
+  const trpc = trpc.useUtils();
 }
 ```
 
-**Service Architecture:**
-- One service per domain (UserService, AuthService, CardService)
-- Services injected into routers
-- Routers handle tRPC procedure setup; services handle business logic
-- Database client injected as dependency
-
-## Strict Mode Enforcement
-
-**TypeScript Compiler Options:**
-- `strict: true` — all type checking enabled
-- `esModuleInterop: true` — CommonJS compatibility
-- `skipLibCheck: true` — skip node_modules type checking (speed)
-- `forceConsistentCasingInFileNames: true` — prevent import casing issues
-
-**No Escape Hatches:**
-- `noExplicitAny` rule enforces types everywhere
-- `noUnusedVars` enforced; prefix unused params with `_`
-- All new code must be strictly typed
-
 ---
 
-*Convention analysis: 2026-03-11*
+*Convention analysis: 2026-03-15*

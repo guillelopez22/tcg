@@ -1,177 +1,216 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2025-03-15
 
 ## APIs & External Services
 
-**TCGPlayer/Card Pricing:**
-- Service: tcgcsv.com - Free third-party price aggregator for Riftbound TCG (tcgplayer.com is deprecated)
-- What it's used for: Periodic price synchronization for all cards across all sets
-  - Implementation: `apps/api/src/modules/price-sync/price-sync.service.ts`
-  - Cron: Every 6 hours (NestJS Schedule)
-  - Fetches: `https://tcgcsv.com/tcgplayer/89/{groupId}/prices` - JSON price data
-  - Method: Upsert via Drizzle ORM into `cardPrices` table by `cardId`
-  - Auth: None (public API)
-- Data schema: `TcgcsvPriceRow` interface with lowPrice, midPrice, highPrice, marketPrice, directLowPrice, subTypeName (Normal/Foil)
+**Web Scraping (News):**
+- riftbound.gg - Community wiki
+  - Method: Multi-strategy (RSS → Sitemap → HTML scrape)
+  - Client: `axios`, `cheerio`
+  - Implementation: `apps/api/src/modules/news/news.service.ts`
+  - Cadence: Every 4 hours (cron: `0 */4 * * *`)
 
-**Card Image CDN:**
-- Service: product-images.tcgplayer.com / TCGPlayer CDN
-- What it's used for: Card artwork and thumbnails
-  - Referenced in: `apps/web/next.config.mjs` remote patterns
-  - Used by: Scanner service to download card images for fingerprinting
-  - Fetch: HTTP requests with User-Agent header, 10s timeout, graceful failure on 403/404
+- official.riftbound.io - Official Riftbound announcements
+  - Method: HTML scraping + Next.js data extraction
+  - Client: `cheerio`, `axios`
+  - Implementation: `apps/api/src/modules/news/news.service.ts`
 
-**Card Data Source (Local Bundle):**
-- Source: apitcg/riftbound-tcg-data (GitHub repo, free, cloned locally to `riftbound-tcg-data/`)
-- What it's used for: Initial card database seed, no external API calls required
-  - Sets: `riftbound-tcg-data/sets/en.json` - array of Riftbound TCG sets
-  - Cards: `riftbound-tcg-data/cards/en/{setId}.json` - array of cards per set from TCGPlayer
-  - Schema: id, number, code, name, cleanName, images, set, tcgplayer, rarity, cardType, domain, energyCost, powerCost, might, description, flavorText
-  - Note: Early entries in Origins and Spiritforged are products (booster packs) with null card attributes — seed script filters these
+- riftdecks.com - Tournament/meta deck data
+  - Method: HTML scraping
+  - Client: `cheerio`, `axios`
+  - Implementation: `apps/api/src/modules/news/news.service.ts`
+
+**TCGPlayer (Card Data Source):**
+- Product images: `https://product-images.tcgplayer.com`
+  - Used for: Card thumbnails and full art (stored in DB after seed)
+  - Configuration: Allowed in Next.js `remotePatterns` in `next.config.mjs`
+  - Scope: No API key required, read-only image CDN
+
+**File Uploads:**
+- Cloudflare R2 (S3-compatible object storage)
+  - Purpose: User-generated content (listing images, deck artwork)
+  - Presigned URLs only - no direct backend upload
+  - Implementation: `packages/r2/src/` with AWS SDK clients
+  - Configuration: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+  - Public URL: `NEXT_PUBLIC_R2_PUBLIC_URL` (e.g., https://uploads.lagrieta.app)
 
 ## Data Storage
 
-**Databases:**
+**Primary Database:**
+- PostgreSQL 16 (via Docker container: `la-grieta-postgres`)
+  - Connection: `DATABASE_URL` env var (postgresql://user:pass@host:5432/lagrieta)
+  - Client: `pg` npm package
+  - ORM: Drizzle ORM 0.38 with schema-first approach
+  - Schema location: `packages/db/src/schema/` (cards, sets, users, decks, collections, listings, orders, wishlists, sessions, etc.)
+  - Migration runner: Drizzle Kit (`drizzle-kit`)
+  - Port: 5432 (local dev)
 
-- **PostgreSQL 16**
-  - Connection: `DATABASE_URL` environment variable (postgresql://user:pass@host:port/db)
-  - Client: `pg` (native PostgreSQL driver via Drizzle ORM)
-  - Package: `@la-grieta/db` - Drizzle schema and migrations
-  - Dialect: PostgreSQL (strict mode)
-  - Migrations: Located in `packages/db/drizzle/` - run automatically at container startup via `drizzle-kit migrate`
-  - Tables: cards, sets, cardPrices, users, collections, collectionItems, decks, deckSlots (see `packages/db/src/schema/`)
+**Caching & Session Store:**
+- Redis 7 (via Docker container: `la-grieta-redis`)
+  - Connection: `REDIS_URL` (redis://:password@localhost:6379)
+  - Client: `ioredis` (v5.4)
+  - Uses:
+    - JWT token blacklist (logout)
+    - Session/refresh token storage
+    - Rate limit counters
+    - Deck recommendation cache
+  - Max memory: 256MB with allkeys-lru eviction policy
+  - Port: 6379 (local dev)
 
-- **Redis 7**
-  - Connection: `REDIS_URL` environment variable (redis://:password@host:port)
-  - Client: `ioredis` - Redis client library
-  - Purpose: Caching, session data, rate limiting state
-  - Configuration: `apps/api/src/config/redis.config.ts`
-  - Docker compose: maxmemory 256mb, LRU eviction policy
-
-**File Storage:**
-
-- **Cloudflare R2**
-  - Purpose: Secure file uploads (user-generated content, collection images, deck lists)
-  - Auth: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` environment variables
-  - Bucket: `R2_BUCKET_NAME` (default: la-grieta-uploads)
-  - Public URL: `R2_PUBLIC_URL` (custom domain or r2.dev subdomain)
-  - Implementation: `packages/r2/` - AWS SDK v3 client with presigned URL generation
-  - Pattern: Backend generates presigned URLs for:
-    - Uploads: Client uploads directly to R2 via presigned POST URL (no file handling on backend)
-    - Downloads: Client downloads from public R2 URL or presigned GET URL
-  - Supported: User profile images, collection thumbnails, deck export PDFs
-  - Constants: `MAX_FILE_SIZE_BYTES`, `PRESIGNED_URL_TTL_SECONDS`, `ALLOWED_MIME_TYPES`
-
-**No other storage:**
-- Card data: PostgreSQL only (seeded from local riftbound-tcg-data repo)
-- Prices: PostgreSQL cardPrices table
-- No external document store, no blob storage beyond R2
+**Card Image Storage:**
+- Local JSON fallback: `riftbound-tcg-data/` (cloned external repo, not modified)
+  - Source: https://github.com/apitcg/riftbound-tcg-data.git
+  - Structure: `sets/en.json` (sets), `cards/en/<set-id>.json` (cards per set)
+  - Used for: Seed data only; card images fetched from TCGPlayer CDN at runtime
 
 ## Authentication & Identity
 
 **Auth Provider:**
 - Custom JWT-based authentication
-  - Implementation: `apps/api/src/modules/auth/`
-  - Access tokens: In-memory (short-lived, default 15 minutes via `JWT_ACCESS_TOKEN_TTL`)
-  - Refresh tokens: httpOnly cookies (long-lived, default 30 days via `JWT_REFRESH_TOKEN_TTL`)
-  - Algorithm: HS256 (development) or RS256 (production with `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`)
-  - Secret: `JWT_SECRET` environment variable (minimum 32 characters)
-  - Password hashing: bcryptjs (pure JavaScript, Alpine Linux safe)
-- Session management: Stateless JWT + httpOnly refresh token cookies
-- CORS: Configured per `CORS_ORIGINS` comma-separated list (e.g., localhost:3000, localhost:19006)
+  - Tokens: Access (15 min) + Refresh (30 days in httpOnly cookie)
+  - Algorithm: HS256 (dev) or RS256 (production via JWT_PRIVATE_KEY/JWT_PUBLIC_KEY)
+  - Secret: `JWT_SECRET` env var
+  - Implementation: `apps/api/src/modules/auth/auth.service.ts`
+  - Login flow:
+    1. User registers with email/password
+    2. Password hashed with bcryptjs (12 rounds)
+    3. Session created in DB with refresh token hash
+    4. Access token returned, refresh token set in httpOnly cookie
+    5. Refresh token rotation on auth.refresh call
 
-**No OAuth:**
-- No third-party identity providers (Google, GitHub, Discord)
-- User registration/login: Email + password
+**Session Management:**
+- PostgreSQL `sessions` table
+  - Stores: userId, refreshToken (hashed), expiresAt, isRevoked
+  - Logout: Token added to Redis blacklist with TTL
+  - Refresh: Single-use check + new token issued
+
+**Authorization:**
+- Role-based (RBAC): `user.role` field in DB
+- tRPC procedure tiers:
+  - `publicProcedure` - No auth required
+  - `optionalAuthProcedure` - Auth optional
+  - `protectedProcedure` - Auth required
+  - `adminProcedure` - Admin role required
+  - Implementation: `apps/api/src/trpc/trpc.service.ts`
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- Not currently integrated (feature for Phase 5+)
-- Errors logged to stdout via NestJS logger
+- Not detected (no Sentry, Rollbar, etc. integrated)
 
 **Logs:**
-- Stdout logging via NestJS Logger
-- Log levels: log, warn, error, debug
-- Structured logging in some modules (e.g., Scanner, PriceSyncService emit progress)
-- No external log aggregation (Datadog, Sentry, CloudWatch) at this stage
-
-**Health Checks:**
-- Endpoint: `/api/health` (GET)
-- Implementation: `apps/api/src/modules/health/health.controller.ts`
-- Docker healthcheck: Pings endpoint every 30s (start-period 30s, retries 3)
-- Used by: Kubernetes/Railway for service readiness
+- Console logging (development)
+- NestJS Logger via `@nestjs/common`
+- tRPC middleware logs request type, path, status, duration
+- Scanner service logs fingerprint load progress
+- News service logs scrape success/failure per source
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Target: Railway.app (reference in `railway.toml`)
-- Docker: Multi-stage build via `Dockerfile`
-- Environment: Production PostgreSQL, Redis (Railway managed services)
+- Not yet deployed (development only)
+- Target: Cloud-ready (containerized, no hardcoded paths)
+- Expected: Vercel (web), ECS/Kubernetes (API)
 
 **CI Pipeline:**
-- Not yet configured (GitHub Actions in `.github/workflows/` but not active)
-- Manual deployments via Railway git push
+- Not detected (no GitHub Actions, GitLab CI, etc. yet)
+- Turbo caching ready for monorepo builds
 
-**Deployment Process:**
-1. Docker build: 3-stage pipeline (deps → builder → runner)
-2. Migrations: Automated via `packages/db/drizzle/` at container startup
-3. Port: `API_PORT` environment variable (default 3001)
-4. Shutdown: dumb-init forwards SIGTERM for graceful shutdown
+**Build Pipeline:**
+- Root: `pnpm build` → turbo runs build per workspace
+- API: `nest build` → NestJS compilation
+- Web: `next build` → Next.js static export or server build
+- Packages: `tsc` TypeScript compilation
 
 ## Environment Configuration
 
-**Required env vars (must be set):**
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-- `JWT_SECRET` - Minimum 32 characters, no "change_me" placeholders
-- `API_PORT` - NestJS server port
-- `API_PREFIX` - Global API prefix (default "api")
-- `NODE_ENV` - development or production
-- `NEXT_PUBLIC_API_URL` - Exposed to browser (e.g., http://localhost:3001)
-- `NEXT_PUBLIC_R2_PUBLIC_URL` - Public R2 bucket URL
+**Required env vars:**
+
+*Database & Cache:*
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` - PostgreSQL setup
+- `DATABASE_URL` - Full connection string (postgresql://...)
+- `REDIS_PASSWORD`, `REDIS_URL` - Redis credentials and URI
+
+*API Server:*
+- `NODE_ENV` - "development" or "production"
+- `API_PORT` - Server port (default 3001)
+- `API_PREFIX` - tRPC prefix (default "api")
+
+*JWT Auth:*
+- `JWT_SECRET` - HS256 secret (min 32 chars) OR
+- `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` - RS256 keys (base64-encoded PEM, production)
+- `JWT_ACCESS_TOKEN_TTL` - Seconds (default 900 = 15 min)
+- `JWT_REFRESH_TOKEN_TTL` - Seconds (default 2592000 = 30 days)
+
+*File Storage (R2):*
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`
+- `R2_PUBLIC_URL` - Public CDN URL for R2 bucket
+
+*Web Client:*
+- `NEXT_PUBLIC_API_URL` - API base URL (http://localhost:3001/api in dev)
+- `NEXT_PUBLIC_R2_PUBLIC_URL` - R2 public URL for displaying images
+
+*Rate Limiting:*
+- `THROTTLE_PUBLIC_LIMIT` - Requests per minute for public endpoints (default 100)
+- `THROTTLE_PUBLIC_TTL` - Time window in ms (default 60000 = 1 min)
+- `THROTTLE_AUTH_LIMIT` - Auth endpoint limit (default 1000)
+- `THROTTLE_LOGIN_LIMIT` - Login endpoint limit (default 10/min)
+
+*CORS:*
 - `CORS_ORIGINS` - Comma-separated allowed origins
 
-**Optional env vars (features for future phases):**
-- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` - File uploads
-- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` - Phase 5+ payments
-- `STRIPE_PLATFORM_FEE_BPS` - Platform fee in basis points (e.g., 500 = 5%)
-- `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_VERIFY_TOKEN` - Cloud API (Phase 4+)
-- `WHATSAPP_SESSION_DIR` - Baileys self-hosted (Phase 4+ alternative)
-
-**Rate Limiting:**
-- Public routes: 100 req/min per IP (`THROTTLE_PUBLIC_LIMIT`, `THROTTLE_PUBLIC_TTL` in ms)
-- Authenticated routes: 1000 req/min (`THROTTLE_AUTH_LIMIT`)
-- Login endpoints: 10 req/min (`THROTTLE_LOGIN_LIMIT`)
-- Implementation: NestJS throttler guard
-
 **Secrets location:**
-- Development: `.env` file (local, never committed)
-- Production: Railway environment variables or Cloudflare Pages/Workers secrets
-- No files committed with secrets (.env always in .gitignore)
+- `.env` (root) - Source of truth for dev environment
+- Docker Compose - Uses env vars from `.env`
+- CI/CD - Env vars injected at runtime (not committed)
+- Never commit `.env` to version control
 
 ## Webhooks & Callbacks
 
-**Incoming:**
-- None at this stage (marketplace/escrow webhooks reserved for Phase 5+)
+**Incoming Webhooks:**
+- Not detected (no Stripe webhooks, WhatsApp webhooks yet)
 
-**Outgoing:**
-- None currently (Stripe webhooks to be added for payment reconciliation in Phase 5+)
+**Outgoing Webhooks:**
+- Not detected (no calls to external webhook endpoints)
 
-**Price Sync Integration:**
-- Not a webhook — uses scheduled cron job every 6 hours (NestJS Schedule)
-- Pulls from tcgcsv.com on demand, no push callbacks
+**Future (Phase 4+):**
+- Stripe webhook: `POST /webhooks/stripe` for payment events
+- WhatsApp webhook: `POST /webhooks/whatsapp` for message callbacks
 
-## No Third-Party Dependencies
+## Real-time Communication
 
-**Notably absent (by design):**
-- No external API keys for card data (local riftbound-tcg-data repo instead)
-- No OAuth/social login (custom JWT only)
-- No payment gateway live (Phase 5+)
-- No WhatsApp integration yet (Phase 4+)
-- No Sentry, Datadog, or observability SaaS
-- No CDN besides Cloudflare R2
+**WebSockets:**
+- Socket.IO 4.8 server (`@nestjs/websockets`)
+- Socket.IO client 4.8 in web app
+- Purpose: Real-time match board updates, deck sync notifications
+- Gateway location: `apps/api/src/modules/match/match.gateway.ts` (if exists)
+- Events: Match state updates, player actions
+- Rooms: Per-match code for isolated broadcasting
+
+## Scheduled Tasks
+
+**Cron Jobs (NestJS Schedule):**
+- News sync: Every 4 hours (`0 */4 * * *`)
+  - Service: `apps/api/src/modules/news/news.service.ts` → `syncCron()`
+  - Behavior: Fire-and-forget startup sync, then cron schedule
+
+- Deck sync: Not visible but module exists (`DeckSyncModule` in AppModule)
+  - Purpose: Sync trending decks from riftdecks.com or similar
+
+- Price sync: Not visible but module exists (`price-sync` directory)
+  - Purpose: Update card prices from TCGPlayer or similar
+
+## Rate Limiting
+
+**Strategy:**
+- Redis-backed rate limiter in `apps/api/src/modules/throttler/rate-limit.middleware.ts`
+- Tiers:
+  - Public endpoints: 100/min per IP
+  - Authenticated endpoints: 1000/min per user
+  - Login/Register: 10/min per IP (brute-force protection)
+- Implementation: Client IP extracted, counter stored in Redis with TTL
 
 ---
 
-*Integration audit: 2026-03-11*
+*Integration audit: 2025-03-15*

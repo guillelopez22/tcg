@@ -1,122 +1,110 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-15
 
 ## Test Framework
 
 **Runner:**
 - Vitest v2.1.0
-- Config: `apps/api/vitest.config.ts`
-- Environment: Node.js (not browser)
-- Globals enabled: `describe`, `it`, `expect`, `vi`, `beforeEach`, `afterEach` available without imports
+- Config: `apps/api/vitest.config.ts`, `packages/db/vitest.config.ts`, `tools/seed/vitest.config.ts`
+- Environment: Node.js (no browser simulation)
 
 **Assertion Library:**
-- Vitest built-in (matchers from Vitest/Chai)
-- Methods: `expect(value).toBe()`, `expect(value).toEqual()`, `expect(fn).rejects.toMatchObject()`, etc.
+- Vitest built-in assertions (`.toBe()`, `.toEqual()`, `.toMatchObject()`, etc.)
+- No additional assertion library — vitest provides sufficient API
 
 **Run Commands:**
 ```bash
-pnpm test              # Run all tests in workspace
-pnpm test:coverage     # Run with coverage report (v8 provider)
-cd apps/api && pnpm test          # Run API tests only
-cd apps/api && pnpm test:coverage # API coverage only
+npm run test              # Run all tests once
+npm run test:watch       # Watch mode (in project root, runs via Turbo)
+npm run test:coverage    # Generate coverage report (v8 provider)
 ```
 
-**Coverage Configuration:**
-- Provider: v8
-- Reporters: text (console) + lcov (HTML report in coverage/)
+**Coverage:**
+- Provider: v8 (built-in to Vitest)
+- Reporters: text (console), lcov (for CI integration)
 - Include: `src/**/*.ts`
-- Exclude: `src/**/*.spec.ts`, `src/main.ts`
-- Location: `apps/api/coverage/`
+- Exclude: `src/**/*.spec.ts`, `src/main.ts`, `src/index.ts`
+- Target: 80% for services, 60% for routers (enforced via code review, not pre-commit)
 
 ## Test File Organization
 
 **Location:**
-- Spec files co-located adjacent to `src/` in `__tests__/` directory
-- Structure: `apps/api/__tests__/` contains all test files
-- Not split by domain (all tests in one directory, named by module)
+- API tests: `apps/api/__tests__/` (co-located directory, not inside `src/`)
+- Database tests: `packages/db/__tests__/` (if any exist)
+- Naming: `[feature].service.spec.ts`, `[feature].integration.spec.ts`
 
-**Naming:**
-- Spec files: `*.spec.ts` (primary pattern used throughout)
-- Alternative: `*.test.ts` (both are included in vitest config)
-- Patterns: `user.service.spec.ts`, `auth.service.spec.ts`, `card.integration.spec.ts`
+**Why `__tests__/` instead of co-located:**
+- Cleaner source directory structure
+- All tests grouped together for easier navigation
+- Vitest discovers tests via glob pattern in config (`include: ['**/*.spec.ts', '**/*.test.ts']`)
 
-**Test Categories:**
-- Unit tests: single service in isolation (e.g., `user.service.spec.ts`)
-- Integration tests: full stack including router (e.g., `auth.integration.spec.ts`)
-- Middleware tests: tRPC middleware behavior (e.g., `trpc.middleware.spec.ts`)
-- Feature tests: cross-service interactions (e.g., `collection-deck.integration.spec.ts`)
+**Structure:**
+```
+apps/api/__tests__/
+├── auth.service.spec.ts           # Unit test for AuthService
+├── auth.integration.spec.ts        # End-to-end flow test
+├── deck.service.spec.ts
+├── card.service.spec.ts
+└── trpc.middleware.spec.ts         # Tests for shared middleware
+```
 
 ## Test Structure
 
 **Suite Organization:**
-
 ```typescript
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UserService } from '../src/modules/user/user.service';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock factory section (always first)
-function makeMockDb() { ... }
-
-// Test fixtures section (constants and test data)
-const USER_ID = 'a1b2c3d4...';
-const TEST_USER_PROFILE = { id: USER_ID, ... };
-
-// Test suite
-describe('UserService', () => {
+describe('AuthService', () => {
+  let service: AuthService;
   let db: ReturnType<typeof makeMockDb>;
-  let service: UserService;
 
   beforeEach(() => {
+    // Initialize mocks and service instance
     db = makeMockDb();
-    service = new UserService(db as never);
+    service = new AuthService(db as never, redis as never, authConfig);
   });
 
-  describe('getProfile()', () => {
-    it('should return user profile when username exists', async () => {
-      db._pushSelect([TEST_USER_PROFILE]);
-      const result = await service.getProfile('juanrift');
-      expect(result.id).toBe(USER_ID);
+  describe('register()', () => {
+    it('should return user and accessToken on successful registration', async () => {
+      // Arrange
+      db._pushSelect([], []); // no existing email, no existing username
+      db._pushInsert([{ id: USER_ID, ... }]); // user insert returning
+
+      // Act
+      const result = await service.register(input, mockRes);
+
+      // Assert
+      expect(result.user.id).toBe(USER_ID);
+      expect(result.accessToken).toBeTruthy();
+    });
+
+    it('should throw CONFLICT when email already exists', async () => {
+      db._pushSelect([{ id: USER_ID }]); // email already taken
+
+      await expect(
+        service.register({ email: 'test@test.com', ... }, mockRes),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
     });
   });
 });
 ```
 
-**Standard Sections:**
-1. Imports and type declarations
-2. Mock factory functions (always documented with call patterns)
-3. Test fixtures and constants (UPPER_SNAKE_CASE)
-4. Main `describe()` suite
-5. Nested `describe()` blocks per method
-6. Individual `it()` test cases
-
 **Patterns:**
-- Setup: `beforeEach()` creates fresh mocks and service instance per test
-- Teardown: implicit (mocks reset, no `afterEach()` needed for unit tests)
-- Assertions: multiple `expect()` calls per test allowed
-- Naming: `it('should [behavior] when [condition]', async () => { ... })`
+- Flat structure with `describe()` for feature, nested `describe()` for methods
+- AAA (Arrange-Act-Assert) pattern (comments optional if code is clear)
+- Setup helpers extracted to functions above test suite (e.g., `makeMockDb()`)
+- One assertion per test when possible (fail-fast, clear intent)
 
 ## Mocking
 
-**Framework:** Vitest `vi` module
+**Framework:** Vitest's built-in `vi` utility (no external mock library)
 
 **Patterns:**
 
-**Mock Functions:**
-```typescript
-const select = vi.fn().mockImplementation(() => {
-  const capturedIdx = selectIdx++;
-  const chain: Record<string, unknown> = {};
-  chain['from'] = vi.fn().mockReturnValue(chain);
-  return chain;
-});
+### Mock Factories
+Each test file defines mock factories for its dependencies:
 
-// Assertions on calls:
-expect(db.select).toHaveBeenCalled();
-expect(db.select).not.toHaveBeenCalled();
-```
-
-**Mock Return Values (Queue Pattern):**
 ```typescript
 function makeMockDb() {
   const selectResults: unknown[][] = [];
@@ -124,7 +112,9 @@ function makeMockDb() {
 
   const select = vi.fn().mockImplementation(() => {
     const capturedIdx = selectIdx++;
-    // ... chain setup ...
+    const chain: Record<string, unknown> = {};
+    chain['from'] = vi.fn().mockReturnValue(chain);
+    chain['where'] = vi.fn().mockReturnValue(chain);
     chain['limit'] = vi.fn().mockImplementation(() =>
       Promise.resolve(selectResults[capturedIdx] ?? []),
     );
@@ -136,222 +126,214 @@ function makeMockDb() {
     _pushSelect: (...rows: unknown[][]) => { selectResults.push(...rows); },
   };
 }
-
-// Usage:
-db._pushSelect([TEST_USER_PROFILE]);
-const result = await service.getProfile('username');
 ```
 
-**Chainable Mock (Drizzle ORM Pattern):**
+**Why:** Allows tests to queue multiple results for sequential queries (each `select()` call consumes next queued result).
+
+### Drizzle ORM Mocking
+Services use Drizzle chain API:
 ```typescript
-// For query chains: .select().from().where().limit()
-const select = vi.fn().mockImplementation(() => {
-  const chain: Record<string, unknown> = {};
-  chain['from'] = vi.fn().mockReturnValue(chain);
-  chain['where'] = vi.fn().mockReturnValue(chain);
-  chain['limit'] = vi.fn().mockImplementation(() =>
-    Promise.resolve([...])
-  );
-  return chain;
-});
+db.select().from(users).where(...).limit(1)  // Returns Promise<T[]>
+db.insert(users).values({...}).returning()   // Returns Promise<T[]>
+db.update(users).set({...}).where(...)       // Returns Promise<void>
 ```
 
-**Thenable Chain (for terminal orderBy):**
+Mock chains return results queued via `_pushSelect()`, `_pushInsert()`, etc.
+
+### Spy Example
 ```typescript
-// For queries without .limit(): .select().from().orderBy()
-chain['orderBy'] = vi.fn().mockImplementation(() => {
-  const orderChain: Record<string, unknown> = {};
-  orderChain['limit'] = vi.fn().mockImplementation(() =>
-    Promise.resolve([...])
-  );
-  // Make the chain itself awaitable
-  orderChain['then'] = (onFulfilled: (v: unknown) => unknown) =>
-    Promise.resolve([...]).then(onFulfilled);
-  return orderChain;
-});
+const hashSpy = vi.spyOn(bcrypt, 'hash');
+await service.register({...}, mockRes);
+expect(hashSpy).toHaveBeenCalledOnce();
+expect(hashSpy).toHaveBeenCalledWith(PASSWORD_PLAINTEXT, 12);
 ```
 
-## What to Mock
+**What to Mock:**
+- Database: Always (use factory mock, never actual DB connection in tests)
+- External services (Redis, bcrypt, JWT): Mock or spy
+- HTTP dependencies (axios, fetch): Mock responses
+- File system: Mock via fs module stubs
 
-**Always Mock:**
-- Database (`DbClient`) — all DB operations are mocked with chainable Drizzle patterns
-- Redis client — operations return predictable values
-- Express `Response` object for cookie setting
-- bcryptjs in unit tests (use real bcrypt in integration tests)
-- JWT signing/verification in unit tests
-
-**Never Mock:**
-- Zod schemas — they should validate real data
-- TRPCError construction — it's part of the API contract
-- Service methods being tested — test them directly
-- Application startup logic
+**What NOT to Mock:**
+- Core language features (Math, crypto, Array methods)
+- Business logic validation (Zod schemas — test directly with real schemas)
+- Utility functions in the same module (test as part of the service)
+- Type system — types are compile-time, not testable at runtime
 
 ## Fixtures and Factories
 
 **Test Data:**
 ```typescript
-// Constants (reused across tests)
+// Constants defined at top of file
 const USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-const TEST_USER_PROFILE = {
+const PASSWORD_PLAINTEXT = 'Password123!';
+const PASSWORD_HASH = bcrypt.hashSync(PASSWORD_PLAINTEXT, 1); // low rounds for speed
+
+// Fixture objects
+const TEST_USER_ROW = {
   id: USER_ID,
   email: 'juan@lagrietahonduras.com',
   username: 'juanrift',
+  passwordHash: PASSWORD_HASH,
   displayName: 'Juan Rift',
-  // ... all required fields ...
+  // ... all fields
 };
 
-// Inline factories for test-specific data
-const updated = { ...TEST_USER_PROFILE, displayName: 'New Name' };
-db._pushUpdate([updated]);
-```
-
-**Helper Functions:**
-```typescript
-function makeCard(overrides: Partial<{
-  id: string;
-  name: string;
-}> = {}): Card {
-  return {
-    id: overrides.id ?? 'card-uuid-...',
-    name: overrides.name ?? 'Default Card',
-    // ... defaults ...
+// Factory functions for variations
+function setupRegisterSuccess(overrides: Partial<{
+  email: string;
+  username: string;
+}> = {}) {
+  const returned = {
+    id: USER_ID,
+    email: overrides.email ?? TEST_USER_ROW.email,
+    username: overrides.username ?? TEST_USER_ROW.username,
   };
+  db._pushSelect([], []);       // no conflicts
+  db._pushInsert([returned]);   // user insert
+  return returned;
 }
 ```
 
 **Location:**
-- Test fixtures: top-level constants in `__tests__/filename.spec.ts`
-- Shared fixtures: not extracted (keep fixtures close to tests that use them)
-- Real data: card data loaded from `riftbound-tcg-data/` only in integration/e2e tests
+- Inline in `__tests__/` files
+- Shared test data: consider `packages/shared/src/test-fixtures/` (not yet in use, but pattern available)
 
 ## Coverage
 
-**Requirements:** No minimum enforced in `vitest.config.ts`, but CLAUDE.md specifies:
-- Services: minimum 80% coverage
-- Controllers/Routers: minimum 60% coverage
+**Requirements:** No hard enforcement (code review gate, not pre-commit)
 
 **View Coverage:**
 ```bash
-cd apps/api
-pnpm test:coverage
-# Opens coverage report in HTML at coverage/index.html
+npm run test:coverage
+# Opens coverage/index.html in browser or prints text report
 ```
 
-**Coverage Gaps (Deliberately Untested):**
-- Integration tests that require real database/Redis
-- Error handling for network timeouts (difficult to mock reliably)
-- Third-party library behavior (assume it works)
+**Target by Layer:**
+- Services: 80%+ (most business logic tested)
+- Routers: 60%+ (test error paths and integration, not every edge case)
+- Components: Not measured (manual testing via Storybook, E2E)
+
+**Gap identification:**
+- Run `npm run test:coverage` to find untested branches
+- Focus on branches, not line coverage (a line can execute but not all conditions tested)
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Single service in isolation with mocked dependencies
-- Files: `*.service.spec.ts` (e.g., `user.service.spec.ts`)
-- Examples: `UserService.getProfile()`, `CardService.list()`, `AuthService.register()`
-- Approach: Mock DB/Redis, test business logic, error handling, edge cases
-- Typical size: 100-300 lines per service
+- Scope: Single service method or utility function
+- Mocked dependencies: All external (DB, Redis, crypto)
+- Location: `apps/api/__tests__/[service].service.spec.ts`
+- Example: `apps/api/__tests__/auth.service.spec.ts` tests `AuthService.register()`, `.login()`, `.refresh()` in isolation
 
 **Integration Tests:**
-- Scope: Full stack (router → service → mocked DB) including tRPC middleware
-- Files: `*.integration.spec.ts` (e.g., `auth.integration.spec.ts`)
-- Examples: `auth.integration.spec.ts` (register → login → me → logout flow)
-- Approach: Build complete router, create mocked context, test end-to-end behavior
-- Typical size: 200-400 lines per flow
-
-**Feature Tests:**
-- Scope: Cross-domain interactions (e.g., collection + deck)
-- Files: `domain1-domain2.integration.spec.ts`
-- Examples: `collection-deck.integration.spec.ts`
-- Approach: Test how multiple services interact through mocked DB
+- Scope: Full router → service → mocked DB flow
+- Exercises tRPC middleware (auth, rate limiting, logging)
+- Location: `apps/api/__tests__/[feature].integration.spec.ts`
+- Example: `apps/api/__tests__/auth.integration.spec.ts` tests complete auth flow (register → login → me → logout)
 
 **E2E Tests:**
-- Status: Not used (too heavy for card sync scenarios)
-- Alternative: Integration tests cover most scenarios
+- Not used in this codebase at present
+- Would test via HTTP client against running server
+- Future: consider for critical flows (auth, payments)
 
 ## Common Patterns
 
-**Async Testing:**
+### Async Testing
 ```typescript
-it('should return user profile when username exists', async () => {
-  db._pushSelect([TEST_USER_PROFILE]);
+it('should return user on valid credentials', async () => {
+  db._pushSelect([TEST_USER_ROW]);
 
-  const result = await service.getProfile('juanrift');
+  const result = await service.login({ email, password }, mockRes);
 
-  expect(result.id).toBe(USER_ID);
+  expect(result.user.id).toBe(USER_ID);
 });
 
-// For rejected promises:
-await expect(
-  service.getProfile('nonexistentuser')
-).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'User not found' });
-```
-
-**Error Testing:**
-```typescript
-it('should throw NOT_FOUND when user does not exist', async () => {
-  db._pushSelect([]); // Empty result
+it('should throw UNAUTHORIZED when user not found', async () => {
+  db._pushSelect([]); // no user
 
   await expect(
-    service.getProfile('nonexistentuser')
-  ).rejects.toMatchObject({
-    code: 'NOT_FOUND',
-    message: 'User not found',
-  });
+    service.login({ email: 'ghost@nowhere.com', password }, mockRes),
+  ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
 });
 ```
 
-**Multiple Assertions:**
+### Error Testing
+Use `.toMatchObject()` to match error structure without deep equality:
 ```typescript
-it('should include all required profile fields', async () => {
-  db._pushSelect([TEST_USER_PROFILE]);
-  const result = await service.getProfile('juanrift');
-
-  const required = ['id', 'email', 'username', 'displayName', ...];
-  for (const field of required) {
-    expect(result).toHaveProperty(field);
-  }
+await expect(service.method()).rejects.toMatchObject({
+  code: 'UNAUTHORIZED',
+  message: 'Invalid credentials',
 });
 ```
 
-**Testing Field Preservation:**
+### Mock Call Verification
 ```typescript
-it('should only update explicitly provided fields', async () => {
-  const updated = { ...TEST_USER_PROFILE, city: 'Choluteca' };
-  db._pushUpdate([updated]);
+// Single call verification
+expect(redis.setex).toHaveBeenCalledOnce();
+expect(redis.setex).toHaveBeenCalledWith(`blacklist:${token}`, TTL, '1');
 
-  const result = await service.updateProfile(USER_ID, { city: 'Choluteca' });
+// Multiple calls
+expect(db.select).toHaveBeenCalledTimes(2);
 
-  expect(result.city).toBe('Choluteca');
-  expect(result.bio).toBe(TEST_USER_PROFILE.bio); // unchanged
-});
+// Call order (less common, prefer individual assertions)
+const [firstCall, secondCall] = db.select.mock.calls;
 ```
 
-**Testing that Methods Are NOT Called:**
+### State Management Testing (useReducer)
 ```typescript
-it('should NOT call db.update when input is empty', async () => {
-  db._pushSelect([TEST_USER_PROFILE]);
+// From apps/web/src/hooks/use-local-game-state.ts pattern
+it('should expand deck entries into playable cards with unique IDs', () => {
+  const entries: LocalDeckEntry[] = [
+    { cardId: 'card-1', quantity: 2, zone: 'main', card: {...} }
+  ];
 
-  await service.updateProfile(USER_ID, {});
+  const state = expandEntries(entries);
 
-  expect(db.update).not.toHaveBeenCalled();
+  expect(state).toHaveLength(2);
+  expect(state[0].uid).not.toBe(state[1].uid); // each copy has unique uid
 });
 ```
 
-## Test Execution Details
+### Crypto & JWT Testing
+```typescript
+function signTestJwt(userId: string, role = 'user'): string {
+  return jwt.sign({ sub: userId, role }, TEST_JWT_SECRET, { expiresIn: TEST_ACCESS_TTL });
+}
 
-**Globals:** All test functions available without imports (configured in vitest.config.ts)
+it('should issue JWT with correct sub and role claims', async () => {
+  const result = await service.register({...}, mockRes);
 
-**Isolation:** Each test runs independently:
-- Fresh `makeMockDb()` instance per `beforeEach()`
-- Fresh service instance with new mocks
-- No shared state between tests
+  const decoded = jwt.verify(result.accessToken, TEST_JWT_SECRET) as jwt.JwtPayload;
+  expect(decoded['sub']).toBe(USER_ID);
+  expect(decoded['role']).toBe('user');
+});
+```
 
-**Async Handling:** All async operations use `await` with Vitest's automatic async detection
+### Database Transaction Testing
+```typescript
+it('should execute operation within transaction', async () => {
+  await service.method();
 
-**File Resolution:** TypeScript aliases work in tests (configured in `vitest.config.ts`):
-- `@la-grieta/db` → `packages/db/src/index.ts`
-- `@la-grieta/shared` → `packages/shared/src/index.ts`
+  expect(db.transaction).toHaveBeenCalled();
+  // Verify results from within transaction callback
+});
+```
+
+## Test Maintenance
+
+**Patterns to Avoid:**
+- Time-dependent tests: Mock `Date.now()` if needed, don't use real delays
+- Order-dependent tests: Each test must be independent, no shared state between tests
+- Too many assertions: Keep to 1-3 assertions per test
+- Brittle mocks: Use `.toMatchObject()` instead of exact equality when checking error/return shape
+
+**When to Update Tests:**
+- Service method signature changes: update call sites in tests
+- New error case added: add test for the error
+- Database schema change: update fixture objects
+- Business logic refactor: update test expectations, not test structure
 
 ---
 
-*Testing analysis: 2026-03-11*
+*Testing analysis: 2026-03-15*
