@@ -12,17 +12,17 @@ export class NewsRouter {
 
   buildRouter() {
     return this.trpc.router({
-      getLatest: this.trpc.publicProcedure
+      getLatest: this.trpc.rateLimitedPublicProcedure
         .input(z.object({ limit: z.number().int().min(1).max(50).default(20) }).optional())
         .query(({ input }) => this.newsService.getLatest(input?.limit ?? 20)),
 
-      getCount: this.trpc.publicProcedure
+      getCount: this.trpc.rateLimitedPublicProcedure
         .query(() => this.newsService.getCount()),
 
-      getSyncStatus: this.trpc.publicProcedure
+      getSyncStatus: this.trpc.rateLimitedPublicProcedure
         .query(() => this.newsService.getSyncStatus()),
 
-      triggerSync: this.trpc.protectedProcedure
+      triggerSync: this.trpc.rateLimitedProtectedProcedure
         .mutation(async () => {
           // Non-blocking — returns immediately, sync runs in background
           void this.newsService.syncCron();

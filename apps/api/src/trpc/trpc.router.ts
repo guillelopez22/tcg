@@ -33,7 +33,7 @@ export class TrpcRouter {
 
   buildRouter() {
     return this.trpc.router({
-      health: this.trpc.publicProcedure.query(() => ({
+      health: this.trpc.rateLimitedPublicProcedure.query(() => ({
         status: 'ok',
         timestamp: new Date().toISOString(),
       })),
