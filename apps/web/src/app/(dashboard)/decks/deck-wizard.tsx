@@ -265,11 +265,13 @@ function CardBrowser({ legend, entries, onAdd, activeTab, onTabChange }: CardBro
       if (seen.has(c.id)) continue;
       // When browsing "main" with no type filter, exclude non-main card types
       if (activeTab === 'main' && !cardType && EXCLUDED_FROM_MAIN.has(c.cardType ?? '')) continue;
+      // Signature cards must match the legend's exact domain pair (not just one domain)
+      if (isSignatureCard(c.cardType) && c.domain !== legend.domain) continue;
       seen.add(c.id);
       merged.push(c);
     }
     return merged;
-  }, [q1.data, q2.data, activeTab, cardType]);
+  }, [q1.data, q2.data, activeTab, cardType, legend.domain]);
 
   const entryMap = useMemo(() => {
     const m = new Map<string, DeckEntry>();
@@ -450,28 +452,44 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     const mainOk = mainCount === MAIN_DECK_SIZE && hasChampion;
     const runeOk = runeCount === RUNE_DECK_SIZE;
     const bfOk = battlefieldCount === BATTLEFIELD_COUNT;
+    // All signature cards must match the legend's domain
+    const legendDomain = legendEntry?.card.domain ?? null;
+    const signaturesOk = entries
+      .filter((e) => isSignatureCard(e.card.cardType))
+      .every((e) => e.card.domain === legendDomain);
     return {
       mainOk,
       runeOk,
       bfOk,
       hasChampion,
-      isValid: mainOk && runeOk && bfOk,
+      isValid: mainOk && runeOk && bfOk && signaturesOk,
     };
-  }, [mainCount, runeCount, battlefieldCount, championEntry]);
+  }, [mainCount, runeCount, battlefieldCount, championEntry, entries, legendEntry]);
 
   // — Entry mutation helpers —
 
   const addCard = useCallback((card: CardItem) => {
     setEntries((prev) => {
-      const existing = prev.find((e) => e.card.id === card.id);
+      // Signature cards must match the legend's exact domain pair
+      if (isSignatureCard(card.cardType)) {
+        const legend = prev.find((e) => e.zone === 'legend');
+        if (!legend || card.domain !== legend.card.domain) return prev;
+      }
 
-      // Determine zone
+      // Determine target zone FIRST, then find existing entry in that zone
       let zone: DeckZone = 'main';
       if (card.cardType === 'Rune') zone = 'rune';
       else if (card.cardType === 'Battlefield') zone = 'battlefield';
       else if (card.cardType === 'Champion Unit') {
         const hasChampion = prev.some((e) => e.zone === 'champion');
         zone = hasChampion ? 'main' : 'champion';
+      }
+
+      // Champion zone: only 1 card allowed
+      if (zone === 'champion') {
+        const existing = prev.find((e) => e.zone === 'champion');
+        if (existing) return prev;
+        return [...prev, { card, quantity: 1, zone }];
       }
 
       // Battlefield: unique names only, max 3
@@ -485,17 +503,25 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
       if (zone === 'rune') {
         const currentRuneTotal = prev.filter((e) => e.zone === 'rune').reduce((s, e) => s + e.quantity, 0);
         if (currentRuneTotal >= RUNE_DECK_SIZE) return prev;
+        const existing = prev.find((e) => e.card.id === card.id && e.zone === 'rune');
         if (existing) {
-          return prev.map((e) => e.card.id === card.id ? { ...e, quantity: e.quantity + 1 } : e);
+          return prev.map((e) => e.card.id === card.id && e.zone === 'rune' ? { ...e, quantity: e.quantity + 1 } : e);
         }
         return [...prev, { card, quantity: 1, zone }];
       }
 
-      // Main deck: per-card copy limits apply
+      // Main deck: enforce size limit
+      const currentMainTotal = prev
+        .filter((e) => e.zone === 'main')
+        .reduce((s, e) => s + e.quantity, 0);
+      if (currentMainTotal >= MAIN_DECK_SIZE) return prev;
+
+      // Per-card copy limits (count across main zone only for this card)
       const maxCopies = isSignatureCard(card.cardType) ? MAX_SIGNATURE_COPIES : MAX_COPIES_PER_CARD;
+      const existing = prev.find((e) => e.card.id === card.id && e.zone === 'main');
       if (existing) {
         if (existing.quantity >= maxCopies) return prev;
-        return prev.map((e) => e.card.id === card.id ? { ...e, quantity: e.quantity + 1 } : e);
+        return prev.map((e) => e.card.id === card.id && e.zone === 'main' ? { ...e, quantity: e.quantity + 1 } : e);
       }
       return [...prev, { card, quantity: 1, zone }];
     });
@@ -824,6 +850,15 @@ export function DeckWizard({ isOpen, onClose, onCreated }: DeckWizardProps) {
     }
     if (!validation.runeOk) validationMessages.push(`Rune deck: ${runeCount}/${RUNE_DECK_SIZE} runes`);
     if (!validation.bfOk) validationMessages.push(`Battlefields: ${battlefieldCount}/${BATTLEFIELD_COUNT}`);
+
+    // Check signature cards match legend domain
+    if (legendEntry) {
+      for (const e of entries) {
+        if (isSignatureCard(e.card.cardType) && e.card.domain !== legendEntry.card.domain) {
+          validationMessages.push(`${e.card.name} doesn't match your Legend's domain`);
+        }
+      }
+    }
 
     // Domain breakdown (main + rune)
     const domainCounts: Record<string, number> = {};

@@ -163,31 +163,20 @@ export class AuthService {
   async refresh(rawRefreshToken: string, res: Response): Promise<AuthResult> {
     const tokenHash = this.hashRefreshToken(rawRefreshToken);
 
-    // Allow 30-second grace window for concurrent tab races
-    const graceWindowStart = new Date(Date.now() - REFRESH_GRACE_PERIOD_MS);
-
     const [session] = await this.db
       .select()
       .from(sessions)
       .where(
         and(
           eq(sessions.refreshToken, tokenHash),
-          gt(sessions.expiresAt, graceWindowStart),
+          eq(sessions.isRevoked, false),
+          gt(sessions.expiresAt, new Date()),
         ),
       )
       .limit(1);
 
     if (!session) {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired refresh token' });
-    }
-
-    if (session.isRevoked) {
-      // Possible token reuse attack — revoke all sessions for this user
-      await this.db
-        .update(sessions)
-        .set({ isRevoked: true })
-        .where(eq(sessions.userId, session.userId));
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Refresh token reuse detected' });
     }
 
     const [user] = await this.db
@@ -207,14 +196,14 @@ export class AuthService {
       throw new TRPCError({ code: 'UNAUTHORIZED', message: 'User not found or deactivated' });
     }
 
-    // Revoke old session
-    await this.db
-      .update(sessions)
-      .set({ isRevoked: true })
-      .where(eq(sessions.id, session.id));
+    // Issue a new access token but keep the same refresh token/session.
+    // Token rotation is unsafe here because the Next.js rewrite proxy may not
+    // reliably forward Set-Cookie headers, causing the browser to keep the old
+    // (now-revoked) token and triggering false "token reuse" on next refresh.
+    const accessToken = this.signAccessToken(user.id, user.role);
 
-    const { accessToken, refreshToken: newRefreshToken } = await this.createSession(user.id, user.role);
-    this.setRefreshCookie(res, newRefreshToken);
+    // Re-set the same refresh cookie to extend its maxAge
+    this.setRefreshCookie(res, rawRefreshToken);
 
     return {
       user: {

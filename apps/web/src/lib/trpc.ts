@@ -27,6 +27,9 @@ export function createTRPCClient(getAccessToken: () => string | null) {
           const token = getAccessToken();
           return token ? { authorization: `Bearer ${token}` } : {};
         },
+        fetch(url, options) {
+          return fetch(url, { ...options, credentials: 'include' });
+        },
       }),
     ],
   });

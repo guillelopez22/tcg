@@ -49,18 +49,20 @@ async function callRefresh(): Promise<{ user: AuthUser; accessToken: string } | 
     const res = await fetch('/api/trpc/auth.refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Empty JSON body — refresh token is sent automatically via cookie
-      body: JSON.stringify({ json: {} }),
+      // No body needed — refresh token is sent automatically via cookie.
+      // tRPC v11 mutations with no input schema accept an empty/absent body.
       credentials: 'include',
     });
 
     if (!res.ok) return null;
 
+    // tRPC v11 response format (no transformer): {"result":{"data":<output>}}
+    // Note: tRPC v10 used {"result":{"data":{"json":<output>}}} — v11 drops the json wrapper.
     const data = (await res.json()) as {
-      result?: { data?: { json?: { user: AuthUser; accessToken: string } } };
+      result?: { data?: { user: AuthUser; accessToken: string } };
     };
 
-    const payload = data?.result?.data?.json;
+    const payload = data?.result?.data;
     if (payload?.accessToken && payload?.user) {
       return { user: payload.user, accessToken: payload.accessToken };
     }
@@ -81,6 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // without needing the React render cycle.
   const tokenRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Guard: prevent concurrent refresh calls (React strict mode double-mount)
+  const refreshInFlightRef = useRef(false);
 
   const refreshSession = useCallback(async () => {
     const result = await callRefresh();
@@ -126,10 +130,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  // Attempt silent refresh on mount to restore session from httpOnly cookie
+  // Attempt silent refresh on mount to restore session from httpOnly cookie.
+  // Guard prevents React strict mode double-mount from racing two refresh calls
+  // (which would trigger token-reuse detection and nuke all sessions).
   useEffect(() => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+
     const restoreSession = async () => {
       const result = await callRefresh();
+      refreshInFlightRef.current = false;
       if (result) {
         setAuth(result.user, result.accessToken);
       } else {

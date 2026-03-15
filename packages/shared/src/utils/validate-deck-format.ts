@@ -22,11 +22,14 @@ export interface DeckFormatEntry {
  *
  * @param entries   Flat list of deck card entries with zone info.
  * @param cardTypeMap  Map from cardId to cardType string (or null for unknown).
+ * @param domainMap  Optional map from cardId to domain string. When provided,
+ *                   signature cards are validated against the legend's domain.
  * @returns Array of human-readable error strings. Empty array means the deck is valid.
  */
 export function validateDeckFormat(
   entries: DeckFormatEntry[],
   cardTypeMap: Map<string, string | null>,
+  domainMap?: Map<string, string | null>,
 ): string[] {
   const errors: string[] = [];
 
@@ -57,8 +60,7 @@ export function validateDeckFormat(
     }
   }
 
-  // Main deck = main + sideboard cards only.
-  // Legend, Champion, Runes, and Battlefields are all separate zones.
+  // Main deck = main + sideboard. Champion is a separate zone (1 card).
   // We accept 40 (no sideboard) or 48 (40 + 8 sideboard).
   const mainPool = (zoneTotals['main'] ?? 0) + (zoneTotals['sideboard'] ?? 0);
   const mainWithoutSideboard = MAIN_DECK_SIZE;
@@ -72,7 +74,7 @@ export function validateDeckFormat(
     errors.push(`Need 1 legend`);
   }
 
-  // Champion: exactly 1
+  // Champion: exactly 1 (part of main deck but tracked separately)
   if (zoneTotals['champion'] !== CHAMPION_COUNT) {
     errors.push(`Need 1 champion`);
   }
@@ -96,6 +98,25 @@ export function validateDeckFormat(
       errors.push(`Signature card limit: 1 copy (cardId: ${cardId})`);
     } else if (!isSignature && total > MAX_COPIES_PER_CARD) {
       errors.push(`Too many copies of cardId: ${cardId} (${total}/${MAX_COPIES_PER_CARD})`);
+    }
+  }
+
+  // Signature cards must match the legend's domain
+  if (domainMap) {
+    const legendEntry = entries.find((e) => e.zone === 'legend');
+    const legendDomain = legendEntry ? domainMap.get(legendEntry.cardId) : null;
+
+    if (legendDomain) {
+      for (const entry of entries) {
+        const cardType = cardTypeMap.get(entry.cardId) ?? null;
+        const isSignature = cardType !== null && (SIGNATURE_TYPES as readonly string[]).includes(cardType);
+        if (!isSignature) continue;
+
+        const cardDomain = domainMap.get(entry.cardId);
+        if (cardDomain && cardDomain !== legendDomain) {
+          errors.push(`Signature card doesn't match legend's domain (cardId: ${entry.cardId})`);
+        }
+      }
     }
   }
 

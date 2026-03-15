@@ -219,16 +219,28 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
     },
   );
 
+  // Derive the legend's domain so we can restrict signature cards to matching ones
+  const legendDomain = useMemo(() => {
+    const legendEntry = entries.find((e) => e.zone === 'legend');
+    return legendEntry?.card.domain ?? null;
+  }, [entries]);
+
   // All cards from search, with client-side exclusion for main/sideboard zones
   const searchCards = useMemo(() => {
     const all = searchData?.pages.flatMap((page) => page.items) ?? [];
     // Exclude tokens from all zones — tokens are generated in-game, not deck-buildable
     const noTokens = all.filter((c) => c.cardType && !c.cardType.includes('Token'));
+    // Filter signature cards to only those matching the legend's domain
+    const domainFiltered = noTokens.filter((c) => {
+      if (!c.cardType || !(SIGNATURE_TYPES as readonly string[]).includes(c.cardType)) return true;
+      if (!legendDomain) return false; // No legend selected — hide all signature cards
+      return c.domain === legendDomain;
+    });
     if (activeZone === 'main' || activeZone === 'sideboard') {
-      return noTokens.filter((c) => c.cardType !== 'Legend' && c.cardType !== 'Champion Unit' && c.cardType !== 'Rune' && c.cardType !== 'Battlefield');
+      return domainFiltered.filter((c) => c.cardType !== 'Legend' && c.cardType !== 'Champion Unit' && c.cardType !== 'Rune' && c.cardType !== 'Battlefield');
     }
-    return noTokens;
-  }, [searchData, activeZone]);
+    return domainFiltered;
+  }, [searchData, activeZone, legendDomain]);
 
   // Load user collection for ownership badges (all cards, up to 200)
   const { data: collectionData } = trpc.collection.list.useQuery(
@@ -331,7 +343,10 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
     const cardTypeMap = new Map<string, string | null>(
       entries.map((e) => [e.cardId, e.card.cardType])
     );
-    return validateDeckFormat(flatEntries, cardTypeMap);
+    const domainMap = new Map<string, string | null>(
+      entries.map((e) => [e.cardId, e.card.domain])
+    );
+    return validateDeckFormat(flatEntries, cardTypeMap, domainMap);
   }, [entries]);
 
   const isValid = validationErrors.length === 0;
@@ -395,6 +410,18 @@ export function DeckCardEditor({ deckId, initialCards, isPublic, onClose, onSave
   // --------------------------------------------------
 
   function addCardToZone(card: { id: string; name: string; rarity: string; cardType: string | null; domain: string | null; imageSmall: string | null }, zone: DeckZone) {
+    // Block signature cards that don't match the legend's domain
+    if (isSignatureCard(card.cardType)) {
+      if (!legendDomain) {
+        toast.error('Select a Legend first before adding signature cards');
+        return;
+      }
+      if (card.domain !== legendDomain) {
+        toast.error(`${card.name} doesn't match your Legend's domain`);
+        return;
+      }
+    }
+
     const limit = getCopyLimit(card.cardType);
     const copies = getTotalCopies(card.id);
     const zoneCount = zoneCounts[zone];
