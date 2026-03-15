@@ -96,31 +96,40 @@ curl https://<your-railway-domain>/api/health
 
 ---
 
-## 2. Vercel — Web App
+## 2. Railway — Web Service
 
-### 2.1 Project setup
+### 2.1 Provisioning
 
-1. In Vercel, click **New Project → Import Git Repository**.
+1. In the same Railway project, click **New Service → GitHub Repo**.
 2. Select this repo.
-3. Set **Root Directory** to `apps/web`.
-4. Vercel will auto-detect Next.js. The `apps/web/vercel.json` overrides the build command to run through Turborepo from the monorepo root.
+3. In the service **Settings**, set:
+   - **Service name**: `web`
+   - **Builder**: Dockerfile
+   - **Dockerfile path**: `apps/web/Dockerfile`
+   - **Health check path**: `/`
+   - **Health check timeout**: `60`
 
 ### 2.2 Environment variables
 
-Set these in the Vercel project **Settings → Environment Variables**:
+Set these in the Railway web service **Variables** tab:
 
 ```
+# Build-time vars (NEXT_PUBLIC_ are inlined during docker build)
 NEXT_PUBLIC_API_URL=https://<your-railway-api-domain>/api
 NEXT_PUBLIC_R2_PUBLIC_URL=https://pub-<hash>.r2.dev
+
+# Runtime
+PORT=3000
+HOSTNAME=0.0.0.0
 ```
 
-`NEXT_PUBLIC_*` variables are inlined at build time. After changing them, trigger a redeploy.
+**Important:** `NEXT_PUBLIC_*` vars are baked in at build time. If you change them, Railway must rebuild (not just restart).
 
 ### 2.3 Custom domain
 
-1. In Vercel project settings, add your custom domain (e.g., `lagrieta.app`).
-2. Add a CNAME record in Cloudflare: `lagrieta.app → cname.vercel-dns.com`, proxy **disabled** (DNS-only / grey cloud). Vercel manages TLS.
-3. Once the domain is verified, update `CORS_ORIGINS` in Railway to include it.
+1. In Railway web service settings, add your custom domain (e.g., `lagrieta.app`).
+2. Add a CNAME record in your DNS provider pointing to Railway's domain.
+3. Once the domain is verified, update `CORS_ORIGINS` in the API service to include it.
 
 ---
 
