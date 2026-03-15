@@ -8,7 +8,6 @@
 
 [build]
 # Use the repo-root Dockerfile (multi-stage, Alpine, bcryptjs-safe).
-# Railway auto-detects Dockerfile at the root; set explicitly for clarity.
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
@@ -18,21 +17,19 @@ dockerfilePath = "Dockerfile"
 PNPM_VERSION = "9.0.0"
 
 [deploy]
-# The compiled NestJS entry point inside the runner stage's WORKDIR (/app).
+# The compiled NestJS entry point inside the runner stage WORKDIR (/app).
 startCommand = "node dist/main.js"
 
-# Railway routes external HTTPS traffic to this port.
-# Must match API_PORT env var (default 3001) set in the Railway dashboard.
-# Railway injects its own $PORT variable — the app should prefer $PORT when
-# set (Railway sets it to the internal port it has assigned).
 numReplicas = 1
 
-# Health check — Railway will wait for this to return 200 before marking the
-# deploy as healthy. Uses the NestJS /api/health endpoint.
+# Restart the container on non-zero exit — covers crashes and OOM kills.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Health check — Railway waits for 200 before marking the deploy healthy.
+# /api/health is the NestJS TerminusModule endpoint.
+# 120s timeout covers cold-start Drizzle migrations on first deploy.
 [deploy.healthcheck]
 path = "/api/health"
-# How long Railway waits for the first healthy response after container start.
-# 30s gives Drizzle migrations time to complete on cold starts.
 timeoutSeconds = 120
-# Railway polls this interval while waiting for healthy status.
 intervalSeconds = 10
