@@ -28,14 +28,11 @@ export class NewsService implements OnModuleInit {
 
   /**
    * Fire-and-forget startup sync. We don't await so the app boots instantly.
-   * If the table already has articles, we still sync to refresh — the cron
-   * cadence handles throttling in production.
+   * The isSyncing guard prevents double-runs if the cron fires before the
+   * startup sync completes.
    */
   onModuleInit(): void {
-    // Delay slightly so the DB connection pool is fully ready
-    setTimeout(() => {
-      void this.syncCron();
-    }, 3_000);
+    void this.syncCron();
   }
 
   /** Runs every 4 hours. */
@@ -48,10 +45,40 @@ export class NewsService implements OnModuleInit {
 
     this.isSyncing = true;
     try {
-      this.logger.log('Starting news sync from riftbound.gg');
-      const articles = await this.scrapeRiftboundGg();
-      await this.upsertArticles(articles);
-      this.logger.log(`News sync complete — upserted ${articles.length} articles`);
+      const allArticles: ScrapedArticle[] = [];
+
+      // Source 1: riftbound.gg (community wiki)
+      try {
+        this.logger.log('Syncing from riftbound.gg...');
+        const gg = await this.scrapeRiftboundGg();
+        allArticles.push(...gg);
+        this.logger.log(`  riftbound.gg: ${gg.length} articles`);
+      } catch (err) {
+        this.logger.warn(`  riftbound.gg failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Source 2: official Riftbound news (Riot)
+      try {
+        this.logger.log('Syncing from official Riftbound...');
+        const official = await this.scrapeOfficialRiftbound();
+        allArticles.push(...official);
+        this.logger.log(`  official: ${official.length} articles`);
+      } catch (err) {
+        this.logger.warn(`  official failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Source 3: riftdecks.com (tournament/meta news)
+      try {
+        this.logger.log('Syncing from riftdecks.com...');
+        const rd = await this.scrapeRiftdecks();
+        allArticles.push(...rd);
+        this.logger.log(`  riftdecks.com: ${rd.length} articles`);
+      } catch (err) {
+        this.logger.warn(`  riftdecks.com failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      await this.upsertArticles(allArticles);
+      this.logger.log(`News sync complete — upserted ${allArticles.length} total articles`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`News sync failed: ${message}`);
@@ -599,6 +626,207 @@ export class NewsService implements OnModuleInit {
             scrapedAt: new Date(),
           },
         });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Source: Official Riftbound (riftbound.leagueoflegends.com)
+  // ---------------------------------------------------------------------------
+
+  private async scrapeOfficialRiftbound(): Promise<ScrapedArticle[]> {
+    const articles: ScrapedArticle[] = [];
+    try {
+      const response = await axios.get<string>(
+        'https://riftbound.leagueoflegends.com/en-us/news/',
+        {
+          timeout: 12_000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; LaGrieta-Bot/1.0)',
+            'Accept': 'text/html',
+          },
+        },
+      );
+
+      const body = String(response.data);
+      const scriptMatch = body.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (!scriptMatch?.[1]) return articles;
+
+      const data = JSON.parse(scriptMatch[1]) as {
+        props?: {
+          pageProps?: {
+            page?: {
+              blades?: Array<{
+                type?: string;
+                items?: Array<{
+                  title?: string;
+                  publishedAt?: string;
+                  description?: { body?: string };
+                  category?: { title?: string };
+                  action?: { payload?: { url?: string } };
+                  media?: { url?: string };
+                }>;
+              }>;
+            };
+          };
+        };
+      };
+
+      // Find the articleCardGrid blade
+      const blades = data.props?.pageProps?.page?.blades ?? [];
+      const articleBlade = blades.find((b) => b.type === 'articleCardGrid');
+      if (!articleBlade?.items) return articles;
+
+      for (const item of articleBlade.items) {
+        const title = item.title;
+        const relUrl = item.action?.payload?.url;
+        if (!title || !relUrl) continue;
+
+        const url = relUrl.startsWith('http')
+          ? relUrl
+          : `https://riftbound.leagueoflegends.com${relUrl}`;
+
+        const excerpt = item.description?.body ?? null;
+        const thumbnailUrl = item.media?.url ?? null;
+        const category = item.category?.title ?? null;
+
+        let publishedAt: Date | null = null;
+        if (item.publishedAt) {
+          const parsed = new Date(item.publishedAt);
+          if (!isNaN(parsed.getTime())) publishedAt = parsed;
+        }
+
+        articles.push({
+          url,
+          title: category ? `${category}: ${title}` : title,
+          excerpt: excerpt ? excerpt.slice(0, 500) : null,
+          thumbnailUrl,
+          publishedAt,
+          source: 'Riftbound Official',
+        });
+      }
+    } catch {
+      // Network error — return empty
+    }
+
+    return articles.slice(0, 30);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Source: RiftDecks.com (tournament/meta)
+  // ---------------------------------------------------------------------------
+
+  private async scrapeRiftdecks(): Promise<ScrapedArticle[]> {
+    const articles: ScrapedArticle[] = [];
+    try {
+      // Check for blog/news section
+      const urls = [
+        'https://riftdecks.com/blog',
+        'https://riftdecks.com/news',
+        'https://riftdecks.com/riftbound-tournaments',
+      ];
+
+      for (const pageUrl of urls) {
+        try {
+          const response = await axios.get<string>(pageUrl, {
+            timeout: 10_000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; LaGrieta-Bot/1.0)',
+              'Accept': 'text/html',
+            },
+          });
+
+          const $ = cheerio.load(String(response.data));
+          const seen = new Set<string>(articles.map((a) => a.url));
+
+          // Tournament pages — extract tournament entries
+          if (pageUrl.includes('tournament')) {
+            $('a[href*="/riftbound-tournaments/"]').each((_i, el) => {
+              const href = $(el).attr('href') ?? '';
+              if (!href || href === '/riftbound-tournaments' || href === '/riftbound-tournaments/') return;
+              const url = href.startsWith('http') ? href : `https://riftdecks.com${href}`;
+              if (seen.has(url)) return;
+              seen.add(url);
+
+              const title = $(el).text().trim();
+              if (!title || title.length < 3) return;
+
+              articles.push({
+                url,
+                title: `Tournament: ${title}`,
+                excerpt: null,
+                thumbnailUrl: null,
+                publishedAt: null,
+                source: 'riftdecks.com',
+              });
+            });
+          }
+
+          // Blog/news articles
+          $('a[href*="/blog/"], a[href*="/news/"], article a').each((_i, el) => {
+            const href = $(el).attr('href') ?? '';
+            if (!href) return;
+            const url = href.startsWith('http') ? href : `https://riftdecks.com${href}`;
+            if (seen.has(url)) return;
+            seen.add(url);
+
+            const title = $(el).find('h2, h3, h4').first().text().trim()
+              || $(el).text().trim().slice(0, 120);
+            if (!title || title.length < 5) return;
+
+            const img = $(el).find('img').first();
+            const thumbnailUrl = img.attr('src') ?? null;
+
+            articles.push({
+              url,
+              title,
+              excerpt: null,
+              thumbnailUrl,
+              publishedAt: null,
+              source: 'riftdecks.com',
+            });
+          });
+        } catch {
+          // try next URL
+        }
+      }
+    } catch {
+      // Network error
+    }
+
+    return articles.slice(0, 15);
+  }
+
+  // Helper: recursively extract article-shaped objects from JSON
+  private extractArticlesFromObject(
+    obj: unknown,
+    articles: ScrapedArticle[],
+    source: string,
+    baseUrl: string,
+  ): void {
+    if (!obj || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) {
+      for (const item of obj) this.extractArticlesFromObject(item, articles, source, baseUrl);
+      return;
+    }
+    const rec = obj as Record<string, unknown>;
+    // Check if this looks like an article
+    if (typeof rec['title'] === 'string' && (typeof rec['url'] === 'string' || typeof rec['slug'] === 'string')) {
+      const title = rec['title'] as string;
+      const url = typeof rec['url'] === 'string'
+        ? (rec['url'].startsWith('http') ? rec['url'] : `${baseUrl}${rec['url']}`)
+        : `${baseUrl}/news/${rec['slug']}`;
+      const excerpt = typeof rec['description'] === 'string' ? rec['description']
+        : typeof rec['excerpt'] === 'string' ? rec['excerpt'] : null;
+      const thumbnailUrl = typeof rec['image'] === 'string' ? rec['image']
+        : typeof rec['thumbnail'] === 'string' ? rec['thumbnail'] : null;
+
+      if (title.length > 3 && !articles.some((a) => a.url === url)) {
+        articles.push({ url, title, excerpt, thumbnailUrl, publishedAt: null, source });
+      }
+    }
+    // Recurse into values
+    for (const val of Object.values(rec)) {
+      this.extractArticlesFromObject(val, articles, source, baseUrl);
     }
   }
 
