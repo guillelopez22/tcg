@@ -6,7 +6,7 @@ import { cardConditionEnum, cardVariantEnum } from './enums';
 export const collections = pgTable('collections', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  cardId: uuid('card_id').notNull().references(() => cards.id),
+  cardId: uuid('card_id').notNull().references(() => cards.id, { onDelete: 'cascade' }),
   variant: cardVariantEnum('variant').notNull().default('normal'),
   condition: cardConditionEnum('condition').notNull().default('near_mint'),
   purchasePrice: numeric('purchase_price', { precision: 10, scale: 2 }),
