@@ -71,8 +71,22 @@ export const shareCodeResolveSchema = z.object({
   code: z.string().min(3).max(12),
 });
 
+/**
+ * A valid import line must start with a positive integer (the quantity)
+ * followed by at least one space and at least one non-whitespace character
+ * (the card name). Example: "3 Zed, The Undying"
+ */
+const CARD_LINE_PATTERN = /^\s*[1-9]\d*\s+\S/m;
+
 export const deckImportTextSchema = z.object({
-  text: z.string().min(1).max(10000),
+  text: z
+    .string()
+    .min(1)
+    .max(10000, 'Import text must be 10,000 characters or fewer')
+    .refine(
+      (text) => CARD_LINE_PATTERN.test(text),
+      'Import text must contain at least one card line in the format "N CardName" (e.g. "3 Zed, The Undying")',
+    ),
   name: z.string().min(1).max(100).optional(),
 });
 
