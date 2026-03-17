@@ -30,6 +30,8 @@ COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
+COPY packages/r2/package.json ./packages/r2/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
 
 # Copy pnpm patch files referenced in package.json pnpm.patchedDependencies
 COPY patches ./patches
