@@ -2,7 +2,6 @@
 # La Grieta Web — Multi-stage Dockerfile
 # Target: apps/web (Next.js 14)
 # Base: node:20-alpine
-# Uses output: 'standalone' for minimal production image
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -17,7 +16,6 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY turbo.json ./
 
-# Copy all package.json files for workspace resolution
 COPY apps/web/package.json ./apps/web/
 COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
@@ -26,7 +24,6 @@ COPY packages/tsconfig/package.json ./packages/tsconfig/
 COPY packages/r2/package.json ./packages/r2/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 
-# Copy pnpm patch files referenced in package.json pnpm.patchedDependencies
 COPY patches ./patches
 
 RUN pnpm install --frozen-lockfile
@@ -40,10 +37,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy entire deps output (preserves pnpm workspace symlinks between packages)
+# Copy entire deps output (preserves pnpm workspace symlinks)
 COPY --from=deps /app ./
 
-# Overlay source code on top of installed dependencies
+# Overlay source code
 COPY . .
 
 # NEXT_PUBLIC_ env vars must be set at build time
@@ -57,7 +54,7 @@ ENV NEXT_PUBLIC_R2_PUBLIC_URL=$NEXT_PUBLIC_R2_PUBLIC_URL
 RUN pnpm turbo run build --filter=@la-grieta/web...
 
 # -----------------------------------------------------------------------------
-# Stage 3: runner
+# Stage 3: runner — use the full build output with next start
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 
@@ -66,14 +63,16 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
 WORKDIR /app
 
-# Copy standalone output
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+# Copy the full built app (node_modules, .next, public, package files)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next ./apps/web/.next
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
-
-# Fix Next.js 14.2.x standalone clientModules bug — copy the full next package
-# so the server can find next/dist/compiled/next-server/app-page.runtime.prod.js
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/next@*/node_modules/next ./node_modules/next
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/package.json ./apps/web/package.json
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/next.config.mjs ./apps/web/next.config.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/src/i18n ./apps/web/src/i18n
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/messages ./apps/web/messages
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
 
 USER nextjs
 
@@ -86,4 +85,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "apps/web/server.js"]
+CMD ["node_modules/.bin/next", "start", "apps/web", "--port", "3000"]

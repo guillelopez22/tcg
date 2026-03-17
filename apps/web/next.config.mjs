@@ -4,9 +4,6 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Produces a self-contained .next/standalone directory — required for
-  // Vercel monorepo deployments and optimal for Docker-based deployments.
-  output: 'standalone',
   images: {
     remotePatterns: [
       {
