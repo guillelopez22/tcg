@@ -9,6 +9,9 @@
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS deps
 
+# Cache bust: change this value to force fresh pnpm install
+ARG CACHE_BUST=2
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
