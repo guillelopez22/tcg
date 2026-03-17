@@ -14,7 +14,7 @@ import { DetailSkeleton } from '@/components/skeletons';
 import { CopyList } from './copy-list';
 
 interface PageProps {
-  params: { cardId: string };
+  params: Promise<{ cardId: string }>;
 }
 
 const RARITY_COLORS: Record<string, string> = {
@@ -27,8 +27,10 @@ const RARITY_COLORS: Record<string, string> = {
   Overnumbered: 'text-orange-400',
 };
 
+import { use } from 'react';
+
 export default function CardDetailPage({ params }: PageProps) {
-  const { cardId } = params;
+  const { cardId } = use(params);
   const { user } = useAuth();
   const router = useRouter();
   const t = useTranslations('collection');
