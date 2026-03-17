@@ -1,7 +1,6 @@
 node_modules
 .next
 .turbo
-dist
 .git
 .github
 .planning
@@ -9,13 +8,5 @@ dist
 riftbound-tcg-data
 docs
 certs
-apps/mobile
-apps/web/.next
-apps/api/dist
 coverage
-*.md
-!package.json
-!pnpm-workspace.yaml
-!pnpm-lock.yaml
-!turbo.json
-!patches/**
+apps/mobile
