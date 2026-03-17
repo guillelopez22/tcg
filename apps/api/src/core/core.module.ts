@@ -15,6 +15,15 @@ function requireEnv(name: string): string {
 }
 
 function createR2Service(): R2Service {
+  // R2 is optional — photo uploads won't work without it but the app still runs
+  if (!process.env['R2_ACCOUNT_ID']) {
+    console.warn('R2 not configured — photo uploads disabled');
+    return {
+      generateUploadUrl: () => {
+        throw new Error('R2 not configured — set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL');
+      },
+    };
+  }
   const config = validateR2Config(process.env);
   const client = createR2Client(config);
   return {
