@@ -1,61 +1,47 @@
 # =============================================================================
 # La Grieta Web — Dockerfile
-# Target: apps/web (Next.js 14.1)
-# Base: node:20-alpine
+# Uses npm (not pnpm) to avoid pnpm symlink issues with Next.js manifests
 # =============================================================================
-
-FROM node:20-alpine AS deps
-
-ARG CACHE_BUST=4
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
-WORKDIR /app
-
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
-COPY turbo.json ./
-COPY apps/web/package.json ./apps/web/
-COPY apps/api/package.json ./apps/api/
-COPY packages/db/package.json ./packages/db/
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/tsconfig/package.json ./packages/tsconfig/
-COPY packages/r2/package.json ./packages/r2/
-COPY packages/eslint-config/package.json ./packages/eslint-config/
-COPY patches ./patches
-
-RUN pnpm install --frozen-lockfile
 
 FROM node:20-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN apk add --no-cache dumb-init
+
 WORKDIR /app
 
-COPY --from=deps /app ./
+# Copy everything
 COPY . .
+
+# Install with npm (flat node_modules, no symlink issues)
+RUN npm install --legacy-peer-deps
 
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_R2_PUBLIC_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_R2_PUBLIC_URL=$NEXT_PUBLIC_R2_PUBLIC_URL
 
-RUN pnpm turbo run build --filter=@la-grieta/web...
+# Build the web app
+RUN cd apps/web && npx next build
 
+# --- Runner ---
 FROM node:20-alpine AS runner
 
 RUN apk add --no-cache dumb-init
-RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
 WORKDIR /app
 
+# Copy the built app with flat node_modules
 COPY --from=builder --chown=nextjs:nodejs /app ./
 
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=production
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["pnpm", "--filter", "@la-grieta/web", "start"]
+CMD ["npx", "--prefix", "apps/web", "next", "start", "--port", "3000"]
