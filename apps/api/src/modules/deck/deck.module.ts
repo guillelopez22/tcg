@@ -19,9 +19,9 @@ import type Redis from 'ioredis';
     },
     {
       provide: DeckService,
-      useFactory: (db: DbClient, validation: DeckValidationService) =>
-        new DeckService(db, validation),
-      inject: [DB_TOKEN, DeckValidationService],
+      useFactory: (db: DbClient, redis: Redis) =>
+        new DeckService(db, redis),
+      inject: [DB_TOKEN, REDIS_TOKEN],
     },
     {
       provide: DeckImportService,
