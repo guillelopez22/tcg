@@ -77,5 +77,7 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
+WORKDIR /app/apps/web
+
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["pnpm", "--filter", "@la-grieta/web", "start"]
+CMD ["pnpm", "start"]
