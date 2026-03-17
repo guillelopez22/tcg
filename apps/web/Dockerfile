@@ -64,16 +64,8 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
 WORKDIR /app
 
-# Copy the full built app (node_modules, .next, public, package files)
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next ./apps/web/.next
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/package.json ./apps/web/package.json
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/next.config.mjs ./apps/web/next.config.mjs
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/src/i18n ./apps/web/src/i18n
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/messages ./apps/web/messages
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+# Copy entire built app (includes pnpm workspace symlinks, node_modules, .next)
+COPY --from=builder --chown=nextjs:nodejs /app ./
 
 USER nextjs
 
@@ -86,5 +78,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
-COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 CMD ["pnpm", "--filter", "@la-grieta/web", "start"]
