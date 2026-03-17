@@ -1,10 +1,7 @@
-// Rendering: Root layout — server component, no data fetching
-
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
-import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getLocale } from 'next-intl/server';
 import { Providers } from '@/lib/providers';
+import { IntlProvider } from '@/lib/intl-provider';
 import './globals.css';
 
 const inter = Inter({
@@ -34,12 +31,9 @@ export const viewport: Viewport = {
   themeColor: '#0f0f14',
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = await getLocale();
-  const messages = await getMessages();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <a
           href="#main-content"
@@ -47,9 +41,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           Skip to content
         </a>
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        <IntlProvider>
           <Providers>{children}</Providers>
-        </NextIntlClientProvider>
+        </IntlProvider>
       </body>
     </html>
   );
