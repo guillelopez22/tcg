@@ -51,7 +51,7 @@ async function bootstrap(): Promise<void> {
   // Socket.IO adapter for WebSocket gateway
   app.useWebSocketAdapter(new IoAdapter(app));
 
-  const port = parseInt(process.env['API_PORT'] ?? '3001', 10);
+  const port = parseInt(process.env['PORT'] ?? process.env['API_PORT'] ?? '3001', 10);
   await app.listen(port);
   console.log(`La Grieta API running on http://localhost:${port}/${apiPrefix} [v2]`);
 }
