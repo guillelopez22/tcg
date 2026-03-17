@@ -79,7 +79,7 @@ export function CollectionGrid() {
   const [variantPickerCardId, setVariantPickerCardId] = useState<string | null>(null);
   const [pickerVariant, setPickerVariant] = useState<string>('normal');
   const [pickerCondition, setPickerCondition] = useState<string>('near_mint');
-  const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
+  const longPressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const longPressTriggered = useRef(false);
   const longPressCardId = useRef<string | null>(null);
 

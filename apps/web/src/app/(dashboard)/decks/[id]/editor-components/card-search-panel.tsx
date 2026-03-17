@@ -47,7 +47,7 @@ interface CardSearchPanelProps {
   isSearchLoading: boolean;
   hasNextPage: boolean | undefined;
   isFetchingNextPage: boolean;
-  loadMoreRef: RefObject<HTMLDivElement>;
+  loadMoreRef: RefObject<HTMLDivElement | null>;
   // suggestions
   suggestions: SuggestionItem[];
   isSuggestLoading: boolean;

@@ -7,7 +7,7 @@ interface NameStepProps {
   setDeckName: (name: string) => void;
   nameError: string;
   setNameError: (err: string) => void;
-  nameInputRef: RefObject<HTMLInputElement>;
+  nameInputRef: RefObject<HTMLInputElement | null>;
   onNext: () => void;
 }
 
