@@ -31,6 +31,9 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 
+# Copy pnpm patch files referenced in package.json pnpm.patchedDependencies
+COPY patches ./patches
+
 RUN pnpm install --frozen-lockfile
 
 # -----------------------------------------------------------------------------
