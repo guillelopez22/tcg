@@ -1,6 +1,6 @@
 # =============================================================================
 # La Grieta Web — Multi-stage Dockerfile
-# Target: apps/web (Next.js 14)
+# Target: apps/web (Next.js 15, standalone output)
 # Base: node:20-alpine
 # =============================================================================
 
@@ -9,14 +9,13 @@
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS deps
 
-# Cache bust: change this value to force fresh pnpm install
-ARG CACHE_BUST=2
+ARG CACHE_BUST=3
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY turbo.json ./
 
 COPY apps/web/package.json ./apps/web/
@@ -40,35 +39,33 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy entire deps output (preserves pnpm workspace symlinks)
 COPY --from=deps /app ./
-
-# Overlay source code
 COPY . .
 
-# NEXT_PUBLIC_ env vars must be set at build time
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_R2_PUBLIC_URL
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_R2_PUBLIC_URL=$NEXT_PUBLIC_R2_PUBLIC_URL
 
-# Build the web app and its workspace dependencies
 RUN pnpm turbo run build --filter=@la-grieta/web...
 
 # -----------------------------------------------------------------------------
-# Stage 3: runner — use the full build output with next start
+# Stage 3: runner — standalone output (Next.js 15 bundles everything correctly)
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 
 RUN apk add --no-cache dumb-init
-RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
 WORKDIR /app
 
-# Copy entire built app (includes pnpm workspace symlinks, node_modules, .next)
-COPY --from=builder --chown=nextjs:nodejs /app ./
+# Copy standalone server (includes all bundled dependencies)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+
+# Copy static assets and public files
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
 USER nextjs
 
@@ -81,4 +78,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["pnpm", "--filter", "@la-grieta/web", "start"]
+CMD ["node", "apps/web/server.js"]
