@@ -6,11 +6,11 @@
 import { JoinForm } from './join-form';
 
 interface MatchPageProps {
-  params: Promise<{ code: string }>;
+  params: { code: string };
 }
 
-export default async function PublicMatchPage({ params }: MatchPageProps) {
-  const { code } = await params;
+export default function PublicMatchPage({ params }: MatchPageProps) {
+  const { code } = params;
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
