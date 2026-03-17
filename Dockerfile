@@ -46,10 +46,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy installed node_modules from deps stage (pnpm hoists to root)
-COPY --from=deps /app/node_modules ./node_modules
+# Copy entire deps output (preserves pnpm workspace symlinks between packages)
+COPY --from=deps /app ./
 
-# Copy full source (everything needed to build)
+# Overlay source code on top of installed dependencies
 COPY . .
 
 # Build only the API and its workspace dependencies using Turborepo.

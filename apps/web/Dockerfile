@@ -38,7 +38,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
+# Copy entire deps output (preserves pnpm workspace symlinks between packages)
+COPY --from=deps /app ./
+
+# Overlay source code on top of installed dependencies
 COPY . .
 
 # NEXT_PUBLIC_ env vars must be set at build time
