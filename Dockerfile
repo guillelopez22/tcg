@@ -46,10 +46,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy installed node_modules from deps stage
+# Copy installed node_modules from deps stage (pnpm hoists to root)
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules 2>/dev/null || true
-COPY --from=deps /app/packages ./packages_nm_placeholder
 
 # Copy full source (everything needed to build)
 COPY . .
