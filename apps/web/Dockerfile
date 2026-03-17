@@ -71,6 +71,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
+# Fix Next.js 14.2.x standalone clientModules bug — copy the full next package
+# so the server can find next/dist/compiled/next-server/app-page.runtime.prod.js
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/next@*/node_modules/next ./node_modules/next
+
 USER nextjs
 
 EXPOSE 3000
