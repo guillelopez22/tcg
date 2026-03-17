@@ -59,6 +59,7 @@ RUN pnpm turbo run build --filter=@la-grieta/web...
 FROM node:20-alpine AS runner
 
 RUN apk add --no-cache dumb-init
+RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
 WORKDIR /app
@@ -85,4 +86,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/ || exit 1
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node_modules/.bin/next", "start", "apps/web", "--port", "3000"]
+COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+CMD ["pnpm", "--filter", "@la-grieta/web", "start"]
